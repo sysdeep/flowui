@@ -187,7 +187,7 @@ Continue with [Animation](12-animation.md).
 
 ## Instance styles vs. theme appearance
 
-`.Style(...)` is an **instance-level** override. Without it, a widget's default look comes from the theme provider (`theme/<x>style` recipes plus `Components.*` tokens); behavior and layout live in `widget/*` and never own concrete colors.
+`.Style(...)` is an **instance-level** override. Without it, a widget's default look comes from the theme provider (`theme/<domain>style` recipes plus `Components.*` tokens); behavior and layout live in `widget/*` and never own concrete colors.
 
 ```go
 // Instance override: affects this button only

@@ -8,7 +8,7 @@ Related controls use descriptive names, such as `input.TextArea` and
 
 ## Content
 
-`text.New`, `label.New`, `description.New`, `image.New`, `icon.New`, `avatar.New`, `badge.New`, and `chip.New`
+`text.New`, `text.NewLabel`, `text.NewDescription`, `image.New`, `icon.New`, `avatar.New`, `badge.New`, and `chip.New`
 cover common content and metadata needs.
 
 ```go
@@ -27,7 +27,7 @@ code.New("inline", "go", oneLine).LineNumbers(false)
 
 ## Actions
 
-`button.New`, `button.Group`, `dropdown.Button`, `togglebutton.New`, `closebutton.New`, and `chip.New` provide
+`button.New`, `button.Group`, `dropdown.Button`, `toggle.NewToggleButton`, `button.NewCloseButton`, and `chip.New` provide
 action-oriented controls. Use variants and sizes instead of copying paint code.
 
 ```go
@@ -41,7 +41,7 @@ Buttons, toggle buttons, tooltips, and input group actions accept plain text
 directly. Use `Content` when an icon, styled text, or a layout is needed:
 
 ```go
-togglebutton.New("Bold").Key("bold").Selected(model.Bold).OnChange(setBold)
+toggle.NewToggleButton("Bold").Key("bold").Selected(model.Bold).OnChange(setBold)
 tooltip.New("save-tip", saveButton, "Save changes")
 input.GroupAction("clear", "Clear").OnClick(clear)
 button.New("Save").Content(icon.New(lucide.Save)).IconOnly()
@@ -60,14 +60,14 @@ children with strings, and move custom children to `.Content(...)`.
 ## Forms
 
 The form family includes `input.New`, `input.TextArea`, `input.Group`, `input.GroupAction`,
-`checkbox.New`, `switchcontrol.New`, `radiogroup.New`, `selectfield.New`, `combobox.New`, date pickers, color
+`toggle.NewCheckbox`, `toggle.NewSwitch`, `radiogroup.New`, `selector.NewSelect`, `selector.NewCombobox`, date pickers, color
 pickers, and sliders. Form values are controlled by the model; callbacks send
 messages.
 
 `numericinput.New` adds controlled `float64` editing with `Range`, `Step`, and
 `Precision`. Incomplete drafts remain local until Enter or focus loss; invalid
 input restores the controlled value. Step buttons commit immediately.
-`segmented.New` provides compact, mutually exclusive choices; `FullWidth()` gives
+`toggle.NewSegmented` provides compact, mutually exclusive choices; `FullWidth()` gives
 each choice an equal share of the container. Clicking the current choice does
 not deselect it.
 
@@ -75,14 +75,14 @@ not deselect it.
 numericinput.New("amount", model.Amount).Range(-100, 100).Step(0.25).
 	Precision(2).Label("Amount").OnChange(setAmount)
 
-segmented.New([]segmented.Item{
+toggle.NewSegmented([]toggle.SegmentedItem{
 	{Key: "day", Label: "Day"}, {Key: "week", Label: "Week"},
 }).Key("period").SelectedKey(model.Period).OnChange(setPeriod)
 ```
 
 ## Navigation and overlays
 
-Use `tabs.New`, `sidebar.New`, `tree.New`, `menubar.New`, `menu.New`, `menu.ContextMenu`, `pagination.New`,
+Use `tabs.New`, `sidebar.New`, `tree.New`, `menubar.New`, `menu.New`, `menu.ContextMenu`, `navigation.NewPagination`,
 and `toolbar.New` for navigation. `dropdown.New`, `popover.New`, `tooltip.New`, `modal.New`,
 `alertdialog.New`, `toast.New`, and `portal.New` handle transient surfaces.
 
@@ -91,7 +91,7 @@ single-line title, automatic 3-second timeout, content-driven width, and no
 description, action, or close button. Use `toast.NewItem` when the feedback needs
 a description or action.
 
-`breadcrumb.New("path", items).OnChange(navigate)` displays a hierarchy: ancestors
+`navigation.NewBreadcrumb("path", items).OnChange(navigate)` displays a hierarchy: ancestors
 are clickable, and the final item is the current location. It wraps in narrow containers.
 
 `commandpalette.New("commands", model.Open, commands).OnOpenChange(setOpen)` shares
@@ -176,13 +176,13 @@ plus a tree page covering loading, filtering, checkboxes, rename, and drag and d
 ## Layout and shells
 
 `layout.Box`, `layout.Row`, `layout.Column`, `layout.Grid`, `layout.Wrap`, `layout.Stack`, `layout.Scroll`, `layout.SplitPane`,
-`dock.New`, `panel.New`, `surface.New`, `card.New`, `layout.Overlay`,
+`dock.New`, `surface.NewPanel`, `surface.New`, `surface.NewCard`, `layout.Overlay`,
 `titlebar.New`, and `statusbar.New` form the page shell.
 
 `animation.Tween` interpolates values and `animation.AnimateLayout` animates
 layout dimensions. Both follow the theme Motion setting; see the Animation showcase page.
 
-`panel.New` owns the lifecycle of one visible view without
+`surface.NewPanel` owns the lifecycle of one visible view without
 rendering navigation. `KeepAlive(true)` retains hidden widget state,
 `ForceRender(true)` initializes inactive views in an isolated pass, and
 `DestroyOnHidden(true)` takes precedence when views must be recreated.

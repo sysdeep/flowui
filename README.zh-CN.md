@@ -144,13 +144,13 @@ Command 在事件循环外执行，并通过 `ui.Send` 返回结果。订阅用�
 
 | 分类 | 包含的 API |
 | --- | --- |
-| 内容 | `text.New`、`label.New`、`description.New`、`image.New`、`avatar.New`、`badge.New`、`chip.New` |
-| 操作 | `button.New`、`button.Group`、`togglebutton.New`、`closebutton.New` |
-| 表单 | `input.New`、`input.NewTextArea`、`checkbox.New`、`switchcontrol.New`、`radiogroup.New`、`selectfield.New`、`combobox.New`、日期和颜色选择器 |
-| 导航 | `tabs.New`、`sidebar.New`、`tree.New`、`menu.New`、`menubar.New`、`pagination.New`、`toolbar.New` |
+| 内容 | `text.New`、`text.NewLabel`、`text.NewDescription`、`image.New`、`avatar.New`、`badge.New`、`chip.New` |
+| 操作 | `button.New`、`button.Group`、`toggle.NewToggleButton`、`toggle.NewSegmented`、`button.NewCloseButton` |
+| 表单 | `input.New`、`input.NewTextArea`、`toggle.NewCheckbox`、`toggle.NewSwitch`、`radiogroup.New`、`selector.NewSelect`、`selector.NewCombobox`、日期和颜色选择器 |
+| 导航 | `tabs.New`、`sidebar.New`、`tree.New`、`menu.New`、`menubar.New`、`navigation.NewPagination`、`navigation.NewBreadcrumb`、`toolbar.New` |
 | 浮层 | `dropdown.New`、`menu.ContextMenu`、`popover.New`、`tooltip.New`、`modal.New`、`alertdialog.New`、`toast.NewItem` |
 | 数据与反馈 | `table.New`、`progress.Bar`、`progress.Circle`、`progress.Meter`、`spinner.New`、`slider.New`、图表、`heatmap.New`、`gantt.New` |
-| 布局 | `layout.Box`、`surface.New`、`card.New`、`layout.Row`、`layout.Column`、`layout.Grid`、`layout.Scroll`、`layout.SplitPane`、`layout.Stack`、`layout.Overlay` |
+| 布局 | `layout.Box`、`surface.New`、`surface.NewCard`、`surface.NewPanel`、`layout.Row`、`layout.Column`、`layout.Grid`、`layout.Scroll`、`layout.SplitPane`、`layout.Stack`、`layout.Overlay` |
 
 可以阅读[组件一览](https://qianniancn.github.io/flowui/guide/06-组件一览/)，
 了解完整的组件目录。

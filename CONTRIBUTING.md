@@ -45,15 +45,16 @@ When adding or changing a component:
    `widget/<component>`. Applications import that package directly; `ui/` owns
    the MVU/runtime API.
 2. Keep visual requests, results, Provider contracts, and validators together
-   in `theme/<component>_visual.go`. Implement shared visual recipes in
-   `theme/<component>style`, and wire them once through `theme/base.Provider`.
-   External themes inherit the shared recipe and override it only when needed.
+   in `theme/<component>_visual.go`. Implement shared visual recipes in the
+   matching `theme/<domain>style` package, using a prefixed file set and
+   prefixed unexported helpers, and wire them once through
+   `theme/base.Provider`. External themes inherit the shared recipe and override
+   it only when needed.
 3. Update the matching fixture in `internal/testtheme/<component>.go` when the
    behavior tests need a new visual capability. Keep these fixtures independent
    of production recipes. Use `theme/themetest` to check production Providers.
 4. Update `examples/` when a public usage change needs a runnable demonstration.
-   Keep new example-only assets beside the example; use `examples/internal/`
-   when several examples share them.
+   Keep new example-only assets beside the example.
 5. Preserve the dependency direction described in the architecture document
    and keep existing public import paths stable during file organization work.
 
@@ -63,9 +64,10 @@ When adding or changing a component:
   `widget/navigation`, and `widget/optionrow` packages provide reusable behavior
   and rendering primitives rather than complete controls. `widget/chart`
   includes shared public chart data and interaction contracts.
-- `theme/<component>style` owns appearance recipes. Helpers used only by the
-  theme tree belong in `theme/internal/`; shared behavior used across framework
-  layers belongs in root `internal/`.
+- `theme/<domain>style` owns the appearance recipes for its domain, with one
+  prefixed file set per component. Helpers used only by the theme tree belong
+  in `theme/internal/`; shared behavior used across framework layers belongs in
+  root `internal/`.
 - `internal/testtheme` supplies neutral fixtures for repository tests only.
   Keep the entry points in `testtheme.go`, component fixtures in focused files,
   and shared field declaration helpers in `field.go`.

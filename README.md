@@ -155,13 +155,13 @@ cover the complete contracts.
 
 | Area | Included APIs |
 | --- | --- |
-| Content | `text.New`, `label.New`, `description.New`, `image.New`, `avatar.New`, `badge.New`, `chip.New` |
-| Actions | `button.New`, `button.Group`, `togglebutton.New`, `closebutton.New` |
-| Forms | `input.New`, `input.NewTextArea`, `checkbox.New`, `switchcontrol.New`, `radiogroup.New`, `selectfield.New`, `combobox.New`, date and color pickers |
-| Navigation | `tabs.New`, `sidebar.New`, `tree.New`, `menu.New`, `menubar.New`, `pagination.New`, `toolbar.New` |
+| Content | `text.New`, `text.NewLabel`, `text.NewDescription`, `image.New`, `avatar.New`, `badge.New`, `chip.New` |
+| Actions | `button.New`, `button.Group`, `toggle.NewToggleButton`, `toggle.NewSegmented`, `button.NewCloseButton` |
+| Forms | `input.New`, `input.NewTextArea`, `toggle.NewCheckbox`, `toggle.NewSwitch`, `radiogroup.New`, `selector.NewSelect`, `selector.NewCombobox`, date and color pickers |
+| Navigation | `tabs.New`, `sidebar.New`, `tree.New`, `menu.New`, `menubar.New`, `navigation.NewPagination`, `navigation.NewBreadcrumb`, `toolbar.New` |
 | Overlays | `dropdown.New`, `menu.ContextMenu`, `popover.New`, `tooltip.New`, `modal.New`, `alertdialog.New`, `toast.NewItem` |
 | Data and feedback | `table.New`, `progress.Bar`, `progress.Circle`, `progress.Meter`, `spinner.New`, `slider.New`, charts, `heatmap.New`, `gantt.New` |
-| Layout | `layout.Box`, `surface.New`, `card.New`, `layout.Row`, `layout.Column`, `layout.Grid`, `layout.Scroll`, `layout.SplitPane`, `layout.Stack`, `layout.Overlay` |
+| Layout | `layout.Box`, `surface.New`, `surface.NewCard`, `surface.NewPanel`, `layout.Row`, `layout.Column`, `layout.Grid`, `layout.Scroll`, `layout.SplitPane`, `layout.Stack`, `layout.Overlay` |
 
 See the [component guide](https://qianniancn.github.io/flowui/en/guide/06-components/)
 for the complete widget catalog.

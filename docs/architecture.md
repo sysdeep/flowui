@@ -35,7 +35,7 @@ import "github.com/qianniancn/flowui/window"         // native window options
 | The MVU kernel and per-window services | `ui` | `Context`, `Cmd`, `Subscription`, `Application` |
 | A component's behaviour and domain layout | `widget/<component>` | Constructors, interaction state, accessibility, and layout |
 | Component visual contracts and validation | `theme` | Provider interfaces and focused `*_visual.go` files |
-| Shared appearance recipes | `theme/<component>style` | Builds visuals from the active theme and request |
+| Shared appearance recipes | `theme/<domain>style` | Builds visuals from the active theme and request |
 | Default design system | `theme/base` | Light/dark entry points, seed constructors and complete Provider |
 | Other design systems | External modules | Palette, geometry and Provider overrides through public core APIs |
 
@@ -114,12 +114,12 @@ itself a reason to introduce another grouping layer.
 | `widget/disclosure`, `widget/navigation`, `widget/optionrow` | Public reusable state, keyboard-navigation, and option-row primitives; not complete controls |
 | `widget/chart` | Shared chart types, annotations, scales, and interaction helpers; several types appear in public chart APIs |
 | `theme/<component>_visual.go` | A component's requests, visual results, contracts, and validators in the existing `theme` package |
-| `theme/<component>style` | Public component appearance recipes; retain the existing import paths |
+| `theme/<domain>style` | Appearance recipes in eight domains: action, field, feedback, navigation, overlay, surface, data, and chart; each component keeps a prefixed file set inside its domain |
 | `theme/internal/fieldstyle` | Shared field appearance recipes used only within the theme tree |
 | `internal/field` | Shared editable-field behavior and style hooks |
 | `internal/testtheme` | Neutral component fixtures imported only by repository tests |
 | `theme/themetest` | Public acceptance checks for real theme Providers |
-| `examples/` | Runnable applications in the root Go module; shared example-only code and assets may use `examples/internal/` |
+| `examples/` | Runnable applications in the root Go module; keep example-only assets beside their example |
 | `docs/assets/` | Images used by the documentation |
 
 `internal/testtheme` keeps behavior and cache tests independent of changes to
@@ -156,7 +156,7 @@ application
     +--> theme (palettes, metrics, visual contracts, and validators)
     |      +--> style
     +--> theme/base (default Provider)
-    |      +--> theme/<component>style (shared visual recipes)
+    |      +--> theme/<domain>style (shared visual recipes)
     |              +--> theme, appearance, style, draw
     +--> draw
     |      +--> theme
@@ -280,9 +280,10 @@ outlined danger button is a neutral box carrying danger text" is shared by
 the default and external Providers.
 
 A visual recipe therefore declares a small **design table** and stops
-re-deriving colours. `theme/buttonstyle` is the worked example: it maps each
-one-dimensional `ButtonVariant` onto an `appearance.Design` and resolves the
-corresponding colors. `widget/button` consumes the resulting visual contract.
+re-deriving colours. The button files in `theme/actionstyle` are the worked
+example: they map each one-dimensional `ButtonVariant` onto an
+`appearance.Design` and resolve the corresponding colors. `widget/button`
+consumes the resulting visual contract.
 
 ### Three entry points, three shapes
 
@@ -707,12 +708,12 @@ be vetoed through this contract.
    collisions such as `layout`, native API mirrors such as `internal/sys`'s
    `GetMessage`) follow the naming rules documented in this section.
    **The type name follows the same count rule**: a package with a single main
-   control names it `Widget` (`button.Widget`, `selectfield.Widget`,
-   `switchcontrol.Widget`); a package with several parallel controls names each
-   `XxxWidget` (`layout.RowWidget`, `switchcontrol.GroupWidget`).
+   control names it `Widget` (`button.Widget`, `selector.SelectWidget`); a package
+   with several parallel controls names each `XxxWidget`
+   (`layout.RowWidget`, `toggle.SwitchWidget`).
 4. Keep model values controlled and report changes through callbacks.
 5. Keep the visual protocol and validator in `theme/<component>_visual.go`,
-   the shared recipe in `theme/<component>style`, and neutral test fixtures in
+   the shared recipe in `theme/<domain>style`, and neutral test fixtures in
    `internal/testtheme/<component>.go`. Wire the capability into the complete
    default Provider and the `theme/themetest` acceptance checks. External
    Providers inherit the default recipe unless they override it.
