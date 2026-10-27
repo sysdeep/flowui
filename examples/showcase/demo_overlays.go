@@ -13,7 +13,6 @@ import (
 	"github.com/qianniancn/flowui/widget/alert"
 	"github.com/qianniancn/flowui/widget/alertdialog"
 	"github.com/qianniancn/flowui/widget/button"
-	"github.com/qianniancn/flowui/widget/card"
 	"github.com/qianniancn/flowui/widget/dropdown"
 	"github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/menu"
@@ -24,6 +23,7 @@ import (
 	"github.com/qianniancn/flowui/widget/progress"
 	"github.com/qianniancn/flowui/widget/slider"
 	"github.com/qianniancn/flowui/widget/spinner"
+	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/widget/toast"
 	"github.com/qianniancn/flowui/widget/tooltip"
@@ -129,7 +129,7 @@ func demoPortal(m demoState, send ui.Send[Msg]) ui.Widget {
 			gtx.Constraints.Min = image.Point{}
 			gtx.Constraints.Max.X = max(1, gtx.Constraints.Max.X-position.X)
 			gtx.Constraints.Max.Y = max(1, gtx.Constraints.Max.Y-position.Y)
-			return card.New(text.New("这段内容绘制在窗口根浮层。")).Layout(ctx, gtx)
+			return surface.NewCard(text.New("这段内容绘制在窗口根浮层。")).Layout(ctx, gtx)
 		})
 	}).Passive(true)
 }

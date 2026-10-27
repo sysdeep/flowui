@@ -11,7 +11,7 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/closebutton"
+	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/disclosure"
 )
 
@@ -40,7 +40,7 @@ type modalState struct {
 	focusEnd            modalFocusTag
 	transition          animation.FloatTransition
 	visualCache         modalVisualCache
-	closeButton         *closebutton.Widget
+	closeButton         *button.CloseButtonWidget
 	focusPending        bool
 	disclosure          disclosure.Binding[bool]
 	open                bool // cached effective open, updated by isOpen/requestOpen
@@ -121,9 +121,9 @@ func (s *modalState) endFocusTag() event.Tag {
 
 // closeButtonWidget retains the Provider cache across modal frames while
 // keeping CloseButton's behavior and clickable state owned by modalState.
-func (s *modalState) closeButtonWidget() *closebutton.Widget {
+func (s *modalState) closeButtonWidget() *button.CloseButtonWidget {
 	if s.closeButton == nil {
-		value := closebutton.New("close")
+		value := button.NewCloseButton("close")
 		s.closeButton = &value
 	}
 	return s.closeButton

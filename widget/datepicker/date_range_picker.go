@@ -15,8 +15,6 @@ import (
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/description"
-	"github.com/qianniancn/flowui/widget/label"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -233,7 +231,7 @@ func (d DateRangePickerWidget) layoutField(ctx *core.Context, gtx layout.Context
 	)
 	if d.label != "" {
 		children[count] = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			dimensions := label.New(d.label).
+			dimensions := text.NewLabel(d.label).
 				For(d.key).
 				Required(d.required).
 				Disabled(!enabled).
@@ -264,7 +262,7 @@ func (d DateRangePickerWidget) layoutField(ctx *core.Context, gtx layout.Context
 		count++
 	} else if d.description != "" {
 		children[count] = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return (description.New(d.description).
+			return (text.NewDescription(d.description).
 				For(d.key).
 				Disabled(!enabled)).Style(style.TextDeclaration(descriptionResolved.Text)).Layout(ctx, gtx)
 		})

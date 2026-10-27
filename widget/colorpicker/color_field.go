@@ -9,9 +9,7 @@ import (
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/description"
 	"github.com/qianniancn/flowui/widget/input"
-	"github.com/qianniancn/flowui/widget/label"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -154,7 +152,7 @@ func (field ColorFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.C
 	children := make([]layout.FlexChild, 0, 3)
 	if field.label != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return label.New(field.label).
+			return text.NewLabel(field.label).
 				For(inputKey).
 				Required(field.required).
 				Disabled(field.disabled).
@@ -174,7 +172,7 @@ func (field ColorFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.C
 		}))
 	} else if field.description != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return description.New(field.description).
+			return text.NewDescription(field.description).
 				For(inputKey).
 				Disabled(field.disabled).
 				Layout(ctx, gtx)

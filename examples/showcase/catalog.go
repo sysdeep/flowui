@@ -20,10 +20,10 @@ var catalog = []entry{
 	},
 	{key: "togglebutton", title: "ToggleButton · 切换按钮", group: "操作", packages: "togglebutton", source: "demo_actions.go",
 		summary: "带选中状态的操作，适合编辑器格式和工具开关。", demo: demoToggle,
-		code: `togglebutton.New("加粗").Key("bold").Selected(m.Bold).OnChange(setBold)`},
+		code: `toggle.NewToggleButton("加粗").Key("bold").Selected(m.Bold).OnChange(setBold)`},
 	{key: "closebutton", title: "CloseButton · 关闭按钮", group: "操作", packages: "closebutton", source: "demo_actions.go",
 		summary: "紧凑的关闭操作，带键盘焦点和无障碍标签。", demo: demoClose,
-		code: `closebutton.New("dismiss").OnClick(dismiss)`},
+		code: `button.NewCloseButton("dismiss").OnClick(dismiss)`},
 	{key: "command", title: "Command · 命令与快捷键", group: "操作", packages: "command", source: "demo_actions.go",
 		summary: "让按钮、菜单和快捷键共享同一个操作。点击演示区域后可按 Ctrl+S。", demo: demoCommand,
 		code: `save := command.New("save", "保存").
@@ -36,29 +36,29 @@ input.NewTextArea(m.Notes).Key("notes").OnChange(setNotes)
 input.Group(input.New(m.Site).Key("site")).Prefix(text.New("https://"))`},
 	{key: "checkbox", title: "Checkbox · 复选框", group: "表单", packages: "checkbox", source: "demo_forms.go",
 		summary: "多项选择、部分选中与禁用状态。", demo: demoCheckbox,
-		code: `checkbox.New("接收通知").Key("notice").Checked(m.Notice).OnChange(setNotice)`},
+		code: `toggle.NewCheckbox("接收通知").Key("notice").Checked(m.Notice).OnChange(setNotice)`},
 	{key: "numericinput", title: "NumericInput · 数字输入", group: "表单", packages: "numericinput", source: "demo_controls.go",
 		summary: "支持负数、小数、步进、精度和边界，编辑草稿在回车或失焦时提交。", demo: demoNumericInput,
 		code: `numericinput.New(m.Amount).Key("amount").Range(-100, 100).Step(0.25).
     Precision(2).Label("金额").OnChange(setAmount)`},
 	{key: "segmented", title: "Segmented · 分段选择", group: "表单", packages: "segmented", source: "demo_controls.go",
 		summary: "紧凑的互斥选项，支持禁用选项与等宽布局。", demo: demoSegmented,
-		code: `segmented.New([]segmented.Item{
+		code: `toggle.NewSegmented([]toggle.SegmentedItem{
     {Key: "day", Label: "日"}, {Key: "week", Label: "周"},
 }).Key("period").SelectedKey(m.Period).OnChange(setPeriod)`},
 	{key: "switchcontrol", title: "Switch · 开关", group: "表单", packages: "switchcontrol", source: "demo_forms.go",
 		summary: "立即生效的布尔设置。", demo: demoSwitch,
-		code: `switchcontrol.New("自动同步").Key("sync").Checked(m.Sync).OnChange(setSync)`},
+		code: `toggle.NewSwitch("自动同步").Key("sync").Checked(m.Sync).OnChange(setSync)`},
 	{key: "radiogroup", title: "RadioGroup · 单选组", group: "表单", packages: "radiogroup", source: "demo_forms.go",
 		summary: "从一组可见选项中选择一项。", demo: demoRadio,
 		code: `radiogroup.New(items).Key("platform").SelectedKey(m.Platform).OnChange(setPlatform)`},
 	{key: "selectfield", title: "Select · 选择器", group: "表单", packages: "selectfield", source: "demo_forms.go",
 		summary: "单选、多选以及带分组的选项列表。", demo: demoSelect,
-		code: `selectfield.New(items).Key("platform").SelectedKey(m.Platform).OnChange(setPlatform)
-selectfield.New(items).Key("tags").SelectedKeys(m.Tags).OnSelectionChange(setTags)`},
+		code: `selector.NewSelect(items).Key("platform").SelectedKey(m.Platform).OnChange(setPlatform)
+selector.NewSelect(items).Key("tags").SelectedKeys(m.Tags).OnSelectionChange(setTags)`},
 	{key: "combobox", title: "ComboBox · 搜索选择", group: "表单", packages: "combobox", source: "demo_forms.go",
 		summary: "输入关键字筛选选项，选中值与搜索文字分别受控。", demo: demoCombo,
-		code: `combobox.New(items).Key("language").SelectedKey(m.Language).
+		code: `selector.NewCombobox(items).Key("language").SelectedKey(m.Language).
     InputValue(m.Query).OnInputChange(setQuery).OnChange(setLanguage)`},
 	{key: "datepicker", title: "DatePicker · 日期", group: "表单", packages: "datepicker", source: "demo_forms.go",
 		summary: "日历弹层、可编辑日期字段与日期范围，使用中文本地化。", demo: demoDate,
@@ -75,8 +75,8 @@ slider.RangeSlider("range", m.Lower, m.Upper).OnRangeChange(setRange)`},
 	{key: "text", title: "Text · 文本", group: "内容", packages: "text label description", source: "demo_content.go",
 		summary: "标题、正文、可选择文本，以及关联输入框的标签和辅助说明。", demo: demoText,
 		code: `text.New("项目概览").Size(24).Weight(font.Bold)
-label.New("项目名称").For("project")
-description.New("使用易于识别的名称").For("project")`},
+text.NewLabel("项目名称").For("project")
+text.NewDescription("使用易于识别的名称").For("project")`},
 	{key: "icon", title: "Icon · 图标", group: "内容", packages: "icon", source: "demo_content.go",
 		summary: "使用已有 Lucide 图标包，搭配文字或用于纯图标按钮。", demo: demoIcon,
 		code: `icon.New(lucide.Search).Size(20)
@@ -96,7 +96,7 @@ button.New("添加").Content(icon.New(lucide.Plus)).IconOnly()`},
 		code: `chip.New("已发布")`},
 	{key: "card", title: "Card · 卡片", group: "内容", packages: "card", source: "demo_content.go",
 		summary: "把标题、说明与操作组织成一个内容单元。", demo: demoCard,
-		code: `card.New(text.New("FlowUI"), text.New("桌面组件库"), saveButton)`},
+		code: `surface.NewCard(text.New("FlowUI"), text.New("桌面组件库"), saveButton)`},
 	{key: "code", title: "Code · 代码块", group: "内容", packages: "code", source: "demo_content.go",
 		summary: "只读代码块：语法高亮、拖拽选择与复制。", demo: demoCode,
 		code: `code.New("snippet", "go", source).Size(13)`},
@@ -133,7 +133,7 @@ listbox.New(items).Key("languages").SelectedKeys(m.Languages).OnSelectionChange(
     OnLoadChildrenEvent(loadChildren).OnRename(rename).CanDrop(canDrop).OnDrop(move)`},
 	{key: "breadcrumb", title: "Breadcrumb · 面包屑", group: "数据与导航", packages: "breadcrumb", source: "demo_controls.go",
 		summary: "点击祖先层级导航，最后一项表示当前位置，窄窗口下自动换行。", demo: demoBreadcrumb,
-		code: `breadcrumb.New("path", []breadcrumb.Item{
+		code: `navigation.NewBreadcrumb("path", []navigation.BreadcrumbItem{
     {Key: "home", Label: "首页"}, {Key: "docs", Label: "文档"},
 }).OnChange(navigate)`},
 	{key: "tabs", title: "Tabs · 标签页", group: "数据与导航", packages: "tabs", source: "demo_navigation.go",
@@ -141,7 +141,7 @@ listbox.New(items).Key("languages").SelectedKeys(m.Languages).OnSelectionChange(
 		code: `tabs.New("tabs", m.Tab, items).OnChange(setTab)`},
 	{key: "pagination", title: "Pagination · 分页", group: "数据与导航", packages: "pagination", source: "demo_navigation.go",
 		summary: "页码导航与当前页反馈。", demo: demoPagination,
-		code: `pagination.New("pages", m.Page, 12).OnChange(setPage)`},
+		code: `navigation.NewPagination("pages", m.Page, 12).OnChange(setPage)`},
 	{key: "sidebar", title: "Sidebar · 侧栏", group: "数据与导航", packages: "sidebar", source: "demo_navigation.go",
 		summary: "分组导航与固定页头页脚；本展示的左侧目录也使用此组件。", demo: demoSidebar,
 		code: `sidebar.NewSections("nav", m.Page, sections).OnChange(setPage)`},
@@ -236,7 +236,7 @@ skeleton.New().Height(100).Animated(false)`},
     ShowMinimize(false).ShowMaximize(false).ShowClose(false)`},
 	{key: "panel", title: "Panel · 内容面板", group: "应用布局", packages: "panel", source: "demo_workspace.go",
 		summary: "按 key 切换内容，保留非活动面板的内部状态。", demo: demoPanel,
-		code: `panel.New("panels", m.Panel, items).KeepAlive(true)`},
+		code: `surface.NewPanel("panels", m.Panel, items).KeepAlive(true)`},
 	{key: "dock", title: "Dock · 停靠布局", group: "应用布局", packages: "dock", source: "demo_workspace.go",
 		summary: "嵌套分区和可拖动分隔条，适合资源栏、编辑区与输出区。", demo: demoDock,
 		code: `dock.New("dock", dock.Split("split", dock.Horizontal,
@@ -245,7 +245,7 @@ skeleton.New().Height(100).Animated(false)`},
 		summary: "将标签、面板和命令绑定到同一份工作台状态；支持切换、关闭和重新打开文档。", demo: demoWorkbench,
 		code: `controller := workbench.NewController(m.Workbench)
 controller.BindTabs("editor", tabs.New("documents", "", tabItems))
-controller.BindPanel("editor", panel.New("documents-body", "", panels))`},
+controller.BindPanel("editor", surface.NewPanel("documents-body", "", panels))`},
 	{key: "layout", title: "Layout · 布局构件", group: "应用布局", packages: "", source: "demo_workspace.go",
 		summary: "行列、自动换行、网格、叠放、滚动和可拖动分割布局。", demo: demoLayout,
 		code: `layout.Wrap(children...).Gap(8).LineGap(8)

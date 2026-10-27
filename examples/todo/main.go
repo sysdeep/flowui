@@ -10,9 +10,9 @@ import (
 	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/ui"
 	buttonpkg "github.com/qianniancn/flowui/widget/button"
-	checkboxpkg "github.com/qianniancn/flowui/widget/checkbox"
 	inputpkg "github.com/qianniancn/flowui/widget/input"
 	textpkg "github.com/qianniancn/flowui/widget/text"
+	"github.com/qianniancn/flowui/widget/toggle"
 	"github.com/qianniancn/flowui/window"
 )
 
@@ -132,7 +132,7 @@ func addControls(m Model, canAdd bool, send ui.Send[Msg]) ui.Widget {
 
 func todoRow(item Item, send ui.Send[Msg]) ui.Widget {
 	checkbox := layout.Box(
-		checkboxpkg.New(item.Text).Key("done").Checked(item.Done).OnChange(func(done bool) {
+		toggle.NewCheckbox(item.Text).Key("done").Checked(item.Done).OnChange(func(done bool) {
 			send(SetDone{ID: item.ID, Done: done})
 		}),
 	).Style(style.New().FillWidth())

@@ -16,7 +16,7 @@ import (
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/closebutton"
+	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -583,7 +583,7 @@ func (m Widget) layoutCloseButton(ctx *core.Context, gtx layout.Context, modalSt
 	buttonGtx := gtx
 	buttonGtx.Constraints = layout.Exact(size)
 	stack := op.Offset(pos).Push(gtx.Ops)
-	closebutton.LayoutWithClickableNoEvents(
+	button.LayoutCloseButtonWithClickableNoEvents(
 		*modalStateValue.closeButtonWidget(),
 		ctx,
 		buttonGtx,

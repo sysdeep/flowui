@@ -8,7 +8,6 @@ import (
 	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/input"
-	"github.com/qianniancn/flowui/widget/label"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/window"
 )
@@ -148,7 +147,7 @@ func section(title string, child ui.Widget) ui.Widget {
 
 func labeledInput(title, key string, field input.Widget) ui.Widget {
 	return layout.Column(
-		label.New(title).For(key),
+		text.NewLabel(title).For(key),
 		layout.Box(field).Style(style.New().Width(320)),
 	).Gap(6)
 }

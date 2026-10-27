@@ -14,14 +14,11 @@ import (
 	"github.com/qianniancn/flowui/widget/avatar"
 	"github.com/qianniancn/flowui/widget/badge"
 	"github.com/qianniancn/flowui/widget/button"
-	"github.com/qianniancn/flowui/widget/card"
 	"github.com/qianniancn/flowui/widget/chip"
 	"github.com/qianniancn/flowui/widget/code"
-	"github.com/qianniancn/flowui/widget/description"
 	"github.com/qianniancn/flowui/widget/icon"
 	"github.com/qianniancn/flowui/widget/image"
 	"github.com/qianniancn/flowui/widget/input"
-	"github.com/qianniancn/flowui/widget/label"
 	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/text"
 )
@@ -33,10 +30,10 @@ func demoText(m demoState, send ui.Send[Msg]) ui.Widget {
 		muted("辅助信息 · 随明暗主题调整对比度"),
 		text.Selectable("selectable-text", "这段文字可以用鼠标选择并复制。"),
 		layout.Divider(),
-		label.New("项目名称").For("label-project"),
+		text.NewLabel("项目名称").For("label-project"),
 		input.New(m.name).Key("label-project").FullWidth().
 			OnChange(setString(send, func(m *demoState) *string { return &m.name })),
-		description.New("使用易于识别的名称，点击标签可聚焦输入框。").For("label-project"),
+		text.NewDescription("使用易于识别的名称，点击标签可聚焦输入框。").For("label-project"),
 	).Gap(14)
 }
 
@@ -92,7 +89,7 @@ func demoChip(_ demoState, _ ui.Send[Msg]) ui.Widget {
 }
 
 func demoCard(_ demoState, send ui.Send[Msg]) ui.Widget {
-	return card.New(layout.Column(
+	return surface.NewCard(layout.Column(
 		layout.Row(avatar.New("FL"), layout.Column(
 			text.New("FlowUI").Size(20).Weight(font.Bold), muted("原生桌面组件库"),
 		).Gap(4)).Gap(12).AlignMiddle(),

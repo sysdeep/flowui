@@ -5,15 +5,14 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/ui"
-	"github.com/qianniancn/flowui/widget/breadcrumb"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/command"
 	"github.com/qianniancn/flowui/widget/commandpalette"
+	widgetnav "github.com/qianniancn/flowui/widget/navigation"
 	"github.com/qianniancn/flowui/widget/numericinput"
-	"github.com/qianniancn/flowui/widget/segmented"
 	"github.com/qianniancn/flowui/widget/skeleton"
-	"github.com/qianniancn/flowui/widget/switchcontrol"
 	"github.com/qianniancn/flowui/widget/text"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 func demoNumericInput(m demoState, send ui.Send[Msg]) ui.Widget {
@@ -28,21 +27,21 @@ func demoNumericInput(m demoState, send ui.Send[Msg]) ui.Widget {
 }
 
 func demoSegmented(m demoState, send ui.Send[Msg]) ui.Widget {
-	items := []segmented.Item{
+	items := []toggle.SegmentedItem{
 		{Key: "day", Label: "日"}, {Key: "week", Label: "周"}, {Key: "month", Label: "月"},
 		{Key: "year", Label: "年", Disabled: true},
 	}
 	changed := setString(send, func(m *demoState) *string { return &m.segment })
 	return layout.Column(
-		segmented.New(items).Key("period").SelectedKey(m.segment).OnChange(changed),
+		toggle.NewSegmented(items).Key("period").SelectedKey(m.segment).OnChange(changed),
 		muted("占满容器宽度"),
-		segmented.New(items).Key("period-full").SelectedKey(m.segment).FullWidth().OnChange(changed),
+		toggle.NewSegmented(items).Key("period-full").SelectedKey(m.segment).FullWidth().OnChange(changed),
 		text.New("当前周期："+m.segment),
 	).Gap(16)
 }
 
 func demoBreadcrumb(m demoState, send ui.Send[Msg]) ui.Widget {
-	path := []breadcrumb.Item{
+	path := []widgetnav.BreadcrumbItem{
 		{Key: "home", Label: "首页"}, {Key: "docs", Label: "文档"}, {Key: "components", Label: "组件"},
 	}
 	for index, item := range path {
@@ -52,7 +51,7 @@ func demoBreadcrumb(m demoState, send ui.Send[Msg]) ui.Widget {
 		}
 	}
 	return layout.Column(
-		breadcrumb.New("location", path).OnChange(setString(send, func(m *demoState) *string { return &m.location })),
+		widgetnav.NewBreadcrumb("location", path).OnChange(setString(send, func(m *demoState) *string { return &m.location })),
 		text.New("当前位置："+m.location),
 		button.New("回到组件页").Variant(button.Secondary).
 			OnClick(func() { send(demoMsg(func(m *demoState) { m.location = "components" })) }),
@@ -68,7 +67,7 @@ func demoSkeleton(m demoState, send ui.Send[Msg]) ui.Widget {
 		).Gap(16).AlignMiddle()
 	}
 	return layout.Column(
-		switchcontrol.New("模拟加载中").Key("loading").Checked(m.loading).
+		toggle.NewSwitch("模拟加载中").Key("loading").Checked(m.loading).
 			OnChange(setBool(send, func(m *demoState) *bool { return &m.loading })),
 		content,
 		muted("静态占位（关闭动效时，所有骨架屏都会停止刷新）"),

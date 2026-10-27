@@ -7,15 +7,14 @@ import (
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
-	"github.com/qianniancn/flowui/widget/card"
 	"github.com/qianniancn/flowui/widget/dock"
 	"github.com/qianniancn/flowui/widget/input"
-	"github.com/qianniancn/flowui/widget/panel"
 	"github.com/qianniancn/flowui/widget/statusbar"
+	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/tabs"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/widget/titlebar"
-	"github.com/qianniancn/flowui/widget/togglebutton"
+	"github.com/qianniancn/flowui/widget/toggle"
 	"github.com/qianniancn/flowui/widget/toolbar"
 	"github.com/qianniancn/flowui/widget/workbench"
 )
@@ -25,7 +24,7 @@ func demoToolbar(m demoState, send ui.Send[Msg]) ui.Widget {
 		button.New("保存").OnClick(report(send, "工具栏：已保存")),
 		button.New("撤销").Variant(button.Ghost).OnClick(report(send, "工具栏：已撤销")),
 		toolbar.Separator(),
-		togglebutton.New("加粗").Key("tool-bold").Selected(m.bold).
+		toggle.NewToggleButton("加粗").Key("tool-bold").Selected(m.bold).
 			OnChange(setBool(send, func(m *demoState) *bool { return &m.bold })),
 	)
 }
@@ -49,7 +48,7 @@ func demoPanel(m demoState, send ui.Send[Msg]) ui.Widget {
 				send(demoMsg(func(m *demoState) { m.panel = "edit" }))
 			}),
 		).Gap(8),
-		panel.New("panel-demo", m.panel, []panel.Item{
+		surface.NewPanel("panel-demo", m.panel, []surface.PanelItem{
 			{Key: "preview", Content: text.New("当前预览：" + m.name)},
 			{Key: "edit", Content: input.New(m.name).Key("panel-name").FullWidth().
 				OnChange(setString(send, func(m *demoState) *string { return &m.name }))},
@@ -69,7 +68,7 @@ func demoDock(_ demoState, _ ui.Send[Msg]) ui.Widget {
 }
 
 func pane(title, content string) ui.Widget {
-	return card.New(layout.Column(text.New(title).Size(16), text.New(content)).Gap(16))
+	return surface.NewCard(layout.Column(text.New(title).Size(16), text.New(content)).Gap(16))
 }
 
 func initialWorkbench() workbench.State {
@@ -89,11 +88,11 @@ func demoWorkbench(m demoState, send ui.Send[Msg]) ui.Widget {
 		send(logMsg(fmt.Sprintf("工作台：%s", event.TabKey)))
 	})
 	items := []tabs.TabItem{}
-	panels := []panel.Item{}
+	panels := []surface.PanelItem{}
 	for _, group := range m.workbench.Groups {
 		for _, tab := range group.Tabs {
 			items = append(items, tabs.TabItem{Key: tab.Key, Label: tab.Title, Closable: true})
-			panels = append(panels, panel.Item{Key: tab.Key, Content: pane(tab.Title, "此内容由工作台状态选择。")})
+			panels = append(panels, surface.PanelItem{Key: tab.Key, Content: pane(tab.Title, "此内容由工作台状态选择。")})
 		}
 	}
 	tabstrip := tabs.New("workbench-tabs", "", items).OnClose(func(key string) {
@@ -104,14 +103,14 @@ func demoWorkbench(m demoState, send ui.Send[Msg]) ui.Widget {
 			send(demoMsg(func(m *demoState) { m.workbench = initialWorkbench() }))
 		}),
 		controller.BindTabs("editor", tabstrip),
-		controller.BindPanel("editor", panel.New("workbench-panel", "", panels).KeepAlive(true)),
+		controller.BindPanel("editor", surface.NewPanel("workbench-panel", "", panels).KeepAlive(true)),
 	).Gap(16))
 }
 
 func demoLayout(_ demoState, _ ui.Send[Msg]) ui.Widget {
 	blocks := []ui.Widget{}
 	for _, title := range []string{"项目", "组件", "主题", "窗口", "状态", "布局"} {
-		blocks = append(blocks, card.New(text.New(title)))
+		blocks = append(blocks, surface.NewCard(text.New(title)))
 	}
 	return layout.Column(
 		muted("Wrap · 宽度不足时自动换行"), layout.Wrap(blocks...).Gap(8).LineGap(8),

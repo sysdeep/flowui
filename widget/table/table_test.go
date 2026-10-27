@@ -22,7 +22,7 @@ import (
 	inputui "github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/menu"
 	"github.com/qianniancn/flowui/widget/navigation"
-	selectfield "github.com/qianniancn/flowui/widget/selectfield"
+	selector "github.com/qianniancn/flowui/widget/selector"
 )
 
 type tableProbe struct {
@@ -256,7 +256,7 @@ func TestTableRowContextMenuShiftF10FromInteractiveContentRestoresFocus(t *testi
 		content core.Widget
 	}{
 		{name: "input", content: inputui.New("Ada").FullWidth()},
-		{name: "select", content: selectfield.New([]selectfield.SelectItem{{Key: "engineer", Label: "Engineer"}}).Key("row-role").SelectedKey("engineer").FullWidth()},
+		{name: "select", content: selector.NewSelect([]selector.SelectItem{{Key: "engineer", Label: "Engineer"}}).Key("row-role").SelectedKey("engineer").FullWidth()},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

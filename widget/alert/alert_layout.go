@@ -11,7 +11,7 @@ import (
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/closebutton"
+	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/icon"
 	textui "github.com/qianniancn/flowui/widget/text"
 )
@@ -45,7 +45,7 @@ func (a Widget) layoutRow(ctx *core.Context, gtx layout.Context, resolved alertR
 	}
 	if a.closable {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return closebutton.New(a.closeKey()).
+			return button.NewCloseButton(a.closeKey()).
 				OnClick(a.onClose).
 				Layout(ctx, gtx)
 		}))

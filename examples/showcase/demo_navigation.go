@@ -8,7 +8,7 @@ import (
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/collapsible"
 	"github.com/qianniancn/flowui/widget/listbox"
-	"github.com/qianniancn/flowui/widget/pagination"
+	widgetnav "github.com/qianniancn/flowui/widget/navigation"
 	"github.com/qianniancn/flowui/widget/sidebar"
 	"github.com/qianniancn/flowui/widget/table"
 	"github.com/qianniancn/flowui/widget/tabs"
@@ -80,7 +80,7 @@ func demoTabs(m demoState, send ui.Send[Msg]) ui.Widget {
 
 func demoPagination(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
-		pagination.New("pagination", m.page, 12).Labels("上一页", "下一页").OnChange(func(page int) {
+		widgetnav.NewPagination("pagination", m.page, 12).Labels("上一页", "下一页").OnChange(func(page int) {
 			send(demoMsg(func(m *demoState) { m.page = page }))
 		}),
 		text.New(fmt.Sprintf("第 %d 页 / 共 12 页", m.page)),

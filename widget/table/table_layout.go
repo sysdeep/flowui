@@ -18,9 +18,9 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/checkbox"
 	"github.com/qianniancn/flowui/widget/menu"
 	"github.com/qianniancn/flowui/widget/spinner"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 type tableColumns struct {
@@ -190,8 +190,8 @@ func (t Widget) layoutHeader(ctx *core.Context, gtx layout.Context, stateValue *
 				semantic.SelectedOp(all).Add(gtx.Ops)
 				focusVisible := core.FocusVisible(ctx, &stateValue.selectAll, gtx.Focused(&stateValue.selectAll))
 				focus := stateValue.selectAllFocus.Opacity(gtx, focusVisible && !t.disabled, motion)
-				checkbox.DrawControl(ctx, gtx, checkbox.ControlOptions{
-					Variant: checkbox.Primary, Selection: selection,
+				toggle.DrawCheckboxControl(ctx, gtx, toggle.CheckboxControlOptions{
+					Variant: toggle.CheckboxPrimary, Selection: selection,
 					Indeterminate: some, Hovered: stateValue.selectAll.Hovered(),
 					Pressed: stateValue.selectAll.Pressed(), Focused: focus, Disabled: t.disabled,
 					VisualCache: &stateValue.checkboxVisual,
@@ -528,8 +528,8 @@ func (t Widget) recordSelectionCell(ctx *core.Context, gtx layout.Context, state
 	macro := op.Record(gtx.Ops)
 	cellGtx := gtx
 	cellGtx.Constraints = layout.Exact(image.Pt(width, t.rowMinHeight(gtx, ctx, metrics)))
-	checkbox.DrawControl(ctx, cellGtx, checkbox.ControlOptions{
-		Variant: checkbox.Secondary, Selection: selection,
+	toggle.DrawCheckboxControl(ctx, cellGtx, toggle.CheckboxControlOptions{
+		Variant: toggle.CheckboxSecondary, Selection: selection,
 		VisualCache: &stateValue.checkboxVisual,
 	})
 	return recordedCell{call: macro.Stop(), dims: layout.Dimensions{Size: cellGtx.Constraints.Max}}

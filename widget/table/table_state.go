@@ -17,8 +17,8 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/checkbox"
 	"github.com/qianniancn/flowui/widget/navigation"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 const stateSlotTable = "table"
@@ -46,8 +46,8 @@ type tableState struct {
 	typeahead              navigation.Typeahead
 	selectAll              widget.Clickable
 	selectAllFocus         animation.FocusAnimation
-	selectAllSelection     checkbox.SelectionAnimation
-	checkboxVisual         checkbox.VisualCache
+	selectAllSelection     toggle.CheckboxSelectionAnimation
+	checkboxVisual         toggle.CheckboxVisualCache
 	visualCache            tableVisualCache
 	loadMoreCount          int
 	loadMoreHasMore        bool
@@ -413,7 +413,7 @@ type tableRowState struct {
 	focus            animation.FocusAnimation
 	keyFilters       core.KeyFilterCache
 	background       animation.ColorTransition
-	selection        checkbox.SelectionAnimation
+	selection        toggle.CheckboxSelectionAnimation
 	interactiveCells []image.Rectangle
 	focusTargets     []event.Tag
 	handledPress     time.Time

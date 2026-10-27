@@ -8,16 +8,14 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/ui"
-	"github.com/qianniancn/flowui/widget/checkbox"
 	"github.com/qianniancn/flowui/widget/colorpicker"
-	"github.com/qianniancn/flowui/widget/combobox"
 	"github.com/qianniancn/flowui/widget/datepicker"
 	"github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/radiogroup"
-	"github.com/qianniancn/flowui/widget/selectfield"
+	"github.com/qianniancn/flowui/widget/selector"
 	"github.com/qianniancn/flowui/widget/slider"
-	"github.com/qianniancn/flowui/widget/switchcontrol"
 	"github.com/qianniancn/flowui/widget/text"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 func demoInput(m demoState, send ui.Send[Msg]) ui.Widget {
@@ -49,19 +47,19 @@ func field(title string, child ui.Widget) ui.Widget {
 
 func demoCheckbox(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
-		checkbox.New("接收项目更新").Key("checkbox-main").Checked(m.checked).
+		toggle.NewCheckbox("接收项目更新").Key("checkbox-main").Checked(m.checked).
 			OnChange(setBool(send, func(m *demoState) *bool { return &m.checked })),
-		checkbox.New("部分选中").Key("checkbox-partial").Checked(false).Indeterminate(true),
-		checkbox.New("已选中 · 禁用").Key("checkbox-disabled").Checked(true).Disabled(true),
+		toggle.NewCheckbox("部分选中").Key("checkbox-partial").Checked(false).Indeterminate(true),
+		toggle.NewCheckbox("已选中 · 禁用").Key("checkbox-disabled").Checked(true).Disabled(true),
 		text.New(fmt.Sprintf("接收更新：%t", m.checked)),
 	).Gap(16)
 }
 
 func demoSwitch(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
-		switchcontrol.New("自动同步").Key("switch-sync").Checked(m.enabled).
+		toggle.NewSwitch("自动同步").Key("switch-sync").Checked(m.enabled).
 			OnChange(setBool(send, func(m *demoState) *bool { return &m.enabled })),
-		switchcontrol.New("不可用的设置").Key("switch-disabled").Checked(false).Disabled(true),
+		toggle.NewSwitch("不可用的设置").Key("switch-disabled").Checked(false).Disabled(true),
 		text.New(fmt.Sprintf("自动同步：%t", m.enabled)),
 	).Gap(16)
 }
@@ -80,8 +78,8 @@ func demoRadio(m demoState, send ui.Send[Msg]) ui.Widget {
 	).Gap(20)
 }
 
-func languageItems() []selectfield.SelectItem {
-	return []selectfield.SelectItem{
+func languageItems() []selector.SelectItem {
+	return []selector.SelectItem{
 		{Key: "go", Label: "Go", Description: "原生桌面开发"},
 		{Key: "rust", Label: "Rust", Description: "系统开发"},
 		{Key: "typescript", Label: "TypeScript", Description: "Web 开发"},
@@ -93,11 +91,11 @@ func languageItems() []selectfield.SelectItem {
 func demoSelect(m demoState, send ui.Send[Msg]) ui.Widget {
 	changed := setString(send, func(m *demoState) *string { return &m.combo })
 	return layout.Column(
-		field("单选", selectfield.New(languageItems()).Key("select-single").SelectedKey(m.combo).SelectedKey(m.combo).
+		field("单选", selector.NewSelect(languageItems()).Key("select-single").SelectedKey(m.combo).SelectedKey(m.combo).
 			FullWidth().OnChange(changed)),
-		field("多选", selectfield.New(languageItems()).Key("select-multi").SelectedKeys(m.keys).FullWidth().
+		field("多选", selector.NewSelect(languageItems()).Key("select-multi").SelectedKeys(m.keys).FullWidth().
 			OnSelectionChange(func(keys []string) { send(demoMsg(func(m *demoState) { m.keys = keys })) })),
-		field("分组选项", selectfield.NewSections([]selectfield.SelectSection{
+		field("分组选项", selector.NewSelectSections([]selector.SelectSection{
 			{Title: "编译型", Items: languageItems()[:2]},
 			{Title: "脚本与应用", Items: languageItems()[2:]},
 		}).Key("select-sections").SelectedKey(m.combo).SelectedKey(m.combo).FullWidth().OnChange(changed)),
@@ -106,14 +104,14 @@ func demoSelect(m demoState, send ui.Send[Msg]) ui.Widget {
 }
 
 func demoCombo(m demoState, send ui.Send[Msg]) ui.Widget {
-	items := []combobox.Item{}
+	items := []selector.ComboboxItem{}
 	for _, item := range languageItems() {
-		items = append(items, combobox.Item{
+		items = append(items, selector.ComboboxItem{
 			Key: item.Key, Label: item.Label, Description: item.Description, Disabled: item.Disabled,
 		})
 	}
 	return layout.Column(
-		combobox.New(items).Key("combo-language").SelectedKey(m.combo).SelectedKey(m.combo).
+		selector.NewCombobox(items).Key("combo-language").SelectedKey(m.combo).SelectedKey(m.combo).
 			InputValue(m.comboInput).Hint("搜索语言，例如 Go").FullWidth().
 			OnInputChange(setString(send, func(m *demoState) *string { return &m.comboInput })).
 			OnChange(func(value string) {

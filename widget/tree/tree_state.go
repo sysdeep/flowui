@@ -16,8 +16,8 @@ import (
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/widget/checkbox"
 	"github.com/qianniancn/flowui/widget/navigation"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 const stateSlotTree = "tree"
@@ -97,7 +97,7 @@ type treeState struct {
 	checkedKeys        core.StringSetCache
 	halfCheckedKeys    core.StringSetCache
 	disabledKeys       core.StringSetCache
-	checkboxVisual     checkbox.VisualCache
+	checkboxVisual     toggle.CheckboxVisualCache
 	visualCache        treeVisualCache
 }
 

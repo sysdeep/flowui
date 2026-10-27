@@ -12,7 +12,7 @@ import (
 	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
-	"github.com/qianniancn/flowui/widget/card"
+	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/window"
 )
@@ -100,22 +100,22 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 }
 
 func weightCard(label string, weight font.Weight, chinese string) ui.Widget {
-	return card.New(
+	return surface.NewCard(
 		layout.Column(
 			text.New(label+" weight").Size(17).Weight(weight),
 			text.New("The quick brown fox jumps over the lazy dog.").Size(15).Weight(weight),
 			text.New(chinese).Size(15).Weight(weight),
 		).Gap(8),
-	).Variant(card.Secondary)
+	).Variant(surface.CardSecondary)
 }
 
 func sizeCard(label string, size float32) ui.Widget {
-	return card.New(
+	return surface.NewCard(
 		layout.Column(
 			text.New(label).Size(13),
 			text.New("FlowUI typography").Size(size),
 		).Gap(8),
-	).Variant(card.Secondary)
+	).Variant(surface.CardSecondary)
 }
 
 func systemTheme() theme.Theme {

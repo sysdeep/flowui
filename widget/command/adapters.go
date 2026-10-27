@@ -5,7 +5,7 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/menu"
-	"github.com/qianniancn/flowui/widget/togglebutton"
+	"github.com/qianniancn/flowui/widget/toggle"
 	"github.com/qianniancn/flowui/widget/tooltip"
 )
 
@@ -46,7 +46,7 @@ func Button(keyValue string, command Command) core.Widget {
 
 	var trigger core.Widget
 	if command.toggle {
-		widget := togglebutton.New(command.label).Key(keyValue).
+		widget := toggle.NewToggleButton(command.label).Key(keyValue).
 			Selected(command.checked).Disabled(command.disabled).
 			OnChange(func(bool) { command.execute() })
 		if iconOnly {

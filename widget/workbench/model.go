@@ -11,7 +11,7 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/widget/command"
 	"github.com/qianniancn/flowui/widget/dock"
-	"github.com/qianniancn/flowui/widget/panel"
+	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/tabs"
 )
 
@@ -989,7 +989,7 @@ func (c *Controller) BindDock(widget dock.Widget) dock.Widget {
 // BindPanel connects a PanelHost's selection callback to a Workbench group.
 // PanelHost still owns KeepAlive/DestroyOnHidden behavior; the controller only
 // supplies the selected key and observes changes.
-func (c *Controller) BindPanel(groupKey string, widget panel.Widget) panel.Widget {
+func (c *Controller) BindPanel(groupKey string, widget surface.PanelWidget) surface.PanelWidget {
 	if c == nil {
 		return widget
 	}

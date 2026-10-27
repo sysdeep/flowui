@@ -6,10 +6,9 @@ import (
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
-	"github.com/qianniancn/flowui/widget/closebutton"
 	"github.com/qianniancn/flowui/widget/command"
 	"github.com/qianniancn/flowui/widget/text"
-	"github.com/qianniancn/flowui/widget/togglebutton"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 func demoButton(m demoState, send ui.Send[Msg]) ui.Widget {
@@ -59,16 +58,16 @@ func demoButton(m demoState, send ui.Send[Msg]) ui.Widget {
 
 func demoToggle(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Wrap(
-		togglebutton.New("加粗").Key("toggle-bold").Selected(m.bold).
+		toggle.NewToggleButton("加粗").Key("toggle-bold").Selected(m.bold).
 			OnChange(setBool(send, func(m *demoState) *bool { return &m.bold })),
-		togglebutton.New("已锁定").Key("toggle-disabled").Selected(true).Disabled(true),
+		toggle.NewToggleButton("已锁定").Key("toggle-disabled").Selected(true).Disabled(true),
 		text.New(fmt.Sprintf("加粗：%t", m.bold)),
 	).Gap(12).AlignMiddle()
 }
 
 func demoClose(_ demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Row(text.New("关闭操作会在底部显示反馈"),
-		closebutton.New("close-demo").OnClick(report(send, "已点击关闭按钮")),
+		button.NewCloseButton("close-demo").OnClick(report(send, "已点击关闭按钮")),
 	).Gap(16).AlignMiddle()
 }
 

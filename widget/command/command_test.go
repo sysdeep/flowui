@@ -16,7 +16,7 @@ import (
 	"github.com/qianniancn/flowui/widget/button"
 	inputui "github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/menu"
-	"github.com/qianniancn/flowui/widget/togglebutton"
+	"github.com/qianniancn/flowui/widget/toggle"
 	"github.com/qianniancn/flowui/widget/tooltip"
 )
 
@@ -179,7 +179,7 @@ func TestCommandAdaptersPreserveBehavior(t *testing.T) {
 	if _, ok := Button("save-text", base).(button.Widget); !ok {
 		t.Fatal("text command did not produce a plain Button")
 	}
-	if _, ok := Button("bold-text", base.Toggle(false)).(togglebutton.Widget); !ok {
+	if _, ok := Button("bold-text", base.Toggle(false)).(toggle.ToggleButtonWidget); !ok {
 		t.Fatal("text toggle command did not produce a plain ToggleButton")
 	}
 	iconCommand := base.Icon(fixedCommandWidget{size: image.Pt(16, 16)})

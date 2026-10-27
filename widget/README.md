@@ -12,7 +12,7 @@ Text controls accept strings directly:
 
 ```go
 button.New("save", "Save").OnClick(save)
-togglebutton.New("bold", selected, "Bold").OnChange(setBold)
+toggle.NewToggleButton("bold", selected, "Bold").OnChange(setBold)
 tooltip.New("save-tip", saveButton, "Save changes")
 input.GroupAction("clear", "Clear").OnClick(clear)
 ```
@@ -37,8 +37,9 @@ move custom children to `Content`, and remove the third argument of
 `input.GroupAction` (or move it to `Content` when custom).
 
 Each component owns its behavior, interaction state, accessibility, and domain
-layout. Visual contracts live in `theme`; shared appearance recipes live in
-`theme/<component>style`. See the [theme package map](../theme/README.md).
+layout. Visual contracts live in `theme`; shared appearance recipes live in the
+eight `theme/<domain>style` packages. See the
+[theme package map](../theme/README.md).
 
 Some public packages are building blocks for components rather than complete
 controls:

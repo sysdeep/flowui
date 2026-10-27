@@ -13,7 +13,7 @@ import (
 	"github.com/qianniancn/flowui/widget/datepicker"
 	"github.com/qianniancn/flowui/widget/icon"
 	"github.com/qianniancn/flowui/widget/text"
-	"github.com/qianniancn/flowui/widget/togglebutton"
+	"github.com/qianniancn/flowui/widget/toggle"
 	"github.com/qianniancn/flowui/window"
 )
 
@@ -119,15 +119,15 @@ func mainView(application *ui.Application, counter ui.WindowSpec) ui.View[MainMo
 						button.New("Resize").
 							Variant(button.Secondary).
 							OnClick(func() { application.Configure("main", window.Size(900, 620)) }),
-						togglebutton.New("").Key("top-most").Selected(state.TopMost).Content(text.New("Top most")).
+						toggle.NewToggleButton("").Key("top-most").Selected(state.TopMost).Content(text.New("Top most")).
 							OnChange(func(enabled bool) { application.Configure("main", window.TopMost(enabled)) }),
-						togglebutton.New("").Key("decorated").Selected(state.Decorated).Content(text.New("Decorated")).
+						toggle.NewToggleButton("").Key("decorated").Selected(state.Decorated).Content(text.New("Decorated")).
 							OnChange(func(enabled bool) { application.Configure("main", window.Decorated(enabled)) }),
 					).Gap(8).LineGap(8),
 					layout.Wrap(
-						togglebutton.New("").Key("dark-theme").Selected(model.Dark).Content(text.New("Dark theme")).
+						toggle.NewToggleButton("").Key("dark-theme").Selected(model.Dark).Content(text.New("Dark theme")).
 							OnChange(func(enabled bool) { send(MainMsg{kind: setDark, enabled: enabled}) }),
-						togglebutton.New("").Key("chinese-language").Selected(model.Chinese).Content(text.New("Chinese locale")).
+						toggle.NewToggleButton("").Key("chinese-language").Selected(model.Chinese).Content(text.New("Chinese locale")).
 							OnChange(func(enabled bool) { send(MainMsg{kind: setChinese, enabled: enabled}) }),
 						datepicker.New("locale-preview", model.Date).
 							OnChange(func(value time.Time) { send(MainMsg{kind: setDate, date: value}) }),

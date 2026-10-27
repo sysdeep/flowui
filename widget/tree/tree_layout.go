@@ -18,9 +18,9 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/checkbox"
 	"github.com/qianniancn/flowui/widget/menu"
 	"github.com/qianniancn/flowui/widget/spinner"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 func (t Widget) layout(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, visible []flatItem, visual theme.TreeVisual) layout.Dimensions {
@@ -277,8 +277,8 @@ func (t Widget) layoutCheckbox(ctx *core.Context, gtx layout.Context, treeStateV
 		if checked || halfChecked {
 			selection = 1
 		}
-		return checkbox.DrawControl(ctx, gtx, checkbox.ControlOptions{
-			Variant:       checkbox.Primary,
+		return toggle.DrawCheckboxControl(ctx, gtx, toggle.CheckboxControlOptions{
+			Variant:       toggle.CheckboxPrimary,
 			Selection:     selection,
 			Indeterminate: halfChecked,
 			Hovered:       itemState.check.Hovered(),

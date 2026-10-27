@@ -11,11 +11,11 @@ import (
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
-	"github.com/qianniancn/flowui/widget/card"
 	widgetcode "github.com/qianniancn/flowui/widget/code"
 	"github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/sidebar"
 	"github.com/qianniancn/flowui/widget/statusbar"
+	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/widget/toast"
 )
@@ -146,7 +146,7 @@ func detail(m Model, send ui.Send[Msg], compact bool) ui.Widget {
 }
 
 func section(title string, body ui.Widget) ui.Widget {
-	return card.New(layout.Column(
+	return surface.NewCard(layout.Column(
 		text.New(title).Size(14).Weight(font.Bold),
 		body,
 	).Gap(20))

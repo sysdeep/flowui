@@ -8,7 +8,6 @@ import (
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/ui"
-	"github.com/qianniancn/flowui/widget/description"
 	"github.com/qianniancn/flowui/widget/icon"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/widget/timeline"
@@ -30,9 +29,9 @@ func View(_ *ui.Context, _ Model, _ ui.Send[Msg]) ui.Widget {
 			{Title: text.New("Published"), Content: text.New("The release is now available"), Color: timeline.ColorGray},
 		}).Gap(14)),
 		section("Alternate and custom colors", timeline.New([]timeline.Item{
-			{Title: text.New("Plan"), Content: description.New("Define the scope and milestones."), Color: timeline.ColorBlue},
-			{Title: text.New("Build"), Content: description.New("Implement the selected work."), Color: timeline.ColorGreen, Placement: timeline.PlacementEnd},
-			timeline.Item{Title: text.New("Review"), Content: description.New("Collect feedback from the team."), CustomColor: color.NRGBA{R: 0x7c, G: 0x3a, B: 0xed, A: 0xff}},
+			{Title: text.New("Plan"), Content: text.NewDescription("Define the scope and milestones."), Color: timeline.ColorBlue},
+			{Title: text.New("Build"), Content: text.NewDescription("Implement the selected work."), Color: timeline.ColorGreen, Placement: timeline.PlacementEnd},
+			timeline.Item{Title: text.New("Review"), Content: text.NewDescription("Collect feedback from the team."), CustomColor: color.NRGBA{R: 0x7c, G: 0x3a, B: 0xed, A: 0xff}},
 		}).Mode(timeline.ModeAlternate).TitleSpan(9).Variant(timeline.VariantFilled)),
 		section("Pending", timeline.New([]timeline.Item{
 			{Title: text.New("Queued"), Content: text.New("Waiting for the next worker"), Color: timeline.ColorBlue},
