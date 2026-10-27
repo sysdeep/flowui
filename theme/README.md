@@ -11,16 +11,39 @@ recipe packages directly.
 | Package | Responsibility |
 | --- | --- |
 | `theme` | Defines `Theme`, semantic values, component requests, visual results, and Provider interfaces. |
-| `theme/*style` | Builds the shared visual recipe for one component from the active theme and request. |
+| `theme/<domain>style` | One recipe domain: `action`, `field`, `feedback`, `navigation`, `overlay`, `surface`, `data`, or `chart`. Per-component files live inside it. |
 | `theme/base` | Provides the single default design system: Light/Dark entry points, seed constructors and a complete zero-value Provider. |
 | `theme/themetest` | Provides reusable visual-contract acceptance tests for the default and external themes. |
 | `theme/internal` | Holds helpers that are implementation details of the theme package. |
 
 The `*style` suffix means **component visual recipe**, not a widget and not a
-second component implementation. For example, `theme/buttonstyle` owns the
-mapping from semantic colors, button variants, sizes, motion, and theme options
-to a `theme.ButtonVisual`. It does not handle pointer events, focus state,
-business state, or component layout ownership.
+second component implementation. For example, `theme/actionstyle` groups the
+button, close-button, toggle-button, checkbox, switch, and radio recipes. Each
+component's code lives in a prefixed file set inside the domain package (for
+example `buttonstyle_render.go`), so unexported helpers stay private to the
+domain without a second package. A recipe maps semantic colors, variants,
+sizes, motion, and theme options to a visual; it does not handle pointer
+events, focus state, business state, or component layout ownership.
+
+### Migrating a per-component import
+
+The Build function names did not change; replace the import path and package
+selector with the domain:
+
+| Old package | New package |
+| --- | --- |
+| `theme/buttonstyle`, `theme/closebuttonstyle`, `theme/togglestyle`, `theme/checkboxstyle`, `theme/switchstyle`, `theme/radiostyle` | `theme/actionstyle` |
+| `theme/inputactionstyle`, `theme/combostyle`, `theme/selectstyle`, `theme/datepickerstyle`, `theme/colorpickerstyle`, `theme/sliderstyle` | `theme/fieldstyle` |
+| `theme/alertstyle`, `theme/alertdialogstyle`, `theme/toaststyle`, `theme/progressstyle`, `theme/spinnerstyle`, `theme/skeletonstyle`, `theme/badgestyle`, `theme/chipstyle` | `theme/feedbackstyle` |
+| `theme/tabsstyle`, `theme/sidebarstyle`, `theme/paginationstyle`, `theme/segmentedstyle`, `theme/menubarstyle`, `theme/menustyle`, `theme/dropdownstyle`, `theme/collapsiblestyle` | `theme/navigationstyle` |
+| `theme/modalstyle`, `theme/popoverstyle`, `theme/tooltipstyle` | `theme/overlaystyle` |
+| `theme/cardstyle`, `theme/surfacestyle`, `theme/textstyle`, `theme/labelstyle`, `theme/descriptionstyle`, `theme/codestyle`, `theme/imagestyle`, `theme/iconstyle`, `theme/avatarstyle` | `theme/surfacestyle` |
+| `theme/tablestyle`, `theme/treestyle`, `theme/listboxstyle`, `theme/toolbarstyle`, `theme/statusbarstyle`, `theme/titlebarstyle` | `theme/datastyle` |
+| `theme/barchartstyle`, `theme/linechartstyle`, `theme/piechartstyle`, `theme/candlestickstyle`, `theme/heatmapstyle`, `theme/ganttstyle`, `theme/nodegraphstyle`, `theme/timelinestyle` | `theme/chartstyle` |
+
+`theme/surfacestyle` is both a domain and an old component name; the old
+component files now live inside the domain package alongside the other surface
+recipes.
 
 ## Runtime Flow
 
@@ -28,7 +51,7 @@ business state, or component layout ownership.
 widget/button
     -> theme.ComponentProvider
     -> base.Provider.Button
-    -> buttonstyle.BuildButton
+    -> actionstyle.BuildButton
     -> theme.ButtonVisual
     -> widget/button resolves declarations and lays out the result
 ```
@@ -41,7 +64,7 @@ immutable Providers. Shared components, such as Toolbar, follow this path:
 widget/toolbar
     -> theme.ResolveVisual
     -> base.Provider.Toolbar
-    -> toolbarstyle.BuildToolbar
+    -> datastyle.BuildToolbar
     -> validated theme.ToolbarVisual
 ```
 
@@ -89,7 +112,7 @@ package customtheme
 import (
     "github.com/qianniancn/flowui/theme"
     "github.com/qianniancn/flowui/theme/base"
-    "github.com/qianniancn/flowui/theme/buttonstyle"
+    "github.com/qianniancn/flowui/theme/actionstyle"
 )
 
 type Provider struct{ base.Provider }
@@ -97,9 +120,9 @@ type Provider struct{ base.Provider }
 var _ theme.ComponentVisualProvider = Provider{}
 
 func (Provider) Button(active *theme.Theme, request theme.ButtonRequest) theme.ButtonVisual {
-    config := buttonstyle.DefaultConfig()
+    config := actionstyle.DefaultConfig()
     config.Radius = 0
-    return buttonstyle.BuildButton(active, request, config)
+    return actionstyle.BuildButton(active, request, config)
 }
 
 func New(seed theme.Seed) theme.Theme {
@@ -109,7 +132,7 @@ func New(seed theme.Seed) theme.Theme {
 }
 ```
 
-`buttonstyle.DefaultConfig()` returns a complete configuration, including
+`actionstyle.DefaultConfig()` returns a complete configuration, including
 spinner, pressed-scale, and group separator values. Change only the fields
 you need. `BuildButton` uses supplied values directly: valid zeros such as
 radius, border width, and content gap stay zero. It does not merge defaults
@@ -178,9 +201,11 @@ custom Provider in light and dark modes. External Providers run the same suite.
    in `theme/<component>_visual.go`. Include its capability in
    `ComponentVisualProvider` in `theme/provider.go`; shared scalar and style
    validation helpers stay in `theme/visual_validation.go`.
-2. Put the shared visual recipe in `theme/<component>style`, then add its
-   forwarding method once to `base.Provider`. Concrete themes inherit it; only
-   themes needing a different recipe add an override.
+2. Implement the recipe in the matching `theme/<domain>style` package, in a
+   `<component>_*.go` file set. Prefix its unexported helpers with the component
+   name so they stay unique inside the domain, then add its forwarding method
+   once to `base.Provider`. Concrete themes inherit it; only themes needing a
+   different recipe add an override.
 3. Keep interaction and layout in `widget/<component>`. Build the visual with
    `theme.ResolveVisual(active, request, theme.ComponentVisualProvider.Component,
    theme.ValidateComponentVisual)` so lookup and validation stay together.
@@ -208,11 +233,10 @@ changing appearance. The `ThemeInvalidations` counter includes Provider changes.
 
 ## Directory Guidance
 
-The current `theme/<component>style` layout is intentional and should remain
-stable. Renaming these packages to a nested `theme/recipes/<component>` tree
-would change public import paths without improving the runtime boundary. If the
-recipe organization changes later, update this document and the Provider and
-architecture tests in the same change.
+The public `theme/<domain>style` packages are stable. The per-component files
+inside a domain are free to move within it without changing public import
+paths. If a domain boundary changes later, update this document and the
+Provider and architecture tests in the same change.
 
 Component contracts and validators live in separate `*_visual.go` files inside
 the existing `theme` package. This organization changes where declarations are

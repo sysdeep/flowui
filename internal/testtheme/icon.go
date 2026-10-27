@@ -1,10 +1,13 @@
 package testtheme
 
-import (
-	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/theme/iconstyle"
-)
+import "github.com/qianniancn/flowui/theme"
 
 func (behaviorProvider) Icon(active *theme.Theme, request theme.IconRequest) theme.IconVisual {
-	return iconstyle.BuildIcon(active, request)
+	if active == nil {
+		panic(theme.ErrMissingVisualProvider)
+	}
+	return theme.IconVisual{
+		Size:  active.Components.Icon.Size,
+		Color: request.Foreground,
+	}
 }

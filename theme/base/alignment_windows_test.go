@@ -19,7 +19,7 @@ import (
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/input"
-	"github.com/qianniancn/flowui/widget/selectfield"
+	selector "github.com/qianniancn/flowui/widget/selector"
 )
 
 // Check actual glyphs, since centering a font's line box alone can leave CJK
@@ -40,7 +40,7 @@ func TestDefaultTextVerticalAlignment(t *testing.T) {
 				}{
 					{"button", button.New(label).Key("button"), mode.active.Semantic().Tone(theme.TonePrimary).OnFill},
 					{"input", input.New(label).Key("input"), mode.active.Semantic().Foreground},
-					{"select", selectfield.New([]selectfield.SelectItem{
+					{"select", selector.NewSelect([]selector.SelectItem{
 						{Key: "value", Label: label},
 					}).Key("select").SelectedKey("value"), mode.active.Semantic().Foreground},
 				} {

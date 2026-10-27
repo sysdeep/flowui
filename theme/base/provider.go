@@ -7,61 +7,15 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/theme/alertdialogstyle"
-	"github.com/qianniancn/flowui/theme/alertstyle"
-	"github.com/qianniancn/flowui/theme/avatarstyle"
-	"github.com/qianniancn/flowui/theme/badgestyle"
-	"github.com/qianniancn/flowui/theme/barchartstyle"
-	"github.com/qianniancn/flowui/theme/buttonstyle"
-	"github.com/qianniancn/flowui/theme/candlestickstyle"
-	"github.com/qianniancn/flowui/theme/cardstyle"
-	"github.com/qianniancn/flowui/theme/checkboxstyle"
-	"github.com/qianniancn/flowui/theme/chipstyle"
-	"github.com/qianniancn/flowui/theme/closebuttonstyle"
-	"github.com/qianniancn/flowui/theme/codestyle"
-	"github.com/qianniancn/flowui/theme/collapsiblestyle"
-	"github.com/qianniancn/flowui/theme/colorpickerstyle"
-	"github.com/qianniancn/flowui/theme/combostyle"
-	"github.com/qianniancn/flowui/theme/datepickerstyle"
-	"github.com/qianniancn/flowui/theme/descriptionstyle"
-	"github.com/qianniancn/flowui/theme/dropdownstyle"
-	"github.com/qianniancn/flowui/theme/ganttstyle"
-	"github.com/qianniancn/flowui/theme/heatmapstyle"
-	"github.com/qianniancn/flowui/theme/iconstyle"
-	"github.com/qianniancn/flowui/theme/imagestyle"
-	"github.com/qianniancn/flowui/theme/inputactionstyle"
+	"github.com/qianniancn/flowui/theme/actionstyle"
+	"github.com/qianniancn/flowui/theme/chartstyle"
+	"github.com/qianniancn/flowui/theme/datastyle"
+	"github.com/qianniancn/flowui/theme/feedbackstyle"
+	fieldrecipe "github.com/qianniancn/flowui/theme/fieldstyle"
 	"github.com/qianniancn/flowui/theme/internal/fieldstyle"
-	"github.com/qianniancn/flowui/theme/labelstyle"
-	"github.com/qianniancn/flowui/theme/linechartstyle"
-	"github.com/qianniancn/flowui/theme/listboxstyle"
-	"github.com/qianniancn/flowui/theme/menubarstyle"
-	"github.com/qianniancn/flowui/theme/menustyle"
-	"github.com/qianniancn/flowui/theme/modalstyle"
-	"github.com/qianniancn/flowui/theme/nodegraphstyle"
-	"github.com/qianniancn/flowui/theme/paginationstyle"
-	"github.com/qianniancn/flowui/theme/piechartstyle"
-	"github.com/qianniancn/flowui/theme/popoverstyle"
-	"github.com/qianniancn/flowui/theme/progressstyle"
-	"github.com/qianniancn/flowui/theme/radiostyle"
-	"github.com/qianniancn/flowui/theme/segmentedstyle"
-	"github.com/qianniancn/flowui/theme/selectstyle"
-	"github.com/qianniancn/flowui/theme/sidebarstyle"
-	"github.com/qianniancn/flowui/theme/skeletonstyle"
-	"github.com/qianniancn/flowui/theme/sliderstyle"
-	"github.com/qianniancn/flowui/theme/spinnerstyle"
-	"github.com/qianniancn/flowui/theme/statusbarstyle"
+	"github.com/qianniancn/flowui/theme/navigationstyle"
+	"github.com/qianniancn/flowui/theme/overlaystyle"
 	"github.com/qianniancn/flowui/theme/surfacestyle"
-	"github.com/qianniancn/flowui/theme/switchstyle"
-	"github.com/qianniancn/flowui/theme/tablestyle"
-	"github.com/qianniancn/flowui/theme/tabsstyle"
-	"github.com/qianniancn/flowui/theme/textstyle"
-	"github.com/qianniancn/flowui/theme/timelinestyle"
-	"github.com/qianniancn/flowui/theme/titlebarstyle"
-	"github.com/qianniancn/flowui/theme/toaststyle"
-	"github.com/qianniancn/flowui/theme/togglestyle"
-	"github.com/qianniancn/flowui/theme/toolbarstyle"
-	"github.com/qianniancn/flowui/theme/tooltipstyle"
-	"github.com/qianniancn/flowui/theme/treestyle"
 )
 
 // Provider delegates common components to the shared theme recipes. Its zero
@@ -73,7 +27,7 @@ type Provider struct{}
 var _ theme.ComponentVisualProvider = Provider{}
 
 func (Provider) Button(active *theme.Theme, request theme.ButtonRequest) theme.ButtonVisual {
-	config := buttonstyle.DefaultConfig()
+	config := actionstyle.DefaultConfig()
 	config.Radius = 4
 	if request.Size == theme.ButtonSmall {
 		config.Radius = 3
@@ -84,7 +38,7 @@ func (Provider) Button(active *theme.Theme, request theme.ButtonRequest) theme.B
 	config.Height, config.SmallHeight, config.LargeHeight = 32, 24, 40
 	config.PaddingX, config.SmallPaddingX, config.LargePaddingX = 12, 8, 16
 	config.PressedScaleSmall, config.PressedScaleMedium, config.PressedScaleLarge = 1, 1, 1
-	visual := buttonstyle.BuildButton(active, request, config)
+	visual := actionstyle.BuildButton(active, request, config)
 	if request.Size == theme.ButtonSmall {
 		visual.Size = style.Join(visual.Size, style.New().FontSize(12))
 	}
@@ -133,35 +87,35 @@ func disabledButton(sem theme.Semantic) style.Style {
 }
 
 func (Provider) Chip(active *theme.Theme, request theme.ChipRequest) theme.ChipVisual {
-	return chipstyle.BuildChip(active, request)
+	return feedbackstyle.BuildChip(active, request)
 }
 
 func (Provider) CloseButton(active *theme.Theme, request theme.CloseButtonRequest) theme.CloseButtonVisual {
-	return closebuttonstyle.BuildCloseButton(active, request)
+	return actionstyle.BuildCloseButton(active, request)
 }
 
 func (Provider) Badge(active *theme.Theme, request theme.BadgeRequest) theme.BadgeVisual {
-	return badgestyle.BuildBadge(active, request)
+	return feedbackstyle.BuildBadge(active, request)
 }
 
 func (Provider) Avatar(active *theme.Theme, request theme.AvatarRequest) theme.AvatarVisual {
-	return avatarstyle.BuildAvatar(active, request)
+	return surfacestyle.BuildAvatar(active, request)
 }
 
 func (Provider) Description(active *theme.Theme, request theme.DescriptionRequest) theme.DescriptionVisual {
-	return descriptionstyle.BuildDescription(active, request)
+	return surfacestyle.BuildDescription(active, request)
 }
 
 func (Provider) Label(active *theme.Theme, request theme.LabelRequest) theme.LabelVisual {
-	return labelstyle.BuildLabel(active, request)
+	return surfacestyle.BuildLabel(active, request)
 }
 
 func (Provider) Text(active *theme.Theme, request theme.TextRequest) theme.TextVisual {
-	return textstyle.BuildText(active, request)
+	return surfacestyle.BuildText(active, request)
 }
 
 func (Provider) Icon(active *theme.Theme, request theme.IconRequest) theme.IconVisual {
-	return iconstyle.BuildIcon(active, request)
+	return surfacestyle.BuildIcon(active, request)
 }
 
 func (Provider) Surface(active *theme.Theme, request theme.SurfaceRequest) theme.SurfaceVisual {
@@ -169,21 +123,21 @@ func (Provider) Surface(active *theme.Theme, request theme.SurfaceRequest) theme
 }
 
 func (Provider) Card(active *theme.Theme, request theme.CardRequest) theme.CardVisual {
-	visual := cardstyle.BuildCard(active, request)
+	visual := surfacestyle.BuildCard(active, request)
 	visual.Defaults = style.Join(visual.Defaults, style.New().BorderColor(style.Solid(active.Semantic().Separator)))
 	return visual
 }
 
 func (Provider) StatusBar(active *theme.Theme, request theme.StatusBarRequest) theme.StatusBarVisual {
-	return statusbarstyle.BuildStatusBar(active, request, statusbarstyle.DefaultConfig())
+	return datastyle.BuildStatusBar(active, request, datastyle.DefaultConfig())
 }
 
 func (Provider) TitleBar(active *theme.Theme, request theme.TitleBarRequest) theme.TitleBarVisual {
-	return titlebarstyle.BuildTitleBar(active, request)
+	return datastyle.BuildTitleBar(active, request)
 }
 
 func (Provider) Toolbar(active *theme.Theme, request theme.ToolbarRequest) theme.ToolbarVisual {
-	return toolbarstyle.BuildToolbar(active, request)
+	return datastyle.BuildToolbar(active, request)
 }
 
 func (Provider) Input(active *theme.Theme, request theme.InputRequest) theme.InputVisual {
@@ -191,23 +145,23 @@ func (Provider) Input(active *theme.Theme, request theme.InputRequest) theme.Inp
 }
 
 func (Provider) DatePicker(active *theme.Theme, request theme.DatePickerRequest) theme.DatePickerVisual {
-	return datepickerstyle.BuildDatePicker(active, request)
+	return fieldrecipe.BuildDatePicker(active, request)
 }
 
 func (Provider) InputAction(active *theme.Theme, request theme.InputActionRequest) theme.InputActionVisual {
-	return inputactionstyle.BuildInputAction(active, request)
+	return fieldrecipe.BuildInputAction(active, request)
 }
 
 func (Provider) Select(active *theme.Theme, request theme.SelectRequest) theme.SelectVisual {
-	return selectstyle.BuildSelect(active, request)
+	return fieldrecipe.BuildSelect(active, request)
 }
 
 func (Provider) Combo(active *theme.Theme, request theme.ComboRequest) theme.ComboVisual {
-	return combostyle.BuildCombo(active, request)
+	return fieldrecipe.BuildCombo(active, request)
 }
 
 func (Provider) ListBox(active *theme.Theme, request theme.ListBoxRequest) theme.ListBoxVisual {
-	visual := listboxstyle.BuildListBox(active, request)
+	visual := datastyle.BuildListBox(active, request)
 	item := visual.Item
 	sem := active.Semantic()
 	visual.Item = func(request theme.ListBoxItemRequest) theme.ListBoxItemVisual {
@@ -226,11 +180,11 @@ func (Provider) ListBox(active *theme.Theme, request theme.ListBoxRequest) theme
 }
 
 func (Provider) Sidebar(active *theme.Theme, request theme.SidebarRequest) theme.SidebarVisual {
-	return sidebarstyle.BuildSidebar(active, request)
+	return navigationstyle.BuildSidebar(active, request)
 }
 
 func (Provider) Switch(active *theme.Theme, request theme.SwitchRequest) theme.SwitchVisual {
-	visual := switchstyle.BuildSwitch(active, request)
+	visual := actionstyle.BuildSwitch(active, request)
 	visual.SelectionDuration = active.Motion.ControlDuration
 	white := style.Solid(rgb(0xffffff))
 	visual.Defaults = style.Join(visual.Defaults, style.New().
@@ -243,23 +197,23 @@ func (Provider) Switch(active *theme.Theme, request theme.SwitchRequest) theme.S
 }
 
 func (Provider) SwitchGroup(active *theme.Theme, request theme.SwitchGroupRequest) theme.SwitchGroupVisual {
-	return switchstyle.BuildSwitchGroup(active, request)
+	return actionstyle.BuildSwitchGroup(active, request)
 }
 
 func (Provider) ToggleButton(active *theme.Theme, request theme.ToggleRequest) theme.ToggleVisual {
-	return togglestyle.BuildToggleButton(active, request)
+	return actionstyle.BuildToggleButton(active, request)
 }
 
 func (Provider) Checkbox(active *theme.Theme, request theme.CheckboxRequest) theme.CheckboxVisual {
-	return checkboxstyle.BuildCheckbox(active, request)
+	return actionstyle.BuildCheckbox(active, request)
 }
 
 func (Provider) RadioGroup(active *theme.Theme, request theme.RadioGroupRequest) theme.RadioGroupVisual {
-	return radiostyle.BuildRadioGroup(active, request)
+	return actionstyle.BuildRadioGroup(active, request)
 }
 
 func (Provider) Slider(active *theme.Theme, request theme.SliderRequest) theme.SliderVisual {
-	visual := sliderstyle.BuildSlider(active, request)
+	visual := fieldrecipe.BuildSlider(active, request)
 	margin := max((active.Components.Slider.ThumbSize-active.Components.Slider.TrackThickness)/2, 0)
 	track := style.New().MarginY(margin)
 	if request.Orientation == theme.SliderVertical {
@@ -277,31 +231,31 @@ func (Provider) Slider(active *theme.Theme, request theme.SliderRequest) theme.S
 }
 
 func (Provider) Menu(active *theme.Theme, request theme.MenuRequest) theme.MenuVisual {
-	return menustyle.BuildMenu(active, request)
+	return navigationstyle.BuildMenu(active, request)
 }
 
 func (Provider) Menubar(active *theme.Theme, request theme.MenubarRequest) theme.MenubarVisual {
-	return menubarstyle.BuildMenubar(active, request)
+	return navigationstyle.BuildMenubar(active, request)
 }
 
 func (Provider) Dropdown(active *theme.Theme, request theme.DropdownRequest) theme.DropdownVisual {
-	return dropdownstyle.BuildDropdown(active, request)
+	return navigationstyle.BuildDropdown(active, request)
 }
 
 func (Provider) Popover(active *theme.Theme, request theme.PopoverRequest) theme.PopoverVisual {
-	return popoverstyle.BuildPopover(active, request)
+	return overlaystyle.BuildPopover(active, request)
 }
 
 func (Provider) Tooltip(active *theme.Theme, request theme.TooltipRequest) theme.TooltipVisual {
-	return tooltipstyle.BuildTooltip(active, request)
+	return overlaystyle.BuildTooltip(active, request)
 }
 
 func (Provider) Toast(active *theme.Theme, request theme.ToastRequest) theme.ToastVisual {
-	return toaststyle.BuildToast(active, request)
+	return feedbackstyle.BuildToast(active, request)
 }
 
 func (Provider) Tabs(active *theme.Theme, request theme.TabsRequest) theme.TabsVisual {
-	visual := tabsstyle.BuildTabs(active, request)
+	visual := navigationstyle.BuildTabs(active, request)
 	sem := active.Semantic()
 	visual.Colors.ListBorder = sem.Separator
 	if request.Variant == 1 {
@@ -313,23 +267,23 @@ func (Provider) Tabs(active *theme.Theme, request theme.TabsRequest) theme.TabsV
 }
 
 func (Provider) Pagination(active *theme.Theme, request theme.PaginationRequest) theme.PaginationVisual {
-	return paginationstyle.BuildPagination(active, request)
+	return navigationstyle.BuildPagination(active, request)
 }
 
 func (Provider) Modal(active *theme.Theme, request theme.ModalRequest) theme.ModalVisual {
-	return modalstyle.BuildModal(active, request)
+	return overlaystyle.BuildModal(active, request)
 }
 
 func (Provider) Alert(active *theme.Theme, request theme.AlertRequest) theme.AlertVisual {
-	return alertstyle.BuildAlert(active, request)
+	return feedbackstyle.BuildAlert(active, request)
 }
 
 func (Provider) AlertDialog(active *theme.Theme, request theme.AlertDialogRequest) theme.AlertDialogVisual {
-	return alertdialogstyle.BuildAlertDialog(active, request)
+	return feedbackstyle.BuildAlertDialog(active, request)
 }
 
 func (Provider) Table(active *theme.Theme, request theme.TableRequest) theme.TableVisual {
-	visual := tablestyle.BuildTable(active, request)
+	visual := datastyle.BuildTable(active, request)
 	row := visual.Row
 	sem := active.Semantic()
 	visual.Colors.Root, visual.Colors.Body = sem.Surface, sem.Surface
@@ -353,77 +307,77 @@ func (Provider) Table(active *theme.Theme, request theme.TableRequest) theme.Tab
 }
 
 func (Provider) Heatmap(active *theme.Theme, request theme.HeatmapRequest) theme.HeatmapVisual {
-	return heatmapstyle.BuildHeatmap(active, request)
+	return chartstyle.BuildHeatmap(active, request)
 }
 
 func (Provider) LineChart(active *theme.Theme, request theme.LineChartRequest) theme.LineChartVisual {
-	return linechartstyle.BuildLineChart(active, request)
+	return chartstyle.BuildLineChart(active, request)
 }
 
 func (Provider) PieChart(active *theme.Theme, request theme.PieChartRequest) theme.PieChartVisual {
-	return piechartstyle.BuildPieChart(active, request)
+	return chartstyle.BuildPieChart(active, request)
 }
 
 func (Provider) Candlestick(active *theme.Theme, request theme.CandlestickRequest) theme.CandlestickVisual {
-	return candlestickstyle.BuildCandlestick(active, request)
+	return chartstyle.BuildCandlestick(active, request)
 }
 
 func (Provider) BarChart(active *theme.Theme, request theme.BarChartRequest) theme.BarChartVisual {
-	return barchartstyle.BuildBarChart(active, request)
+	return chartstyle.BuildBarChart(active, request)
 }
 
 func (Provider) Gantt(active *theme.Theme, request theme.GanttRequest) theme.GanttVisual {
-	return ganttstyle.BuildGantt(active, request)
+	return chartstyle.BuildGantt(active, request)
 }
 
 func (Provider) Timeline(active *theme.Theme, request theme.TimelineRequest) theme.TimelineVisual {
-	return timelinestyle.BuildTimeline(active, request)
+	return chartstyle.BuildTimeline(active, request)
 }
 
 func (Provider) NodeGraph(active *theme.Theme, request theme.NodeGraphRequest) theme.NodeGraphVisual {
-	return nodegraphstyle.BuildNodeGraph(active, request)
+	return chartstyle.BuildNodeGraph(active, request)
 }
 
 func (Provider) Tree(active *theme.Theme, request theme.TreeRequest) theme.TreeVisual {
-	return treestyle.BuildTree(active, request)
+	return datastyle.BuildTree(active, request)
 }
 
 func (Provider) ColorPicker(active *theme.Theme, request theme.ColorPickerRequest) theme.ColorPickerVisual {
-	return colorpickerstyle.BuildColorPicker(active, request)
+	return fieldrecipe.BuildColorPicker(active, request)
 }
 
 func (Provider) ProgressBar(active *theme.Theme, request theme.ProgressBarRequest) theme.ProgressBarVisual {
-	return progressstyle.BuildProgressBar(active, request)
+	return feedbackstyle.BuildProgressBar(active, request)
 }
 
 func (Provider) ProgressCircle(active *theme.Theme, request theme.ProgressCircleRequest) theme.ProgressCircleVisual {
-	return progressstyle.BuildProgressCircle(active, request)
+	return feedbackstyle.BuildProgressCircle(active, request)
 }
 
 func (Provider) Spinner(active *theme.Theme, request theme.SpinnerRequest) theme.SpinnerVisual {
-	return spinnerstyle.BuildSpinner(active, request)
+	return feedbackstyle.BuildSpinner(active, request)
 }
 
 func (Provider) Collapsible(active *theme.Theme, request theme.CollapsibleRequest) theme.CollapsibleVisual {
-	return collapsiblestyle.BuildCollapsible(active, request)
+	return navigationstyle.BuildCollapsible(active, request)
 }
 
 // Image returns the image shape recipe for the active theme.
 func (Provider) Image(active *theme.Theme, request theme.ImageRequest) theme.ImageVisual {
-	return imagestyle.BuildImage(active, request)
+	return surfacestyle.BuildImage(active, request)
 }
 
 // Code returns the code-block surface recipe for the active theme.
 func (Provider) Code(active *theme.Theme, request theme.CodeRequest) theme.CodeVisual {
-	return codestyle.BuildCode(active, request)
+	return surfacestyle.BuildCode(active, request)
 }
 
 // Skeleton returns the placeholder recipe for the active theme.
 func (Provider) Skeleton(active *theme.Theme, request theme.SkeletonRequest) theme.SkeletonVisual {
-	return skeletonstyle.BuildSkeleton(active, request)
+	return feedbackstyle.BuildSkeleton(active, request)
 }
 
 // Segmented returns the segmented-track recipe for the active theme.
 func (Provider) Segmented(active *theme.Theme, request theme.SegmentedRequest) theme.SegmentedVisual {
-	return segmentedstyle.BuildSegmented(active, request)
+	return navigationstyle.BuildSegmented(active, request)
 }

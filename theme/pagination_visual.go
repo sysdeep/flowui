@@ -7,7 +7,7 @@ import (
 )
 
 // PaginationSize identifies the provider-owned density tier for pagination.
-// Page calculation and selection remain behavior-owned by widget/pagination.
+// Page calculation and selection remain behavior-owned by widget/navigation.
 type PaginationSize uint8
 
 const (

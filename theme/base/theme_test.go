@@ -17,13 +17,12 @@ import (
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/button"
-	"github.com/qianniancn/flowui/widget/card"
-	"github.com/qianniancn/flowui/widget/checkbox"
-	"github.com/qianniancn/flowui/widget/combobox"
 	"github.com/qianniancn/flowui/widget/datepicker"
 	"github.com/qianniancn/flowui/widget/input"
-	"github.com/qianniancn/flowui/widget/selectfield"
+	"github.com/qianniancn/flowui/widget/selector"
 	"github.com/qianniancn/flowui/widget/slider"
+	"github.com/qianniancn/flowui/widget/surface"
+	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 func TestDefaultModes(t *testing.T) {
@@ -153,21 +152,21 @@ func TestCheckboxIndicatorColorInsideCard(t *testing.T) {
 			probe := &checkboxColorProbe{}
 			active.VisualProvider = probe
 			harness := uitest.New(image.Pt(300, 100), active)
-			var control ui.Widget = checkbox.New("Selected").Key("checkbox").Checked(true)
+			var control ui.Widget = toggle.NewCheckbox("Selected").Key("checkbox").Checked(true)
 			want := active.Semantic().Tone(theme.TonePrimary).OnFill
 			switch layer {
 			case "scope":
 				control = resolve.Scope(declaration, control)
 				want = custom
 			case "instance":
-				control = (checkbox.New("Selected").Key("checkbox").Checked(true)).Style(declaration)
+				control = (toggle.NewCheckbox("Selected").Key("checkbox").Checked(true)).Style(declaration)
 				want = custom
 			case "shared-control":
 				control = ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
-					return checkbox.DrawControl(ctx, gtx, checkbox.ControlOptions{Selection: 1})
+					return toggle.DrawCheckboxControl(ctx, gtx, toggle.CheckboxControlOptions{Selection: 1})
 				})
 			}
-			harness.Frame(card.New(control))
+			harness.Frame(surface.NewCard(control))
 			if !probe.called || probe.foreground != want {
 				t.Errorf("%s indicator = %v (rendered=%v), want %v", layer, probe.foreground, probe.called, want)
 			}
@@ -195,7 +194,7 @@ func TestDefaultControlAlignment(t *testing.T) {
 		harness := uitest.New(image.Pt(300, 100), active)
 		for _, control := range []ui.Widget{
 			button.New("Save"), input.New("FlowUI"),
-			selectfield.New(nil).Key("select"), combobox.New(nil).Key("combo"),
+			selector.NewSelect(nil).Key("select"), selector.NewCombobox(nil).Key("combo"),
 			datepicker.New("date", time.Time{}),
 		} {
 			harness.Frame(ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
@@ -249,7 +248,7 @@ func TestDefaultSelectInteraction(t *testing.T) {
 		selected, open, disabled := "desktop", false, false
 		root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
 			gtx.Constraints.Min = image.Point{}
-			return selectfield.New([]selectfield.SelectItem{
+			return selector.NewSelect([]selector.SelectItem{
 				{Key: "desktop", Label: "Desktop"}, {Key: "tools", Label: "Tools"},
 			}).Key("platform").SelectedKey(selected).Open(open).Disabled(disabled).
 				OnChange(func(value string) { selected = value }).

@@ -11,8 +11,8 @@ import (
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/style/resolve"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/theme/actionstyle"
 	"github.com/qianniancn/flowui/theme/base"
-	"github.com/qianniancn/flowui/theme/buttonstyle"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/button"
@@ -24,9 +24,9 @@ type customProvider struct{ base.Provider }
 var _ theme.ComponentVisualProvider = customProvider{}
 
 func (customProvider) Button(active *theme.Theme, request theme.ButtonRequest) theme.ButtonVisual {
-	config := buttonstyle.DefaultConfig()
+	config := actionstyle.DefaultConfig()
 	config.Radius = 0
-	return buttonstyle.BuildButton(active, request, config)
+	return actionstyle.BuildButton(active, request, config)
 }
 
 func ExampleProvider() {

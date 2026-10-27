@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/theme/actionstyle"
 	"github.com/qianniancn/flowui/theme/base"
-	"github.com/qianniancn/flowui/theme/buttonstyle"
 )
 
 func TestThemes(t *testing.T) {
@@ -26,10 +26,10 @@ func TestThemes(t *testing.T) {
 type customProvider struct{ base.Provider }
 
 func (customProvider) Button(active *theme.Theme, request theme.ButtonRequest) theme.ButtonVisual {
-	config := buttonstyle.DefaultConfig()
+	config := actionstyle.DefaultConfig()
 	config.Radius = 0
 	config.ContentGap = 0
-	return buttonstyle.BuildButton(active, request, config)
+	return actionstyle.BuildButton(active, request, config)
 }
 
 func customTheme(dark bool) theme.Theme {
