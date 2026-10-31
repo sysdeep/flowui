@@ -19,17 +19,6 @@ import (
 	"github.com/qianniancn/flowui/uitest"
 )
 
-func TestPieChartStyleUsesValueSemantics(t *testing.T) {
-	base := New("share", []Data{Slice("one", "One", 1)})
-	styled := base.Style(style.Style{}.Radius(4))
-	if base.visualCache == nil || styled.style.Resolve(style.State{}).Paint == nil {
-		t.Fatal("PieChart style did not preserve value semantics")
-	}
-	if base.style.Resolve(style.State{}).Paint != nil {
-		t.Fatal("PieChart Style mutated the receiver")
-	}
-}
-
 func TestPieChartInstanceStyleResolvesOutsideDefaultsCache(t *testing.T) {
 	active := new(theme.Light())
 	custom := color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff}

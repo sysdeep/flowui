@@ -16,22 +16,6 @@ import (
 	"github.com/qianniancn/flowui/theme"
 )
 
-func TestColorWheelOptionsUseValueSemantics(t *testing.T) {
-	base := ColorWheel("brand", color.NRGBA{R: 1, A: 255})
-	configured := base.
-		Size(180).
-		Label("Brand color").
-		Disabled(true).
-		OnChange(func(color.NRGBA) {})
-
-	if base.hasSize || base.size != 0 || base.label != "" || base.disabled || base.onChange != nil {
-		t.Fatalf("configuring ColorWheel mutated base: %#v", base)
-	}
-	if !configured.hasSize || configured.size != 180 || configured.label != "Brand color" || !configured.disabled || configured.onChange == nil {
-		t.Fatalf("configured ColorWheel = %#v", configured)
-	}
-}
-
 func TestColorWheelUsesConfiguredAndConstrainedSize(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)

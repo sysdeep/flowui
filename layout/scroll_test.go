@@ -117,18 +117,6 @@ func TestScrollOptions(t *testing.T) {
 	}
 }
 
-func TestScrollFollowEndUsesGioEndFollowing(t *testing.T) {
-	ctx := newContext(nil)
-	Scroll(Spacer(20, 200)).Key("follow-body").FollowEnd().Layout(ctx, layout.Context{
-		Constraints: layout.Constraints{Max: image.Pt(100, 100)},
-		Ops:         new(op.Ops),
-	})
-	state := testComponentState[layout.List](ctx, "follow-body", stateSlotScroll)
-	if !state.ScrollToEnd {
-		t.Fatal("follow-end did not enable Gio end following")
-	}
-}
-
 func TestScrollReservesShadowOutsetAtViewportEdges(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)

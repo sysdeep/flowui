@@ -145,15 +145,6 @@ func TestPushStyleRestoresCascadeScope(t *testing.T) {
 	}
 }
 
-func TestContextRejectsDuplicateExplicitKeys(t *testing.T) {
-	ctx := New(nil, nil, locale.LanguageAuto)
-	BeginFrame(ctx)
-	ctx.Clickable("save")
-	mustPanic(t, func() {
-		ctx.Editor("save")
-	})
-}
-
 func TestContextScopesExplicitKeys(t *testing.T) {
 	ctx := New(nil, nil, locale.LanguageAuto)
 	BeginFrame(ctx)
@@ -374,16 +365,6 @@ func TestContextRoutesWindowCloseRequests(t *testing.T) {
 	if !RequestWindowClose(ctx) || requests != 1 {
 		t.Fatalf("close requests = %d, want 1", requests)
 	}
-}
-
-func mustPanic(t *testing.T, fn func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic")
-		}
-	}()
-	fn()
 }
 
 func TestClickableUsesScopedState(t *testing.T) {

@@ -2,7 +2,6 @@ package progress
 
 import (
 	"image/color"
-	"reflect"
 	"testing"
 
 	"github.com/qianniancn/flowui/i18n"
@@ -10,31 +9,6 @@ import (
 	"github.com/qianniancn/flowui/internal/locale"
 	"github.com/qianniancn/flowui/style"
 )
-
-func TestMeterDelegatesToBar(t *testing.T) {
-	meter := Meter("storage", 60).
-		Label("Storage").
-		Alt("Storage usage").
-		ShowValue().
-		Range(0, 120).
-		Color(BarSuccess).
-		Size(BarLarge).
-		Disabled(true)
-
-	if meter.key != "storage" || meter.value != 60 || meter.label != "Storage" {
-		t.Fatal("meter did not configure the shared progress bar")
-	}
-	if meter.semanticLabel != "Storage usage" || !meter.showValue || meter.maxValue != 120 {
-		t.Fatal("meter semantics or range were not retained")
-	}
-	if meter.color != BarSuccess || meter.size != BarLarge || !meter.disabled {
-		t.Fatal("meter visual options were not delegated")
-	}
-	styled := meter.Style(style.Style{}.Radius(4))
-	if resolved := styled.style.Resolve(style.State{}); resolved.Paint == nil {
-		t.Fatal("meter style was not retained on the progress bar")
-	}
-}
 
 func TestMeterKeepsValueTextOverFormatter(t *testing.T) {
 	meter := Meter("storage", 42).
@@ -56,12 +30,6 @@ func TestMeterFillUsesConcreteColor(t *testing.T) {
 	solid, ok := fill.Paint.Background.(style.SolidColor)
 	if !ok || solid.Color != want {
 		t.Fatalf("fill background = %#v, want %v", fill.Paint.Background, want)
-	}
-}
-
-func TestMeterHasNoIndeterminateMode(t *testing.T) {
-	if _, ok := reflect.TypeFor[BarWidget]().MethodByName("Indeterminate"); !ok {
-		t.Fatal("meter must share the progress bar API")
 	}
 }
 

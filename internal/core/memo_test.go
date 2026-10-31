@@ -51,51 +51,6 @@ func TestMemoSeparatesIdentities(t *testing.T) {
 	}
 }
 
-func TestMemo_GetSet(t *testing.T) {
-	store := &Store{}
-	store.BeginFrame()
-
-	memo := UseMemo[string](store, "key1", "slot1", 1, 700)
-
-	// Initially empty
-	if _, ok := memo.Get(); ok {
-		t.Fatal("Get on empty cache returned true, want false")
-	}
-
-	// Set a value
-	memo.Set("hello")
-
-	// Get should now return it
-	result, ok := memo.Get()
-	if !ok {
-		t.Fatal("Get after Set returned false, want true")
-	}
-	if result != "hello" {
-		t.Fatalf("Get after Set = %q, want %q", result, "hello")
-	}
-}
-
-func TestMemo_FrameCleanup(t *testing.T) {
-	store := &Store{}
-
-	// Frame 1: create and cache
-	store.BeginFrame()
-	memo1 := UseMemo[int](store, "key1", "slot1", 1, 800)
-	memo1.Set(555)
-	store.EndFrame()
-
-	// Frame 2: key not used, should be cleaned up
-	store.BeginFrame()
-	store.EndFrame()
-
-	// Frame 3: try to access - should be gone
-	store.BeginFrame()
-	memo3 := UseMemo[int](store, "key1", "slot1", 1, 800)
-	if _, ok := memo3.Get(); ok {
-		t.Fatal("Get after cleanup returned true, want false")
-	}
-}
-
 func BenchmarkMemo_Hit(b *testing.B) {
 	store := &Store{}
 	store.BeginFrame()

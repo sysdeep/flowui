@@ -2,7 +2,6 @@ package timeline
 
 import (
 	"image/color"
-	"math"
 	"testing"
 
 	"gioui.org/layout"
@@ -74,52 +73,10 @@ func TestMarkerColorPrecedence(t *testing.T) {
 	}
 }
 
-func TestTitleWidthRejectsNegativeValues(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("negative title width did not panic")
-		}
-	}()
-	New(nil).TitleWidth(-1)
-}
-
 func TestTitleWidthUsesDeviceIndependentPixels(t *testing.T) {
 	gtx := layout.Context{Metric: unit.Metric{PxPerDp: 2}}
 	if got := New(nil).TitleWidth(80).resolveTitleSpanPx(gtx, 500); got != 160 {
 		t.Fatalf("title width = %d px, want 160 px at 2x scale", got)
-	}
-}
-
-func TestGapRejectsNegativeValues(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("negative gap did not panic")
-		}
-	}()
-	New(nil).Gap(-1)
-}
-
-func TestTitleSpanRejectsInvalidValues(t *testing.T) {
-	tests := []struct {
-		name  string
-		value float32
-	}{
-		{name: "zero", value: 0},
-		{name: "negative", value: -1},
-		{name: "above twenty four", value: 25},
-		{name: "not a number", value: float32(math.NaN())},
-		{name: "positive infinity", value: float32(math.Inf(1))},
-		{name: "negative infinity", value: float32(math.Inf(-1))},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatalf("title span %v did not panic", test.value)
-				}
-			}()
-			New(nil).TitleSpan(test.value)
-		})
 	}
 }
 

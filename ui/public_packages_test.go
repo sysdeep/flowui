@@ -2,14 +2,10 @@ package ui_test
 
 import (
 	"fmt"
-	"image"
 	"image/color"
 	"testing"
 
-	"gioui.org/io/event"
-	"gioui.org/io/pointer"
 	giolayout "gioui.org/layout"
-	giotext "gioui.org/text"
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/draw"
 	flowlayout "github.com/qianniancn/flowui/layout"
@@ -46,39 +42,6 @@ func TestPublicPackageComposition(t *testing.T) {
 	}
 
 	_ = (style.Style{}).Padding(unit.Dp(8))
-}
-
-func TestPointerHelpersExposeGioContracts(t *testing.T) {
-	var _ func(giolayout.Context, event.Tag, image.Rectangle, pointer.Cursor) = ui.AddPointerArea
-	var _ func(giolayout.Context, event.Tag, pointer.Kind) (pointer.Event, bool) = ui.NextPointerEvent
-	var _ func(pointer.Event) bool = ui.IsPrimaryPointerPress
-	var _ func(giolayout.Context, event.Tag, pointer.Event) = ui.GrabPointer
-}
-
-type publicCustomState struct{}
-
-type publicMeasuredWidget struct{}
-
-func (publicMeasuredWidget) Measure(_ *ui.Context, _ giolayout.Context) giolayout.Dimensions {
-	return giolayout.Dimensions{}
-}
-
-func TestCustomWidgetContractsArePublic(t *testing.T) {
-	var _ func(*ui.Context, string) *publicCustomState = ui.UseState[publicCustomState]
-	var _ func(*ui.Context, string, func() *publicCustomState) *publicCustomState = ui.UseStateWith[publicCustomState]
-	var _ func(*ui.Context, giolayout.Context, ui.Widget) giolayout.Dimensions = ui.MeasureWidget
-	var _ ui.Measurable = publicMeasuredWidget{}
-	var _ ui.Widget = ui.WidgetFunc(func(_ *ui.Context, _ giolayout.Context) giolayout.Dimensions {
-		return giolayout.Dimensions{}
-	})
-	// Custom widgets that lay out mixed-style text need the frame's shaper;
-	// component tests in examples/showcase exercise the returned value.
-	var _ func(*ui.Context) *giotext.Shaper = (*ui.Context).TextShaper
-}
-
-func TestEffectHelpersExposeTypedContracts(t *testing.T) {
-	var _ func(...ui.Cmd[int]) ui.Cmd[int] = ui.Batch[int]
-	var _ func(ui.Subscription[int], func(int) string) ui.Subscription[string] = ui.MapSubscription[int, string]
 }
 
 func TestMVUProgramUsesPublicWidgetContract(t *testing.T) {

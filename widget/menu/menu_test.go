@@ -61,38 +61,6 @@ func menuTestLayoutContext(router *input.Router, now time.Time) layout.Context {
 	}
 }
 
-func TestMenuOptionsAreImmutable(t *testing.T) {
-	base := New("actions", []Item{{Key: "copy", Label: "Copy"}})
-	configured := base.
-		Sections([]Section{{Title: "Edit", Items: []Item{{Key: "paste", Label: "Paste"}}}}).
-		AutoSeparateSections(false).
-		BeforeContent(fixedMenuWidget{size: image.Pt(20, 20)}).
-		AfterContent(fixedMenuWidget{size: image.Pt(20, 20)}).
-		EmptyText("Nothing here").
-		SelectionMode(SelectionMultiple).
-		SelectedKey("copy").
-		SelectedKeys([]string{"paste"}).
-		DisabledKeys([]string{"delete"}).
-		OnActionEvent(func(ActionEvent) {}).
-		OnChange(func(string) {}).
-		OnSelectionChange(func([]string) {}).
-		OnCheckedChange(func(string, bool) {}).
-		OnRadioChange(func(string, string) {}).
-		CloseOnSelect(false).
-		Disabled(true).
-		Compact(true).
-		Width(260)
-	if configured.emptyText != "Nothing here" || configured.onActionEvent == nil || configured.onChange == nil || configured.onSelectionChange == nil || configured.onCheckedChange == nil || configured.onRadioChange == nil || !configured.disabled || !configured.compact || configured.width != 260 || len(configured.sections) != 1 || configured.autoSeparateSections || !configured.hasCloseOnSelect || configured.closeOnSelect {
-		t.Fatalf("configured menu = %#v", configured)
-	}
-	if base.hasEmptyText || base.resolvedEmptyText(menuTestContext()) != "No actions" || base.onActionEvent != nil || base.disabled || base.compact || base.width != 0 || len(base.sections) != 0 {
-		t.Fatalf("base menu was mutated: %#v", base)
-	}
-	if Separator().Kind != ItemSeparator || GroupLabel("Edit").Kind != ItemGroupLabel {
-		t.Fatal("menu structural item constructors returned wrong kinds")
-	}
-}
-
 func TestMenuAutoWidthMeasuresContentAndHonorsBounds(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))

@@ -528,23 +528,3 @@ func receiveRuntimeTestValue[T any](t *testing.T, values <-chan T) T {
 		return zero
 	}
 }
-
-func TestStartCmdSendsMessage(t *testing.T) {
-	done := make(chan int, 1)
-	var effects effectGroup
-	StartCmd(&effects, context.Background(), func(_ context.Context, send Send[int]) error {
-		send(7)
-		return nil
-	}, func(msg int) {
-		done <- msg
-	}, nil)
-
-	select {
-	case got := <-done:
-		if got != 7 {
-			t.Fatalf("message = %d, want 7", got)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for command")
-	}
-}

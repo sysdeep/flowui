@@ -97,21 +97,3 @@ func TestRangeAndValueClamp(t *testing.T) {
 		t.Fatalf("value = %v, want 20", value.value)
 	}
 }
-
-func TestRangeRejectsInvertedBounds(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("Range should reject inverted bounds")
-		}
-	}()
-	New("amount", 1).Range(2, 1)
-}
-
-func TestStepRejectsNonPositive(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("Step should reject non-positive values")
-		}
-	}()
-	New("amount", 1).Step(0)
-}

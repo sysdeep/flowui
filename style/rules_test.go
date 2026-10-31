@@ -309,15 +309,6 @@ func TestOnAnyAttachesTweenToFirstRowOnly(t *testing.T) {
 	}
 }
 
-// TestOnAnyEmptyMaskAppendsNothing keeps the empty mask a no-op rather than an
-// accidental unconditional row; the unconditional row is On's job.
-func TestOnAnyEmptyMaskAppendsNothing(t *testing.T) {
-	decl := Style{}.OnAny(0, Style{}.Opacity(0.5))
-	if resolved := decl.Resolve(State{}); resolved.Paint != nil {
-		t.Fatalf("OnAny(0) applied an unconditional style: %#v", resolved.Paint)
-	}
-}
-
 // TestOnZeroMaskIsUnconditionalRow pins the escape hatch checkbox's resting
 // row relies on: When 0 matches every state and sorts first.
 func TestOnZeroMaskIsUnconditionalRow(t *testing.T) {

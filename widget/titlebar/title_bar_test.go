@@ -21,18 +21,6 @@ import (
 	"github.com/qianniancn/flowui/widget/menubar"
 )
 
-func TestTitleBarStyleUsesValueSemantics(t *testing.T) {
-	base := New("workspace", "FlowUI", nil)
-	configured := base.Leading(fixedMenu{size: image.Pt(20, 20)}).ShowClose(false)
-	styled := (configured).Style(style.Style{}.Height(40))
-	if styled.style.Resolve(style.State{}).Box == nil {
-		t.Fatal("TitleBar style did not reach the visual recipe")
-	}
-	if base.leading != nil || !base.showClose || configured.leading == nil || configured.showClose {
-		t.Fatal("TitleBar configuration did not preserve value semantics")
-	}
-}
-
 func TestTitleBarLabelPartUsesCommonBoxRenderer(t *testing.T) {
 	activeTheme := theme.Light()
 

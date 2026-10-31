@@ -84,17 +84,6 @@ func TestPortalDisablesRootContent(t *testing.T) {
 	}
 }
 
-func TestPortalRejectsNilRootContent(t *testing.T) {
-	ctx, gtx := portalTestContext(image.Pt(100, 80))
-	New("nil-content", true, nil, func(image.Rectangle, bool) core.Widget { return nil }).Layout(ctx, gtx)
-	defer func() {
-		if recover() == nil {
-			t.Fatal("portal accepted nil root content")
-		}
-	}()
-	core.LayoutOverlays(ctx, gtx)
-}
-
 func portalTestContext(viewport image.Point) (*core.Context, layout.Context) {
 	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)

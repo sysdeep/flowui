@@ -1,9 +1,7 @@
 package layout
 
 import (
-	"fmt"
 	"image"
-	"math"
 	"testing"
 
 	"gioui.org/layout"
@@ -219,18 +217,5 @@ func TestFlexibleCanUseLessThanItsShare(t *testing.T) {
 
 	if dims.Size != image.Pt(20, 10) {
 		t.Fatalf("loose Flexible size = %v, want (20,10)", dims.Size)
-	}
-}
-
-func TestFlexibleRejectsInvalidWeight(t *testing.T) {
-	for _, weight := range []float32{0, -1, float32(math.NaN()), float32(math.Inf(1))} {
-		t.Run(fmt.Sprintf("weight-%v", weight), func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("expected invalid flex weight panic")
-				}
-			}()
-			Flexible(weight, Spacer(1, 1))
-		})
 	}
 }

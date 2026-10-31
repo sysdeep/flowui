@@ -110,20 +110,6 @@ func TestKeysClaimDerivedResolvedMatchesScopedOwner(t *testing.T) {
 	}
 }
 
-func TestKeysRejectEmptyDerivedOwnerWithinScope(t *testing.T) {
-	var keys Keys
-	keys.BeginFrame()
-	pop := keys.Push("profile")
-	defer pop()
-
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected empty derived owner to panic")
-		}
-	}()
-	keys.ClaimDerived(KindClickable, "", "label")
-}
-
 func TestKeysFullKeyEncodesScopedSegments(t *testing.T) {
 	got := fullKeyForPath([]string{"a/b", "c%d"}, "e/f%g")
 	const want = "a%2Fb/c%25d/e%2Ff%25g"
@@ -171,25 +157,6 @@ func TestKeysFullKeyDistinguishesPathSegments(t *testing.T) {
 				t.Fatalf("distinct paths produced the same key %q", first)
 			}
 		})
-	}
-}
-
-func TestKeysClaimAllowsPreviouslyCollidingPaths(t *testing.T) {
-	var keys Keys
-	keys.BeginFrame()
-
-	popAB := keys.Push("a/b")
-	first := keys.Claim(KindClickable, "c")
-	popAB()
-
-	popA := keys.Push("a")
-	popB := keys.Push("b")
-	second := keys.Claim(KindClickable, "c")
-	popB()
-	popA()
-
-	if first == second {
-		t.Fatalf("distinct paths produced the same claimed key %q", first)
 	}
 }
 

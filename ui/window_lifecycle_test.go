@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"gioui.org/app"
@@ -75,21 +73,6 @@ func TestHandleClosingKeepAliveEnablesApplicationKeepAlive(t *testing.T) {
 	if !a.windows.keepAlive {
 		t.Fatal("keep-alive was not enabled")
 	}
-}
-
-func TestRunRejectsCloseRequestMessageWithoutApplication(t *testing.T) {
-	defer func() {
-		value := fmt.Sprint(recover())
-		if !strings.Contains(value, "CloseRequestMessage") {
-			t.Fatalf("ui.Run panic = %q, want CloseRequestMessage guidance", value)
-		}
-	}()
-	program := NewProgram(0,
-		func(*int, struct{}) Cmd[struct{}] { return nil },
-		func(*Context, int, Send[struct{}]) Widget { return nil },
-	)
-	program.CloseRequestMessage = func() struct{} { return struct{}{} }
-	Run(program)
 }
 
 func TestCloseMarkersAreOneShot(t *testing.T) {

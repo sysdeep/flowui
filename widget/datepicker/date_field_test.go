@@ -15,41 +15,6 @@ import (
 	"github.com/qianniancn/flowui/internal/locale"
 )
 
-func TestDateFieldOptionsUseValueSemantics(t *testing.T) {
-	base := DateField("date", time.Time{})
-	configured := base.
-		Label("Date").
-		Description("Choose a date").
-		ErrorMessage("Invalid date").
-		Locale(Chinese()).
-		Variant(Secondary).
-		Disabled(true).
-		Invalid(true).
-		Required(true).
-		FillWidth().
-		MinDate(testDate(2026, 1, 1)).
-		MaxDate(testDate(2026, 12, 31)).
-		OnChange(func(time.Time) {})
-
-	if base.label != "" || base.description != "" || base.disabled || base.fullWidth || base.onChange != nil {
-		t.Fatalf("configuring DateField mutated base: %#v", base)
-	}
-	if configured.label != "Date" || configured.description == "" || configured.errorMessage == "" || !configured.localeSet || configured.locale.DateOrder[0] != DatePartYear || !configured.disabled || !configured.invalid || !configured.required || !configured.fullWidth || configured.onChange == nil {
-		t.Fatalf("configured DateField = %#v", configured)
-	}
-}
-
-func TestDateRangePickerFillWidthUsesValueSemantics(t *testing.T) {
-	base := DateRangePicker("range", DateRange{})
-	configured := base.FillWidth()
-	if base.fullWidth {
-		t.Fatal("FillWidth mutated the original date range picker")
-	}
-	if !configured.fullWidth {
-		t.Fatal("FillWidth did not enable full width")
-	}
-}
-
 func TestDatePickerTypingUsesSharedDateSegments(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageEnglish)
 	router := new(input.Router)

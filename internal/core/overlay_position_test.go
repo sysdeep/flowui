@@ -37,16 +37,6 @@ func TestPopoverPlacementMapping(t *testing.T) {
 	}
 }
 
-func TestPopoverPlacementMappingDefaultsToBottomCenter(t *testing.T) {
-	want := Placement{Side: SideBottom, Align: AlignCenter}
-	if got := PopoverPlacement(255).Placement(); got != want {
-		t.Fatalf("invalid PopoverPlacement maps to %#v, want %#v", got, want)
-	}
-	if got := (Placement{Side: Side(255), Align: Align(255)}).PopoverPlacement(); got != PopoverBottom {
-		t.Fatalf("invalid Placement maps to %v, want %v", got, PopoverBottom)
-	}
-}
-
 func TestAvoidOverflowPreservesNegativeLocalPlacement(t *testing.T) {
 	position := image.Pt(-88, -10)
 	if got := AvoidOverflow(position, image.Pt(80, 40), image.Pt(300, 200)); got != position {

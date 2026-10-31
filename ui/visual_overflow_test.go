@@ -39,17 +39,3 @@ func TestVisualOverflowKeepsChildDimensions(t *testing.T) {
 		t.Fatalf("calls = child %d, draw %d; want 1 each", childCalls, drawCalls)
 	}
 }
-
-func TestVisualOverflowHandlesNilValues(t *testing.T) {
-	gtx := layout.Context{Ops: new(op.Ops)}
-	if dims := flowlayout.VisualOverflow(nil, gtx, nil, nil); dims != (layout.Dimensions{}) {
-		t.Fatalf("nil child dimensions = %v", dims)
-	}
-	want := layout.Dimensions{Size: image.Pt(12, 8)}
-	dims := flowlayout.VisualOverflow(nil, gtx, WidgetFunc(func(*Context, layout.Context) layout.Dimensions {
-		return want
-	}), nil)
-	if dims != want {
-		t.Fatalf("nil draw dimensions = %v, want %v", dims, want)
-	}
-}

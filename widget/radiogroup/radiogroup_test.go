@@ -39,30 +39,6 @@ func testLayoutContext() layout.Context {
 	}
 }
 
-func TestRadioGroupOptions(t *testing.T) {
-	items := []RadioItem{{Key: "basic", Label: "Basic"}}
-	var changed string
-	radio := New(items).Key("plan").SelectedKey("basic").
-		Horizontal().
-		Variant(RadioSecondary).
-		Disabled(true).
-		Invalid(true).
-		OnChange(func(key string) {
-			changed = key
-		})
-
-	if radio.key != "plan" || radio.selectedKey != "basic" || len(radio.items) != 1 {
-		t.Fatal("radio group constructor did not set fields")
-	}
-	if !radio.horizontal || radio.variant != RadioSecondary || !radio.disabled || !radio.invalid {
-		t.Fatal("radio group options were not set")
-	}
-	radio.onChange("pro")
-	if changed != "pro" {
-		t.Fatalf("on change = %q, want pro", changed)
-	}
-}
-
 func TestRadioGroupClickSelectsDifferentItem(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)

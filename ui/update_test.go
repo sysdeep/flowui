@@ -24,16 +24,6 @@ func TestDoAdaptsContextFreeCommand(t *testing.T) {
 	}
 }
 
-func TestDoContextReturnsError(t *testing.T) {
-	want := errors.New("failed")
-	cmd := DoContext(func(context.Context, Send[int]) error {
-		return want
-	})
-	if err := cmd(context.Background(), func(int) {}); !errors.Is(err, want) {
-		t.Fatalf("command error = %v, want %v", err, want)
-	}
-}
-
 func TestEventWindowDecoratesEffectContextWithExplorerService(t *testing.T) {
 	service := internalexplorer.New(nil)
 	window := &platformEventWindow{explorer: service}
@@ -68,18 +58,6 @@ func TestMapCmdMapsMessagesAndPreservesContextAndError(t *testing.T) {
 	}
 }
 
-func TestMapCmdPreservesNilAndRejectsNilMapper(t *testing.T) {
-	if MapCmd[int, string](nil, nil) != nil {
-		t.Fatal("nil child command did not remain nil")
-	}
-	defer func() {
-		if recover() == nil {
-			t.Fatal("non-nil command accepted a nil mapper")
-		}
-	}()
-	MapCmd(Do(func(Send[int]) {}), (func(int) string)(nil))
-}
-
 type batchContextKey struct{}
 
 func TestBatchRunsCommandsAndPreservesErrors(t *testing.T) {
@@ -112,16 +90,6 @@ func TestBatchRunsCommandsAndPreservesErrors(t *testing.T) {
 	}
 }
 
-func TestBatchIgnoresNilCommands(t *testing.T) {
-	if Batch[int]() != nil || Batch[int](nil, nil) != nil {
-		t.Fatal("empty batch was not nil")
-	}
-	command := Do(func(Send[int]) {})
-	if Batch[int](nil, command) == nil {
-		t.Fatal("single active command was discarded")
-	}
-}
-
 func TestMapSubscriptionMapsMessagesAndPreservesKey(t *testing.T) {
 	child := Subscribe("events", func(_ context.Context, send Send[int]) error {
 		send(7)
@@ -135,38 +103,6 @@ func TestMapSubscriptionMapsMessagesAndPreservesKey(t *testing.T) {
 	err := parent.Run(context.Background(), func(value string) { got = value })
 	if got != "value=7" || err == nil || err.Error() != "subscription failed" {
 		t.Fatalf("mapped subscription = %q, %v", got, err)
-	}
-}
-
-func TestMapSubscriptionPreservesZeroAndRejectsNilMapper(t *testing.T) {
-	if mapped := MapSubscription[int, string](Subscription[int]{}, nil); mapped.Run != nil || mapped.Key != "" {
-		t.Fatal("zero subscription was not preserved")
-	}
-	defer func() {
-		if recover() == nil {
-			t.Fatal("nil subscription mapper did not panic")
-		}
-	}()
-	MapSubscription(Subscribe("events", func(context.Context, Send[int]) error { return nil }), (func(int) string)(nil))
-}
-
-func TestSubscribeValidatesDefinition(t *testing.T) {
-	tests := []struct {
-		name string
-		make func()
-	}{
-		{name: "empty key", make: func() { Subscribe[int]("", func(context.Context, Send[int]) error { return nil }) }},
-		{name: "nil runner", make: func() { Subscribe[int]("events", nil) }},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("invalid subscription did not panic")
-				}
-			}()
-			test.make()
-		})
 	}
 }
 

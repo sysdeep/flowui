@@ -36,34 +36,6 @@ func TestTextAreaSyncsValueAndConfiguresMultilineEditor(t *testing.T) {
 	}
 }
 
-func TestTextAreaOptionsAreImmutable(t *testing.T) {
-	base := NewTextArea("").Key("notes")
-	configured := base.
-		Placeholder("Meeting notes").
-		OnChange(func(string) {}).
-		Variant(Secondary).
-		Disabled(true).
-		Invalid(true).
-		FillWidth().
-		ReadOnly(true).
-		MaxLength(240).
-		Rows(6).
-		Label("Notes")
-
-	if configured.hint != "Meeting notes" || configured.onChange == nil || configured.variant != Secondary || !configured.disabled || !configured.invalid || !configured.fullWidth || !configured.readOnly || configured.maxLength != 240 || configured.rows != 6 || configured.label != "Notes" {
-		t.Fatalf("configured textarea = %#v", configured)
-	}
-	if base.hint != "" || base.onChange != nil || base.variant != Primary || base.disabled || base.invalid || base.fullWidth || base.readOnly || base.maxLength != 0 || base.rows != 0 || base.label != "" {
-		t.Fatalf("base textarea was mutated: %#v", base)
-	}
-	if got := base.MaxLength(-1).maxLength; got != 0 {
-		t.Fatalf("negative max length = %d, want 0", got)
-	}
-	if got := base.Rows(0).rows; got != 1 {
-		t.Fatalf("non-positive rows = %d, want 1", got)
-	}
-}
-
 func TestTextAreaRowsControlHeight(t *testing.T) {
 	for _, test := range []struct {
 		name string

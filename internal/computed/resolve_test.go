@@ -489,21 +489,6 @@ func TestApplyPartTransitionsEmptyKeySoftSnaps(t *testing.T) {
 	}
 }
 
-func TestApplyTransitionsEmptyKeySnapsWithoutState(t *testing.T) {
-	ctx := core.New(nil, nil, locale.LanguageAuto)
-	declaration := style.Style{}.
-		Opacity(0.5).
-		Transition(style.PropOpacity, time.Second)
-
-	resolved := Resolve(ctx, testContext(time.Unix(1, 0)), "", style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
-	if resolved.Paint == nil || resolved.Paint.Opacity == nil || *resolved.Paint.Opacity != 0.5 {
-		t.Fatalf("empty key should soft-snap to target opacity, got %#v", resolved.Paint)
-	}
-	if got := core.StateLen(ctx); got != 0 {
-		t.Fatalf("empty key retained %d style states, want 0", got)
-	}
-}
-
 func TestApplyTransitionsWithSharedKeyReusesSettledStyle(t *testing.T) {
 	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)

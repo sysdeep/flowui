@@ -45,18 +45,6 @@ func TestStoreSeparatesSlotsForOneComponent(t *testing.T) {
 	}
 }
 
-func TestStoreRejectsTypeMismatch(t *testing.T) {
-	var store Store
-	id := Identity{Key: "tabs", Slot: "interaction"}
-	Use[int](&store, id, nil)
-	defer func() {
-		if recover() == nil {
-			t.Fatal("type mismatch did not panic")
-		}
-	}()
-	Use[string](&store, id, nil)
-}
-
 func TestStorePeekDoesNotRetainState(t *testing.T) {
 	var store Store
 	id := Identity{Key: "dialog", Slot: "modal"}

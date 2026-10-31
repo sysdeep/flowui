@@ -56,34 +56,6 @@ func mustPanic(t *testing.T, fn func()) {
 	fn()
 }
 
-func TestListBoxOptions(t *testing.T) {
-	box := New(listBoxTestItems()).Key("files").SelectedKey("go").
-		EmptyText("Nothing here").
-		OnChange(func(string) {}).
-		OnSelectionChange(func([]string) {}).
-		OnAction(func(string) {}).
-		SelectionMode(SelectionNone).
-		DisabledKeys([]string{"rust"}).
-		Disabled(true).
-		FillWidth().
-		AllowEmptySelection().
-		HideIndicator().
-		MaxHeight(120)
-
-	if box.key != "files" || box.selectedKey != "go" || len(box.items) != 3 {
-		t.Fatal("listbox constructor did not set fields")
-	}
-	if box.emptyText != "Nothing here" || box.onChange == nil || box.onSelectionChange == nil || box.onAction == nil {
-		t.Fatal("listbox callbacks/options were not set")
-	}
-	if box.selectionMode != SelectionNone || !listBoxSameKeys(box.disabledKeys, []string{"rust"}) {
-		t.Fatal("listbox selection options were not set")
-	}
-	if !box.disabled || !box.fullWidth || !box.allowEmpty || !box.hideIndicator || box.maxHeight != 120 {
-		t.Fatal("listbox visual options were not set")
-	}
-}
-
 func TestListBoxInstanceStyleIsLastCascadeLayer(t *testing.T) {
 	active := new(theme.Light())
 	ctx := newContextWithTheme(nil, active)

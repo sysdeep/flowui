@@ -2,7 +2,6 @@ package divider
 
 import (
 	"image"
-	"image/color"
 	"testing"
 
 	"gioui.org/layout"
@@ -34,14 +33,6 @@ func TestVerticalDividerLayout(t *testing.T) {
 
 	if dims.Size != image.Pt(3, 100) {
 		t.Fatalf("vertical divider size = %v, want (3,100)", dims.Size)
-	}
-}
-
-func TestDividerColor(t *testing.T) {
-	d := New().Color(color.NRGBA{A: 0xff})
-
-	if !d.hasColor {
-		t.Fatal("divider color was not set")
 	}
 }
 

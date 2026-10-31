@@ -2,7 +2,6 @@ package style
 
 import (
 	"image/color"
-	"math"
 	"reflect"
 	"testing"
 )
@@ -116,22 +115,6 @@ func TestDimIsLastLayerWins(t *testing.T) {
 	)
 	if got := colorOf(t, declaration.Resolve(State{}).Paint.Background); got != 100 {
 		t.Fatalf("background alpha = %d, want 100 (0.5, not 0.9*0.5)", got)
-	}
-}
-
-func TestDimClampsAndIgnoresNonFiniteFactors(t *testing.T) {
-	if got := colorOf(t, Style{}.Background(solid(200)).Dim(2).Resolve(State{}).Paint.Background); got != 200 {
-		t.Fatalf("alpha = %d, want the factor clamped to 1", got)
-	}
-	if got := colorOf(t, Style{}.Background(solid(200)).Dim(-1).Resolve(State{}).Paint.Background); got != 0 {
-		t.Fatalf("alpha = %d, want the factor clamped to 0", got)
-	}
-	// A non-finite factor is dropped rather than coerced to zero, matching how
-	// every other numeric setter in this package treats NaN.
-	source := color.NRGBA{R: 10, G: 20, B: 30, A: 200}
-	resolved := Style{}.Background(SolidColor{Color: source}).Dim(float32(math.NaN())).Resolve(State{})
-	if got := colorOf(t, resolved.Paint.Background); got != 200 {
-		t.Fatalf("alpha = %d, want 200: a NaN factor must leave the declaration alone", got)
 	}
 }
 

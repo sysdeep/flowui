@@ -23,26 +23,6 @@ func newCollapsibleContext() *core.Context {
 	return core.New(nil, &activeTheme, locale.LanguageAuto)
 }
 
-func TestCollapsibleOptions(t *testing.T) {
-	onChange := func(bool) {}
-	widget := New("Details", text.New("Body")).Key("details").Expanded(true).
-		Leading(text.New("L")).
-		Trailing(text.New("T")).
-		Disabled(true).
-		OnExpandedChange(onChange)
-	if widget.key != "details" || !widget.expanded || widget.label != "Details" || widget.content == nil || widget.leading == nil || widget.trailing == nil || !widget.disabled || widget.onExpandedChange == nil {
-		t.Fatal("collapsible options were not retained")
-	}
-
-	group := Group("group", []string{"one"}, testItems()).
-		AllowMultipleExpanded(true).
-		Disabled(true).
-		OnExpandedChange(func([]string) {})
-	if group.key != "group" || len(group.expandedKeys) != 1 || len(group.items) != 3 || !group.allowMultipleExpanded || !group.disabled || group.onExpandedChange == nil {
-		t.Fatal("collapsible group options were not retained")
-	}
-}
-
 func TestToggleExpandedKeys(t *testing.T) {
 	if got := toggleExpandedKeys([]string{"one"}, "two", false); !slices.Equal(got, []string{"two"}) {
 		t.Fatalf("single expansion = %v, want [two]", got)

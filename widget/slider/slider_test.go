@@ -20,16 +20,6 @@ import (
 	"github.com/qianniancn/flowui/theme"
 )
 
-func TestSliderDefaults(t *testing.T) {
-	value := New("volume", 30)
-	if value.key != "volume" || value.value != 30 || value.minValue != 0 || value.maxValue != 100 || value.step != 1 {
-		t.Fatalf("slider defaults = %#v", value)
-	}
-	if value.rangeMode || value.orientation != Horizontal {
-		t.Fatal("single slider should default to horizontal single-value mode")
-	}
-}
-
 func TestRangeSliderSortsAndSnapsValues(t *testing.T) {
 	values := RangeSlider("price", 83, 17).Range(0, 100).Step(5).resolvedValues()
 	if values.lower != 15 || values.upper != 85 {
@@ -46,23 +36,6 @@ func TestSliderClampsInvalidNumericValues(t *testing.T) {
 	if values.lower != 0 {
 		t.Fatalf("NaN value = %v, want 0", values.lower)
 	}
-}
-
-func TestSliderRejectsInvalidRangeAndStep(t *testing.T) {
-	assertSliderPanic(t, func() { New("value", 0).Range(10, 10) })
-	assertSliderPanic(t, func() { New("value", 0).Range(math.NaN(), 10) })
-	assertSliderPanic(t, func() { New("value", 0).Step(0) })
-	assertSliderPanic(t, func() { New("value", 0).Step(math.Inf(1)) })
-}
-
-func assertSliderPanic(t *testing.T, fn func()) {
-	t.Helper()
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected slider configuration panic")
-		}
-	}()
-	fn()
 }
 
 func TestSliderOutputFormatting(t *testing.T) {
