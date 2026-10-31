@@ -2,15 +2,9 @@ package tabs
 
 import (
 	"image"
-	"time"
 
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/theme"
-)
-
-const (
-	tabsColorDuration     = 150 * time.Millisecond
-	tabsIndicatorDuration = 250 * time.Millisecond
 )
 
 func (s *tabsIndicatorState) transition(gtx layout.Context, key string, orientation Orientation, target image.Rectangle, motions ...theme.MotionTheme) image.Rectangle {
@@ -21,12 +15,8 @@ func (s *tabsItemState) selectionProgress(gtx layout.Context, selected bool, mot
 	return s.selectionProgressWithDuration(gtx, selected, tabsColorDuration, motions...)
 }
 
-// tabsSizeStyleFor is a behavior-test measurement adapter. Production layout
-// receives the provider-owned TabsMetrics directly.
-func tabsSizeStyleFor(active *theme.Theme, size Size) tabsSizeStyle {
-	tokens := active.Components.Tabs
-	return tabsSizeStyleForVisual(theme.TabsMetrics{
-		TabHeight: tokens.TabHeight, SmallTabHeight: tokens.SmallTabHeight, LargeTabHeight: tokens.LargeTabHeight,
-		TabPaddingX: tokens.TabPaddingX, SmallTabPaddingX: tokens.SmallTabPaddingX, LargeTabPaddingX: tokens.LargeTabPaddingX,
-	}, size)
+// tabsTestSizeStyle is a behavior-test measurement adapter. Production layout
+// receives the component-owned tabsGeometry directly.
+func tabsTestSizeStyle(size Size) tabsSizeStyle {
+	return tabsSizeStyleFor(tabsGeometryFor(Primary), size)
 }

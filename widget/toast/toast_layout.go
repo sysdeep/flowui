@@ -10,13 +10,17 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
+	lucide "github.com/qianniancn/flowui-icons-lucide"
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/draw"
-	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
+	"github.com/qianniancn/flowui/widget/icon"
+	"github.com/qianniancn/flowui/widget/spinner"
+	textui "github.com/qianniancn/flowui/widget/text"
 )
 
 type toastRecord struct {
@@ -29,24 +33,24 @@ type toastRecord struct {
 	exiting  bool
 }
 
-func (p Widget) layoutOverlay(ctx *core.Context, gtx layout.Context, providerState *toastProviderState, baseVisual theme.ToastVisual, override *theme.ToastOverride) layout.Dimensions {
+func (p Widget) layoutOverlay(ctx *core.Context, gtx layout.Context, hostState *toastHostState, baseVisual toastVisual) layout.Dimensions {
 	viewport := gtx.Constraints.Max
 	if viewport.X <= 0 || viewport.Y <= 0 {
 		return layout.Dimensions{}
 	}
 	gtx.Constraints = layout.Exact(viewport)
 
-	p.handleEvents(gtx, providerState)
-	providerState.updateRegionEvents(gtx)
-	expanded := providerState.regionHovered || providerState.paused(gtx)
-	motion := baseVisual.Motion
-	expansion := providerState.expansionProgress(gtx, expanded, baseVisual.Metrics.AnimationDuration, motion)
-	providerState.updateTimers(gtx, p.paused || expanded || expansion > 0, func(entry *toastEntryState) {
+	p.handleEvents(ctx, gtx, hostState)
+	hostState.updateRegionEvents(gtx)
+	expanded := hostState.regionHover.Hovered || hostState.paused(gtx)
+	motion := baseVisual.motion
+	expansion := hostState.expansionProgress(gtx, expanded, baseVisual.metrics.AnimationDuration, motion)
+	hostState.updateTimers(gtx, p.paused || expanded || expansion > 0, func(entry *toastEntryState) {
 		entry.requestClose(p.onClose)
 	})
 
 	maxVisible := p.resolvedMaxVisible(baseVisual)
-	inset := gtx.Dp(baseVisual.Metrics.Inset)
+	inset := gtx.Dp(baseVisual.metrics.Inset)
 	offset := gtx.Dp(p.resolvedOffset(baseVisual))
 	maxWidth := min(gtx.Dp(p.resolvedWidth(baseVisual)), max(viewport.X-2*inset, 0))
 	if maxWidth <= 0 {
@@ -56,12 +60,10 @@ func (p Widget) layoutOverlay(ctx *core.Context, gtx layout.Context, providerSta
 	records := make([]toastRecord, 0, maxVisible+1)
 	presentIndex := 0
 	frontHeight := 0
-	var variantVisuals [5]theme.ToastVisual
-	var variantVisualReady [5]bool
-	restoreProvider := core.PushKey(ctx, p.key)
-	defer restoreProvider()
-	for _, key := range providerState.order {
-		entry := providerState.entry(key)
+	restoreKey := core.PushKey(ctx, p.key)
+	defer restoreKey()
+	for _, key := range hostState.order {
+		entry := hostState.entry(key)
 		if entry == nil {
 			continue
 		}
@@ -73,8 +75,8 @@ func (p Widget) layoutOverlay(ctx *core.Context, gtx layout.Context, providerSta
 		} else if !entry.stack.Ready() {
 			targetIndex = float32(presentIndex)
 		}
-		stackPosition := entry.stackPosition(gtx, targetIndex, baseVisual.Metrics.AnimationDuration, motion)
-		progress := entry.progress(gtx, baseVisual.Metrics.AnimationDuration, motion)
+		stackPosition := entry.stackPosition(gtx, targetIndex, baseVisual.metrics.AnimationDuration, motion)
+		progress := entry.progress(gtx, baseVisual.metrics.AnimationDuration, motion)
 		if progress <= 0 && (!entry.present || entry.closeRequested) {
 			continue
 		}
@@ -96,31 +98,18 @@ func (p Widget) layoutOverlay(ctx *core.Context, gtx layout.Context, providerSta
 			toastGtx.Constraints.Max.Y = height
 		}
 		restoreItem := core.PushKey(ctx, entry.item.key)
-		visual := baseVisual
-		if entry.item.variant != Default {
-			variantIndex := int(entry.item.variant)
-			if variantIndex >= 0 && variantIndex < len(variantVisuals) {
-				if !variantVisualReady[variantIndex] {
-					variantVisuals[variantIndex] = p.visualWithCache(ctx, entry.item.variant, override)
-					variantVisualReady[variantIndex] = true
-				}
-				visual = variantVisuals[variantIndex]
-			} else {
-				visual = p.visualWithCache(ctx, entry.item.variant, override)
-			}
-		}
+		visual := p.visualWithCache(ctx, entry.item.variant, entry.item.actionVariant)
 		state := style.State{
-			Hovered:      entry.hovered,
+			Hovered:      entry.hover.Hovered,
 			Focused:      toastGtx.Focused(&entry.action) || toastGtx.Focused(&entry.close),
 			FocusVisible: core.FocusVisible(ctx, &entry.root, toastGtx.Focused(&entry.root)),
 			Disabled:     !interactive,
 			Expanded:     expanded,
 			Loading:      entry.item.loading,
 		}
-		resolved := computed.Resolve(ctx, toastGtx, core.FullKey(ctx, ""), state,
-			visual.Defaults, style.Style{}, style.Style{}, visual.Override)
+		resolved := p.resolveStyle(ctx, toastGtx, state, visual)
 		macro := op.Record(gtx.Ops)
-		dims := p.layoutToast(ctx, toastGtx, entry, interactive, mobile, expandedLayout || providerState.touchMode, visual, resolved)
+		dims := p.layoutToast(ctx, toastGtx, entry, interactive, mobile, expandedLayout || hostState.touchMode, visual, resolved)
 		call := macro.Stop()
 		restoreItem()
 		if targetIndex == 0 && !exiting {
@@ -138,13 +127,13 @@ func (p Widget) layoutOverlay(ctx *core.Context, gtx layout.Context, providerSta
 	}
 
 	bounds := p.paintRecords(ctx, gtx, viewport, records, expansion, baseVisual)
-	providerState.addRegionInput(gtx, bounds)
+	hostState.addRegionInput(gtx, bounds)
 	return layout.Dimensions{Size: viewport}
 }
 
-func (p Widget) handleEvents(gtx layout.Context, providerState *toastProviderState) {
-	for _, keyValue := range providerState.order {
-		entry := providerState.entry(keyValue)
+func (p Widget) handleEvents(ctx *core.Context, gtx layout.Context, hostState *toastHostState) {
+	for _, keyValue := range hostState.order {
+		entry := hostState.entry(keyValue)
 		if entry == nil {
 			continue
 		}
@@ -155,32 +144,31 @@ func (p Widget) handleEvents(gtx layout.Context, providerState *toastProviderSta
 				break
 			}
 		}
-		for entry.close.Clicked(gtx) {
+		disabled := !entry.present || entry.closeRequested
+		base.UpdateRow(ctx, gtx, base.RowInput{
+			Clickable: &entry.close, Disabled: disabled, PreserveFocus: true,
+			OnClick: func(widget.Click) { entry.requestClose(p.onClose) },
+		})
+		base.UpdateRow(ctx, gtx, base.RowInput{
+			Clickable: &entry.action, Disabled: disabled, PreserveFocus: true,
+			OnClick: func(widget.Click) {
+				if p.onAction != nil {
+					p.onAction(entry.item.key)
+				}
+			},
+		})
+		if base.EscapePressed(gtx, &entry.root) {
 			entry.requestClose(p.onClose)
-		}
-		for entry.action.Clicked(gtx) {
-			if p.onAction != nil {
-				p.onAction(entry.item.key)
-			}
-		}
-		for {
-			event, ok := gtx.Event(key.Filter{Focus: &entry.root, Name: key.NameEscape})
-			if !ok {
-				break
-			}
-			if event, ok := event.(key.Event); ok && event.State == key.Press {
-				entry.requestClose(p.onClose)
-			}
 		}
 	}
 }
 
-func (p Widget) paintRecords(ctx *core.Context, gtx layout.Context, viewport image.Point, records []toastRecord, expansion float32, baseVisual theme.ToastVisual) image.Rectangle {
+func (p Widget) paintRecords(ctx *core.Context, gtx layout.Context, viewport image.Point, records []toastRecord, expansion float32, baseVisual toastVisual) image.Rectangle {
 	if len(records) == 0 {
 		return image.Rectangle{}
 	}
-	motion := baseVisual.Motion
-	inset := gtx.Dp(baseVisual.Metrics.Inset)
+	motion := baseVisual.motion
+	inset := gtx.Dp(baseVisual.metrics.Inset)
 	offset := gtx.Dp(p.resolvedOffset(baseVisual))
 	gap := gtx.Dp(p.resolvedGap(baseVisual))
 	scaleFactor := p.resolvedScaleFactor(baseVisual)
@@ -206,7 +194,7 @@ func (p Widget) paintRecords(ctx *core.Context, gtx layout.Context, viewport ima
 		x := toastRegionX(viewport.X, record.dims.Size.X, inset, p.placement)
 		collapsedOffset := record.stack * float32(gap)
 		expandedTarget := toastExpandedOffset(expandedOffsets, float32(record.index))
-		expandedOffset := record.entry.expandedPosition(gtx, expandedTarget, baseVisual.Metrics.AnimationDuration, motion)
+		expandedOffset := record.entry.expandedPosition(gtx, expandedTarget, baseVisual.metrics.AnimationDuration, motion)
 		stackOffset := int(animation.LerpFloat(collapsedOffset, expandedOffset, expansion) + 0.5)
 		y := offset + stackOffset
 		enterOffset := -int(float32(height) * (1 - record.progress))
@@ -276,7 +264,7 @@ func toastExpandedOffset(offsets []float32, stack float32) float32 {
 	return animation.LerpFloat(offsets[lower], offsets[lower+1], progress)
 }
 
-func (p Widget) layoutToast(ctx *core.Context, gtx layout.Context, entry *toastEntryState, interactive, mobile, expanded bool, visual theme.ToastVisual, resolved style.ResolvedStyle) layout.Dimensions {
+func (p Widget) layoutToast(ctx *core.Context, gtx layout.Context, entry *toastEntryState, interactive, mobile, expanded bool, visual toastVisual, resolved toastResolvedStyle) layout.Dimensions {
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		if !interactive {
 			gtx = gtx.Disabled()
@@ -287,14 +275,14 @@ func (p Widget) layoutToast(ctx *core.Context, gtx layout.Context, entry *toastE
 		if entry.item.description != "" {
 			semantic.DescriptionOp(entry.item.description).Add(gtx.Ops)
 		}
-		return p.layoutToastContent(ctx, gtx, entry, interactive, mobile, visual)
+		return p.layoutToastContent(ctx, gtx, entry, interactive, mobile, visual, resolved)
 	})
 	macro := op.Record(gtx.Ops)
-	dims := layoutui.Resolved(ctx, gtx, resolved, content)
+	dims := layoutui.Resolved(ctx, gtx, resolved.panel, content)
 	call := macro.Stop()
 	call.Add(gtx.Ops)
 	if !interactive {
-		entry.hovered = false
+		entry.hover.Hovered = false
 		return dims
 	}
 	entry.addRootInput(gtx, dims.Size)
@@ -304,20 +292,20 @@ func (p Widget) layoutToast(ctx *core.Context, gtx layout.Context, entry *toastE
 	return dims
 }
 
-func (p Widget) layoutToastContent(ctx *core.Context, gtx layout.Context, entry *toastEntryState, interactive, mobile bool, visual theme.ToastVisual) layout.Dimensions {
+func (p Widget) layoutToastContent(ctx *core.Context, gtx layout.Context, entry *toastEntryState, interactive, mobile bool, visual toastVisual, resolved toastResolvedStyle) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, 3)
 	if entry.item.showIndicator() {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.layoutToastIndicator(ctx, gtx, entry.item, visual)
+			return p.layoutToastIndicator(ctx, gtx, entry.item, visual, resolved.indicator)
 		}))
 	}
 	if entry.item.compact {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.layoutToastText(ctx, gtx, entry, false, visual)
+			return p.layoutToastText(ctx, gtx, entry, false, visual, resolved)
 		}))
 	} else {
 		children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return p.layoutToastText(ctx, gtx, entry, interactive && mobile, visual)
+			return p.layoutToastText(ctx, gtx, entry, interactive && mobile, visual, resolved)
 		}))
 		if interactive && !mobile && entry.item.actionLabel != "" {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -328,25 +316,25 @@ func (p Widget) layoutToastContent(ctx *core.Context, gtx layout.Context, entry 
 	return layout.Flex{
 		Axis:      layout.Horizontal,
 		Alignment: layout.Middle,
-		Gap:       gtx.Dp(visual.Metrics.ContentGap),
+		Gap:       gtx.Dp(visual.metrics.ContentGap),
 	}.Layout(gtx, children...)
 }
 
-func (p Widget) layoutToastText(ctx *core.Context, gtx layout.Context, entry *toastEntryState, mobileAction bool, visual theme.ToastVisual) layout.Dimensions {
+func (p Widget) layoutToastText(ctx *core.Context, gtx layout.Context, entry *toastEntryState, mobileAction bool, visual toastVisual, resolved toastResolvedStyle) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, 3)
 	if entry.item.title != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return visual.Text(gtx, theme.ToastTextRenderRequest{Text: entry.item.title, Role: theme.ToastTextTitle})
+			return layoutui.Resolved(ctx, gtx, resolved.title, textui.New(entry.item.title))
 		}))
 	}
 	if entry.item.description != "" && !entry.item.compact {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return visual.Text(gtx, theme.ToastTextRenderRequest{Text: entry.item.description, Role: theme.ToastTextDescription})
+			return layoutui.Resolved(ctx, gtx, resolved.description, textui.New(entry.item.description))
 		}))
 	}
 	if mobileAction && entry.item.actionLabel != "" && !entry.item.compact {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: visual.Metrics.ActionInsetTop}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: visual.metrics.ActionInsetTop}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return p.layoutToastAction(ctx, gtx, entry, visual)
 			})
 		}))
@@ -354,89 +342,111 @@ func (p Widget) layoutToastText(ctx *core.Context, gtx layout.Context, entry *to
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-func (p Widget) layoutToastIndicator(ctx *core.Context, gtx layout.Context, item Item, visual theme.ToastVisual) layout.Dimensions {
-	if visual.Indicator == nil {
-		panic(theme.ErrIncompleteVisualProvider)
-	}
-	var custom func(layout.Context) layout.Dimensions
-	if item.hasIndicator && item.indicator != nil {
-		custom = func(gtx layout.Context) layout.Dimensions {
+func (p Widget) layoutToastIndicator(ctx *core.Context, gtx layout.Context, item Item, visual toastVisual, resolved style.ResolvedStyle) layout.Dimensions {
+	outer := max(gtx.Dp(visual.metrics.IndicatorSize+2*visual.metrics.IndicatorPadding), 1)
+	gtx.Constraints = layout.Exact(image.Pt(outer, outer))
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		size := max(gtx.Dp(visual.metrics.IndicatorSize), 1)
+		gtx.Constraints = layout.Exact(image.Pt(size, size))
+		if item.loading {
+			return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+				return spinner.Draw(gtx, core.ActiveTheme(ctx), visual.metrics.IndicatorSize, ctx.ForegroundColor())
+			}))
+		}
+		if item.hasIndicator && item.indicator != nil {
 			if !gtx.Enabled() {
 				gtx = gtx.Disabled()
 			}
 			return item.indicator.Layout(ctx, gtx)
 		}
-	}
-	return visual.Indicator(gtx, theme.ToastIndicatorRenderRequest{
-		Size: visual.Metrics.IndicatorSize, Loading: item.loading, Custom: custom,
+		return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+			return icon.Layout(visual.icon, gtx, ctx.ForegroundColor())
+		}))
 	})
 }
 
-func (p Widget) layoutToastAction(ctx *core.Context, gtx layout.Context, entry *toastEntryState, visual theme.ToastVisual) layout.Dimensions {
-	if visual.Action == nil {
-		panic(theme.ErrIncompleteVisualProvider)
-	}
+func (p Widget) layoutToastAction(ctx *core.Context, gtx layout.Context, entry *toastEntryState, visual toastVisual) layout.Dimensions {
 	gtx.Constraints.Min.X = 0
-	return visual.Action(gtx, theme.ToastActionRenderRequest{
-		Label: entry.item.actionLabel, Variant: theme.ButtonVariant(entry.item.actionVariant),
-		Clickable: &entry.action, State: style.State{Hovered: entry.action.Hovered(), Pressed: entry.action.Pressed(), Focused: gtx.Focused(&entry.action)},
+	state := style.State{
+		Hovered: entry.action.Hovered(),
+		Pressed: entry.action.Pressed(),
+		Focused: gtx.Focused(&entry.action),
+	}
+	resolved := p.resolveActionStyle(ctx, gtx, state, visual)
+	return entry.action.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		semantic.Button.Add(gtx.Ops)
+		semantic.EnabledOp(true).Add(gtx.Ops)
+		semantic.LabelOp(entry.item.actionLabel).Add(gtx.Ops)
+		return layoutui.Resolved(ctx, gtx, resolved, textui.New(entry.item.actionLabel))
 	})
 }
 
-func (p Widget) layoutToastClose(ctx *core.Context, gtx layout.Context, entry *toastEntryState, toastSize image.Point, alwaysVisible bool, visual theme.ToastVisual) {
-	show := alwaysVisible || entry.hovered || entry.close.Hovered() || gtx.Focused(&entry.root) || gtx.Focused(&entry.close)
+func (p Widget) layoutToastClose(ctx *core.Context, gtx layout.Context, entry *toastEntryState, toastSize image.Point, alwaysVisible bool, visual toastVisual) {
+	show := alwaysVisible || entry.hover.Hovered || entry.close.Hovered() || gtx.Focused(&entry.root) || gtx.Focused(&entry.close)
 	if !show {
 		return
 	}
-	size := gtx.Dp(visual.Metrics.CloseButtonSize)
-	inset := gtx.Dp(visual.Metrics.CloseInset)
+	size := gtx.Dp(visual.metrics.CloseButtonSize)
+	inset := gtx.Dp(visual.metrics.CloseInset)
 	position := image.Pt(toastSize.X-size-inset, inset)
 	closeGtx := gtx
 	closeGtx.Constraints = layout.Exact(image.Pt(size, size))
-	offset := op.Offset(position).Push(gtx.Ops)
-	if visual.Close == nil {
-		panic(theme.ErrIncompleteVisualProvider)
+	state := style.State{
+		Hovered: entry.close.Hovered(),
+		Pressed: entry.close.Pressed(),
+		Focused: gtx.Focused(&entry.close),
 	}
-	visual.Close(closeGtx, theme.ToastCloseRenderRequest{
-		Label: ctx.Text("Close"), Clickable: &entry.close, Size: visual.Metrics.CloseButtonSize,
-		State: style.State{Hovered: entry.close.Hovered(), Pressed: entry.close.Pressed(), Focused: gtx.Focused(&entry.close)},
+	resolved := p.resolveCloseStyle(ctx, gtx, state, visual)
+	offset := op.Offset(position).Push(gtx.Ops)
+	entry.close.Layout(closeGtx, func(gtx layout.Context) layout.Dimensions {
+		semantic.Button.Add(gtx.Ops)
+		semantic.EnabledOp(true).Add(gtx.Ops)
+		semantic.LabelOp(ctx.Text("Close")).Add(gtx.Ops)
+		return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+			iconSize := max(size/2, 1)
+			iconGtx := gtx
+			iconGtx.Constraints = layout.Exact(image.Pt(iconSize, iconSize))
+			return layout.Center.Layout(iconGtx, func(gtx layout.Context) layout.Dimensions {
+				return icon.Layout(lucide.X, gtx, ctx.ForegroundColor())
+			})
+		}))
 	})
 	offset.Pop()
 }
 
-func (p Widget) resolvedOffset(visual theme.ToastVisual) unit.Dp {
+func (p Widget) resolvedOffset(visual toastVisual) unit.Dp {
 	if p.hasOffset {
 		return p.offset
 	}
-	return visual.Metrics.Inset
+	return visual.metrics.Inset
 }
 
-func (p Widget) resolvedGap(visual theme.ToastVisual) unit.Dp {
+func (p Widget) resolvedGap(visual toastVisual) unit.Dp {
 	if p.hasGap {
 		return p.gap
 	}
-	return visual.Metrics.Gap
+	return visual.metrics.Gap
 }
 
-func (p Widget) resolvedMaxVisible(visual theme.ToastVisual) int {
+func (p Widget) resolvedMaxVisible(visual toastVisual) int {
 	if p.hasMaxVisible {
 		return p.maxVisible
 	}
-	return max(visual.Metrics.MaxVisible, 1)
+	return max(visual.metrics.MaxVisible, 1)
 }
 
-func (p Widget) resolvedScaleFactor(visual theme.ToastVisual) float32 {
+func (p Widget) resolvedScaleFactor(visual toastVisual) float32 {
 	if p.hasScale {
 		return p.scaleFactor
 	}
-	return min(max(visual.Metrics.ScaleFactor, 0), 1)
+	return min(max(visual.metrics.ScaleFactor, 0), 1)
 }
 
-func (p Widget) resolvedWidth(visual theme.ToastVisual) unit.Dp {
+func (p Widget) resolvedWidth(visual toastVisual) unit.Dp {
 	if p.hasWidth {
 		return p.width
 	}
-	return visual.Metrics.Width
+	return visual.metrics.Width
 }
 
 func (p Widget) bottomPlacement() bool {

@@ -19,7 +19,6 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
@@ -31,7 +30,7 @@ const (
 )
 
 func newContext(_ any) *core.Context {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	return core.New(nil, &activeTheme, locale.LanguageAuto)
 }
 
@@ -87,40 +86,33 @@ func TestInputDisabled(t *testing.T) {
 func TestInputDefaultLayout(t *testing.T) {
 	dims := New("").Key("name").Hint("Name").Layout(newContext(nil), testLayoutContext())
 
-	if dims.Size.Y != 36 {
-		t.Fatalf("input height = %d, want 36", dims.Size.Y)
+	if dims.Size.Y != 32 {
+		t.Fatalf("input height = %d, want 32", dims.Size.Y)
 	}
 }
 
 func TestInputTypographyComesFromResolvedStyle(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
-	visual := inputVisualDeclarations(
-		&activeTheme,
-		Primary,
-		false,
-		theme.InputModeSingleLine,
-		Medium,
-		nil,
-	)
-	declaration := visual.Defaults
+	declaration := defaultInputRules(&activeTheme, Primary, Medium, false)
 	custom := style.Style{}.
 		FontSize(18).
 		LineHeight(28).
 		TextColor(style.RGB(0x123456))
 	resolved := computed.ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, custom)
-	providerStyle := visual.EditorStyle(resolved, style.ResolvedStyle{}, style.ResolvedStyle{})
-	textSize, lineHeight := providerStyle.TextSize, providerStyle.LineHeight
+	editorStyle := material.Editor(core.ActiveMaterial(ctx), &widget.Editor{}, "")
+	applyInputEditorStyle(&editorStyle, &activeTheme, resolved, style.ResolvedStyle{}, style.ResolvedStyle{})
+	textSize, lineHeight := editorStyle.TextSize, editorStyle.LineHeight
 	if textSize != 18 || lineHeight != 28 {
 		t.Fatalf("resolved typography = %v/%v, want 18/28", textSize, lineHeight)
 	}
-	if providerStyle.Foreground != (color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}) {
-		t.Fatalf("provider foreground = %#v", providerStyle.Foreground)
+	if editorStyle.Color != (color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}) {
+		t.Fatalf("visual foreground = %#v", editorStyle.Color)
 	}
 }
 
 func TestInputEditorAdapterCarriesResolvedTypographyAndColors(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	declaration := style.Style{}.
 		FontSize(18).
@@ -135,37 +127,44 @@ func TestInputEditorAdapterCarriesResolvedTypographyAndColors(t *testing.T) {
 	root := computed.ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
 	placeholder := computed.ResolvePartStatic(ctx, style.PartPlaceholder, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
 	selection := computed.ResolvePartStatic(ctx, style.PartSelection, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
-	visual := inputVisualDeclarations(&activeTheme, Primary, false, theme.InputModeSingleLine, Medium, nil)
-	resolved := visual.EditorStyle(root, placeholder, selection)
-
-	if resolved.TextSize != 18 || resolved.LineHeight != 28 || !resolved.HasLineHeightScale || resolved.LineHeightScale != 1.25 {
-		t.Fatalf("resolved editor metrics = %#v", resolved)
-	}
-	if !resolved.HasTypeface || resolved.Typeface != "monospace" || !resolved.HasFontStyle || resolved.FontStyle != font.Italic || !resolved.HasFontWeight || resolved.FontWeight != font.Bold {
-		t.Fatalf("resolved editor font = %#v", resolved)
-	}
-	if resolved.Foreground != (color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}) ||
-		resolved.Placeholder != (color.NRGBA{R: 0x65, G: 0x43, B: 0x21, A: 0xff}) ||
-		resolved.Selection != (color.NRGBA{R: 0xaa, G: 0xbb, B: 0xcc, A: 0xff}) {
-		t.Fatalf("resolved editor colors = %#v", resolved)
-	}
 
 	target := material.Editor(core.ActiveMaterial(ctx), &widget.Editor{}, "")
-	applyInputEditorStyle(&target, resolved)
+	applyInputEditorStyle(&target, &activeTheme, root, placeholder, selection)
 	if target.TextSize != 18 || target.LineHeight != 28 || target.LineHeightScale != 1.25 ||
 		target.Font != (font.Font{Typeface: "monospace", Style: font.Italic, Weight: font.Bold}) {
 		t.Fatalf("material editor typography = %#v", target)
 	}
-	if target.Color != resolved.Foreground || target.HintColor != resolved.Placeholder || target.SelectionColor != resolved.Selection {
+	if target.Color != (color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}) ||
+		target.HintColor != (color.NRGBA{R: 0x65, G: 0x43, B: 0x21, A: 0xff}) ||
+		target.SelectionColor != (color.NRGBA{R: 0xaa, G: 0xbb, B: 0xcc, A: 0xff}) {
 		t.Fatalf("material editor colors = %#v", target)
 	}
 }
 
-func TestInputFullWidth(t *testing.T) {
-	dims := New("").Key("name").FullWidth().Layout(newContext(nil), testLayoutContext())
+func TestInputFillWidth(t *testing.T) {
+	dims := New("").Key("name").FillWidth().Layout(newContext(nil), testLayoutContext())
 
 	if dims.Size.X != 300 {
 		t.Fatalf("input width = %d, want 300", dims.Size.X)
+	}
+}
+
+func TestInputWidthOverridesFillWidth(t *testing.T) {
+	gtx := testLayoutContext()
+	for _, test := range []struct {
+		name  string
+		value Widget
+		want  int
+	}{
+		{name: "fixed", value: New("").Width(120), want: 120},
+		{name: "fixed overrides fill", value: New("").FillWidth().Width(120), want: 120},
+		{name: "viewport clamps fixed", value: New("").Width(400), want: gtx.Constraints.Max.X},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := test.value.Layout(newContext(nil), gtx).Size.X; got != test.want {
+				t.Fatalf("input width = %d, want %d", got, test.want)
+			}
+		})
 	}
 }
 
@@ -176,24 +175,16 @@ func TestInputFrameKeepsInnerWidth(t *testing.T) {
 		return layout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(1, 20))}
 	}
 
-	activeTheme := *testtheme.Behavior()
-	visual := inputVisualDeclarations(
-		&activeTheme,
-		Primary,
-		true,
-		theme.InputModeSingleLine,
-		Medium,
-		nil,
-	)
-	declaration := visual.Defaults
+	activeTheme := theme.Light()
+	declaration := defaultInputRules(&activeTheme, Primary, Medium, true)
 	resolved := resolveInputTestStyle(&activeTheme, declaration, style.State{})
-	dims := New("").Key("name").FullWidth().layoutFrame(newContext(nil), testLayoutContext(), new(inputState), resolved, true, child)
+	dims := New("").Key("name").FillWidth().layoutFrame(newContext(nil), testLayoutContext(), new(inputState), resolved, true, child)
 
-	if got.Min != image.Pt(276, 0) {
-		t.Fatalf("inner minimum = %v, want (276,0)", got.Min)
+	if got.Min != image.Pt(284, 0) {
+		t.Fatalf("inner minimum = %v, want (284,0)", got.Min)
 	}
-	if dims.Size != image.Pt(300, 36) {
-		t.Fatalf("input size = %v, want (300,36)", dims.Size)
+	if dims.Size != image.Pt(300, 32) {
+		t.Fatalf("input size = %v, want (300,32)", dims.Size)
 	}
 }
 
@@ -278,7 +269,7 @@ func TestInputCustomBackgroundIsRenderedByCommonStyle(t *testing.T) {
 	want := color.NRGBA{R: 0xd1, G: 0x23, B: 0x45, A: 0xff}
 	var router input.Router
 	var ops op.Ops
-	(New("").Key("paint").FullWidth()).Style(style.Style{}.Background(style.SolidColor{Color: want})).Layout(
+	(New("").Key("paint").FillWidth()).Style(style.Style{}.Background(style.SolidColor{Color: want})).Layout(
 		newContext(nil),
 		layout.Context{Constraints: layout.Exact(image.Pt(80, 36)), Source: router.Source(), Ops: &ops},
 	)
@@ -401,51 +392,6 @@ func TestInputTracksPointerHover(t *testing.T) {
 	}
 }
 
-func TestInputDispatchesChangeBeforeSubmit(t *testing.T) {
-	editor := new(widget.Editor)
-	editor.SetText("Ada")
-	var got []string
-
-	widget := New("").Key("name").
-		OnChange(func(text string) {
-			got = append(got, "change:"+text)
-		}).
-		OnSubmit(func(text string) {
-			got = append(got, "submit:"+text)
-		})
-
-	state := &inputState{}
-	state.bind(widget)
-
-	widget.dispatchEvents(state, editor, inputEvents{
-		changed:    true,
-		submitted:  true,
-		submitText: "Ada",
-	})
-
-	want := []string{"change:Ada", "submit:Ada"}
-	if len(got) != len(want) {
-		t.Fatalf("events = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("events = %v, want %v", got, want)
-		}
-	}
-}
-
-func TestInputEventsTrackSubmit(t *testing.T) {
-	var events inputEvents
-	events.add(widget.SubmitEvent{Text: "Ada"})
-
-	if !events.submitted {
-		t.Fatal("submit event was not tracked")
-	}
-	if events.submitText != "Ada" {
-		t.Fatalf("submit text = %q, want Ada", events.submitText)
-	}
-}
-
 func focusedInput(t *testing.T) (*core.Context, *input.Router, *widget.Editor) {
 	t.Helper()
 	ctx := newContext(nil)
@@ -506,13 +452,13 @@ func TestBooleanAndStaticConfigMethods(t *testing.T) {
 		Invalid(false).
 		ReadOnly(true).
 		ReadOnly(false).
-		FullWidth()
+		FillWidth()
 
 	if field.disabled || field.invalid || field.readOnly {
 		t.Fatal("boolean methods should honor the final value in the chain")
 	}
 	if !field.fullWidth {
-		t.Fatal("FullWidth should enable the full-width flag")
+		t.Fatal("FillWidth should enable the full-width flag")
 	}
 }
 

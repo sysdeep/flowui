@@ -8,7 +8,8 @@ import (
 	lucide "github.com/qianniancn/flowui-icons-lucide"
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/icon"
@@ -167,7 +168,8 @@ func creatorPanel(value model, send ui.Send[message]) ui.Widget {
 		(input.New(value.creatorTitle).Key("creator-title").
 			Placeholder("Node title").
 			OnChange(func(title string) { send(message{creatorTitle: title, creatorTitleSet: true}) }).
-			OnSubmit(func(title string) { send(message{creatorTitle: title, creatorTitleSet: true, addCreatorNode: true}) })).Style(style.New().Width(180)),
+			OnSubmit(func(title string) { send(message{creatorTitle: title, creatorTitleSet: true, addCreatorNode: true}) }).
+			Style(style.New().Width(180))),
 		button.New("").Content(layout.Row(
 			icon.New(lucide.Plus).Size(16),
 			text.New("Add").Size(13),
@@ -319,7 +321,7 @@ func databaseEdges() []nodegraph.Edge {
 }
 
 func main() {
-	ui.Run(ui.NewProgram(model{page: "editing", nodes: exampleNodes(), groupNodes: groupNodes(), edges: exampleEdges(), databaseNodes: databaseNodes(), databaseEdges: databaseEdges()}, update, view), window.Title("FlowUI Node Graph"), window.Size(1060, 680), window.Theme(base.Light()))
+	ui.Run(ui.NewProgram(model{page: "editing", nodes: exampleNodes(), groupNodes: groupNodes(), edges: exampleEdges(), databaseNodes: databaseNodes(), databaseEdges: databaseEdges()}, update, view), window.Title("FlowUI Node Graph"), window.Size(1060, 680), window.Theme(theme.Light()))
 }
 
 func creatorNodePosition(sequence int) nodegraph.Point {

@@ -14,84 +14,21 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	giotext "gioui.org/text"
+	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/internal/selectablemenu"
 )
 
-type countingTextProvider struct {
-	theme.ComponentVisualProvider
-	calls *int
-}
+func TestTextVisualUsesThemeTokens(t *testing.T) {
+	active := theme.Light()
 
-func (provider countingTextProvider) Text(active *theme.Theme, request theme.TextRequest) theme.TextVisual {
-	(*provider.calls)++
-	return provider.ComponentVisualProvider.Text(active, request)
-}
-
-func textThemeWithProvider(provider theme.ComponentVisualProvider) *theme.Theme {
-	value := *testtheme.Behavior()
-	value.VisualProvider = provider
-	return &value
-}
-
-func TestTextVisualCacheReusesProviderResult(t *testing.T) {
-	calls := 0
-	ctx := core.New(nil, textThemeWithProvider(countingTextProvider{
-		ComponentVisualProvider: testtheme.BehaviorProvider(),
-		calls:                   &calls,
-	}), locale.LanguageEnglish)
-	value := New("FlowUI")
-
-	first := value.visualWithCache(ctx)
-	second := value.visualWithCache(ctx)
-	if calls != 1 {
-		t.Fatalf("text provider calls = %d, want 1", calls)
-	}
-	firstResolved := first.Defaults.Resolve(style.State{})
-	secondResolved := second.Defaults.Resolve(style.State{})
-	if first.Selection != second.Selection || firstResolved.Text == nil || secondResolved.Text == nil ||
-		*firstResolved.Text.FontSize != *secondResolved.Text.FontSize ||
-		firstResolved.Text.Color != secondResolved.Text.Color ||
-		*firstResolved.Text.Typeface != *secondResolved.Text.Typeface {
-		t.Fatal("cached text visual changed between identical requests")
-	}
-	stats := value.visualCache.stats()
-	if stats.Hits != 1 || stats.Misses != 1 || stats.ThemeInvalidations != 0 || stats.KeyInvalidations != 0 {
-		t.Fatalf("text visual cache stats = %#v, want one hit and one miss", stats)
-	}
-}
-
-func TestTextVisualCacheInvalidatesForegroundAndTheme(t *testing.T) {
-	calls := 0
-	active := textThemeWithProvider(countingTextProvider{
-		ComponentVisualProvider: testtheme.BehaviorProvider(),
-		calls:                   &calls,
-	})
-	ctx := core.New(nil, active, locale.LanguageEnglish)
-	value := New("FlowUI")
-
-	value.visualWithCache(ctx)
-	restore := core.PushColors(ctx, color.NRGBA{R: 0x99, A: 0xff}, color.NRGBA{})
-	value.visualWithCache(ctx)
-	restore()
-	if calls != 2 {
-		t.Fatalf("foreground change provider calls = %d, want 2", calls)
-	}
-
-	core.ReplaceTheme(ctx, *textThemeWithProvider(countingTextProvider{
-		ComponentVisualProvider: testtheme.BehaviorProvider(),
-		calls:                   &calls,
-	}))
-	value.visualWithCache(ctx)
-	if calls != 3 {
-		t.Fatalf("theme change provider calls = %d, want 3", calls)
-	}
-	stats := value.visualCache.stats()
-	if stats.KeyInvalidations != 2 || stats.ThemeInvalidations != 1 || stats.Misses != 3 {
-		t.Fatalf("text visual invalidation stats = %#v, want two key and one theme invalidation", stats)
+	ctx := core.New(nil, &active, locale.LanguageEnglish)
+	visual := New("FlowUI").visualWithCache(ctx)
+	if visual.Defaults.Resolve(style.State{}).Text == nil || visual.Selection != active.Semantic().Selection {
+		t.Fatal("missing text visual")
 	}
 }
 
@@ -128,8 +65,8 @@ func TestTextFontAndLayoutOptionsMapToGioLabel(t *testing.T) {
 	if label.Alignment != giotext.End || label.MaxLines != 3 || label.Truncator != "---" || label.WrapPolicy != giotext.WrapGraphemes || label.LineHeight != 22 || label.LineHeightScale != 1.1 {
 		t.Fatalf("Gio label layout = %#v", label)
 	}
-	if label.SelectionColor != testtheme.Behavior().Semantic().Selection {
-		t.Fatalf("selection color = %#v, want %#v", label.SelectionColor, testtheme.Behavior().Semantic().Selection)
+	if label.SelectionColor != new(theme.Light()).Semantic().Selection {
+		t.Fatalf("selection color = %#v, want %#v", label.SelectionColor, new(theme.Light()).Semantic().Selection)
 	}
 }
 
@@ -259,13 +196,13 @@ func TestSelectableTextUsesGioSelectionAndClipboard(t *testing.T) {
 	}
 
 	stateValue, ok := core.PeekState[selectableTextState](ctx, "message", stateSlotSelectableText)
-	if !ok || stateValue.selectable.Text() != "Copy this text" || stateValue.selectable.MaxLines != 1 {
+	if !ok || stateValue.Selectable.Text() != "Copy this text" || stateValue.Selectable.MaxLines != 1 {
 		t.Fatalf("SelectableText state = %#v", stateValue)
 	}
-	stateValue.selectable.SetCaret(0, 4)
-	router.Source().Execute(key.FocusCmd{Tag: &stateValue.selectable})
+	stateValue.Selectable.SetCaret(0, 4)
+	router.Source().Execute(key.FocusCmd{Tag: &stateValue.Selectable})
 	layoutTextFrame(ctx, router, selectable, start.Add(time.Millisecond), image.Pt(240, 80))
-	if !stateValue.selectable.Focused() {
+	if !stateValue.Selectable.Focused() {
 		t.Fatal("SelectableText did not receive focus")
 	}
 
@@ -296,7 +233,7 @@ func TestTextSelectionColorOverrideAndTextColor(t *testing.T) {
 	// Without an override both colours follow the active theme.
 	plain := New("FlowUI")
 	defaultLabel := plain.labelStyle(ctx, plain.resolveStyleStatic(ctx, style.State{}))
-	if defaultLabel.SelectionColor != testtheme.Behavior().Semantic().Selection {
+	if defaultLabel.SelectionColor != new(theme.Light()).Semantic().Selection {
 		t.Fatalf("default selection color = %#v", defaultLabel.SelectionColor)
 	}
 }
@@ -319,8 +256,8 @@ func TestSelectableTextPointerDragKeepsFocusAndSelection(t *testing.T) {
 	if !ok {
 		t.Fatal("pointer SelectableText state is missing")
 	}
-	if !stateValue.selectable.Focused() || stateValue.selectable.SelectionLen() == 0 {
-		t.Fatalf("pointer selection = focused %v length %d", stateValue.selectable.Focused(), stateValue.selectable.SelectionLen())
+	if !stateValue.Selectable.Focused() || stateValue.Selectable.SelectionLen() == 0 {
+		t.Fatalf("pointer selection = focused %v length %d", stateValue.Selectable.Focused(), stateValue.Selectable.SelectionLen())
 	}
 
 	router.Queue(
@@ -329,7 +266,7 @@ func TestSelectableTextPointerDragKeepsFocusAndSelection(t *testing.T) {
 	)
 	layoutTextFrame(ctx, router, selectable, start.Add(3*time.Millisecond), image.Pt(240, 80))
 	layoutTextFrame(ctx, router, selectable, start.Add(4*time.Millisecond), image.Pt(240, 80))
-	if stateValue.selectable.Focused() {
+	if stateValue.Selectable.Focused() {
 		t.Fatal("clicking outside SelectableText did not clear focus")
 	}
 }
@@ -340,13 +277,13 @@ func TestSelectableTextReportsTruncation(t *testing.T) {
 	selectable := Selectable("summary", "A long line of text that cannot fit in the available width").MaxLines(1)
 	layoutTextFrame(ctx, router, selectable, time.Unix(2, 0), image.Pt(100, 80))
 	stateValue, ok := core.PeekState[selectableTextState](ctx, "summary", stateSlotSelectableText)
-	if !ok || !stateValue.selectable.Truncated() {
+	if !ok || !stateValue.Selectable.Truncated() {
 		t.Fatal("single-line SelectableText was not truncated")
 	}
 }
 
 func textTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func layoutTextFrame(ctx *core.Context, router *input.Router, value Widget, now time.Time, maximum image.Point) layout.Dimensions {
@@ -394,5 +331,62 @@ func TestTextStyleJoinsSeveralDeclarations(t *testing.T) {
 	solid, ok := resolved.Text.Color.(style.SolidColor)
 	if !ok || solid.Color != (color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}) {
 		t.Fatalf("joined text colour = %v, want 0x123456", resolved.Text.Color)
+	}
+}
+
+func TestSelectableTextMenuHookQueuesCopy(t *testing.T) {
+	ctx := textTestContext()
+	router := new(input.Router)
+	selectable := Selectable("hooked", "Copy this text")
+	start := time.Unix(3, 0)
+	layoutTextFrame(ctx, router, selectable, start, image.Pt(240, 80))
+
+	stateValue, ok := core.PeekState[selectableTextState](ctx, "hooked", stateSlotSelectableText)
+	if !ok {
+		t.Fatal("selectable state is missing")
+	}
+	stateValue.Selectable.SetCaret(0, 4)
+	router.Source().Execute(key.FocusCmd{Tag: &stateValue.Selectable})
+
+	orig := selectablemenu.Wrap
+	defer func() { selectablemenu.Wrap = orig }()
+	var hookKey string
+	selectablemenu.Wrap = func(ctx *core.Context, gtx layout.Context, key string, field core.Widget, selectable *widget.Selectable, queue func(selectablemenu.Action)) layout.Dimensions {
+		hookKey = key
+		queue(selectablemenu.Copy)
+		return field.Layout(ctx, gtx)
+	}
+	layoutTextFrame(ctx, router, selectable, start.Add(time.Millisecond), image.Pt(240, 80))
+	if hookKey != "hooked" {
+		t.Fatalf("menu hook key = %q", hookKey)
+	}
+	layoutTextFrame(ctx, router, selectable, start.Add(2*time.Millisecond), image.Pt(240, 80))
+	mime, content, ok := router.WriteClipboard()
+	if !ok || mime != "application/text" || string(content) != "Copy" {
+		t.Fatalf("clipboard = ok %v mime %q content %q", ok, mime, content)
+	}
+}
+
+func TestSelectableTextMenuHookSelectAll(t *testing.T) {
+	ctx := textTestContext()
+	router := new(input.Router)
+	selectable := Selectable("selall", "Select this text")
+	start := time.Unix(4, 0)
+	layoutTextFrame(ctx, router, selectable, start, image.Pt(240, 80))
+
+	stateValue, ok := core.PeekState[selectableTextState](ctx, "selall", stateSlotSelectableText)
+	if !ok {
+		t.Fatal("selectable state is missing")
+	}
+	orig := selectablemenu.Wrap
+	defer func() { selectablemenu.Wrap = orig }()
+	selectablemenu.Wrap = func(ctx *core.Context, gtx layout.Context, key string, field core.Widget, selectable *widget.Selectable, queue func(selectablemenu.Action)) layout.Dimensions {
+		queue(selectablemenu.SelectAll)
+		return field.Layout(ctx, gtx)
+	}
+	layoutTextFrame(ctx, router, selectable, start.Add(time.Millisecond), image.Pt(240, 80))
+	layoutTextFrame(ctx, router, selectable, start.Add(2*time.Millisecond), image.Pt(240, 80))
+	if stateValue.Selectable.SelectionLen() != len([]rune("Select this text")) {
+		t.Fatalf("select-all selection length = %d", stateValue.Selectable.SelectionLen())
 	}
 }

@@ -4,10 +4,11 @@ import (
 	"image"
 
 	"gioui.org/layout"
-	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 )
 
+// Items arranges Gio children in a wrapping row or a vertical column. Gaps are
+// physical pixels; Widget-based callers normally use Wrap or Column instead.
 func Items(ctx *Context, gtx layout.Context, horizontal bool, columnGap, rowGap int, children []layout.Widget) layout.Dimensions {
 	columnGap = max(columnGap, 0)
 	rowGap = max(rowGap, 0)
@@ -40,57 +41,7 @@ func Items(ctx *Context, gtx layout.Context, horizontal bool, columnGap, rowGap 
 		return dims
 	}
 
-	rows := make([]itemRow, 0)
-	maxWidth := gtx.Constraints.Max.X
-	childGtx := gtx
-	childGtx.Constraints.Min = image.Point{}
-
-	var x, y, rowHeight, width int
-	var row itemRow
-	for _, child := range children {
-		macro := op.Record(gtx.Ops)
-		dims, placement := core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
-			return child(childGtx)
-		})
-		call := macro.Stop()
-
-		if x > 0 && x+columnGap+dims.Size.X > maxWidth {
-			rows = append(rows, row)
-			y += rowHeight + rowGap
-			x = 0
-			rowHeight = 0
-			row = itemRow{}
-		}
-		if x > 0 {
-			x += columnGap
-		}
-		row.children = append(row.children, itemChild{call: call, pos: image.Pt(x, y), placement: placement})
-		x += dims.Size.X
-		width = max(width, x)
-		rowHeight = max(rowHeight, dims.Size.Y)
-	}
-	if len(row.children) > 0 {
-		rows = append(rows, row)
-	}
-
-	size := gtx.Constraints.Constrain(image.Pt(width, y+rowHeight))
-	for _, row := range rows {
-		for _, child := range row.children {
-			child.placement.PlaceOffset(child.pos)
-			trans := op.Offset(child.pos).Push(gtx.Ops)
-			child.call.Add(gtx.Ops)
-			trans.Pop()
-		}
-	}
-	return layout.Dimensions{Size: size}
-}
-
-type itemRow struct {
-	children []itemChild
-}
-
-type itemChild struct {
-	call      op.CallOp
-	pos       image.Point
-	placement core.OverlayPlacement
+	return layoutWrap(ctx, gtx, columnGap, rowGap, layout.Start, len(children), func(gtx layout.Context, index int) layout.Dimensions {
+		return children[index](gtx)
+	})
 }

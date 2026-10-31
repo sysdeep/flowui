@@ -12,17 +12,16 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
 func newContext(_ any) *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	return core.New(nil, new(theme.Light()), locale.LanguageAuto)
 }
 
 func DefaultTheme() theme.Theme {
-	return *testtheme.Behavior()
+	return theme.Light()
 }
 
 func testLayoutContext() layout.Context {
@@ -86,22 +85,18 @@ func TestBarSemanticDescription(t *testing.T) {
 	}
 }
 
-// TestBarSizeStyle reads the size layer off the widget's own seam rather than
-// calling BarSizeDeclaration directly (§1.9 (e)). The size layer has no rule table
-// -- nothing about the geometry answers to a state -- so it is the one layer where
-// the seam call and the declaration are the same function, and going through the
-// seam still buys the thing that matters: the test fails if the seam stops
-// installing it.
+// TestBarSizeStyle reads the size layer through the widget's own cascade seam
+// so the test fails if the size layer stops being installed.
 func TestBarSizeStyle(t *testing.T) {
 	activeTheme := DefaultTheme()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
-	small := Bar("upload", 50).Size(theme.ProgressBarSmall).resolveStyle(ctx, testLayoutContext(), "upload", &progressBarVisualCache{}).track
-	large := Bar("upload", 50).Size(theme.ProgressBarLarge).resolveStyle(ctx, testLayoutContext(), "upload", &progressBarVisualCache{}).track
-	if got := small.Box.Height; got == nil || *got != activeTheme.Components.ProgressBar.SmallHeight {
-		t.Fatalf("small height = %v, want %v", got, activeTheme.Components.ProgressBar.SmallHeight)
+	small := Bar("upload", 50).Size(BarSmall).resolveStyle(ctx, testLayoutContext(), "upload", &progressBarStyleCache{}).track
+	large := Bar("upload", 50).Size(BarLarge).resolveStyle(ctx, testLayoutContext(), "upload", &progressBarStyleCache{}).track
+	if got := small.Box.Height; got == nil || *got != 4 {
+		t.Fatalf("small height = %v, want 4", got)
 	}
-	if got := large.Box.Height; got == nil || *got != activeTheme.Components.ProgressBar.LargeHeight {
-		t.Fatalf("large height = %v, want %v", got, activeTheme.Components.ProgressBar.LargeHeight)
+	if got := large.Box.Height; got == nil || *got != 12 {
+		t.Fatalf("large height = %v, want 12", got)
 	}
 }
 
@@ -115,7 +110,7 @@ func TestBarSeparatesRootTrackAndIndicatorStyles(t *testing.T) {
 		Part(style.PartTrack, style.Style{}.Height(4).Background(style.SolidColor{Color: trackColor})).
 		Part(style.PartFill, style.Style{}.Background(style.SolidColor{Color: fillColor}))
 
-	resolved := Bar("upload", 50).Style(custom).resolveStyle(newContext(nil), testLayoutContext(), "upload", &progressBarVisualCache{}, &theme.ProgressOverride{Declaration: custom})
+	resolved := Bar("upload", 50).Style(custom).resolveStyle(newContext(nil), testLayoutContext(), "upload", &progressBarStyleCache{})
 	if resolved.root.Box == nil || resolved.root.Box.Height == nil || *resolved.root.Box.Height != 60 {
 		t.Fatalf("root height = %#v", resolved.root.Box)
 	}
@@ -133,29 +128,49 @@ func TestBarSeparatesRootTrackAndIndicatorStyles(t *testing.T) {
 	}
 }
 
+func TestBarInstanceStyleStaysOutsideDefaultsCache(t *testing.T) {
+	ctx := newContext(nil)
+	gtx := testLayoutContext()
+	cache := &progressBarStyleCache{}
+
+	first := Bar("upload", 50).
+		Style(style.Style{}.Part(style.PartTrack, style.Style{}.Height(3))).
+		resolveStyle(ctx, gtx, "upload", cache)
+	second := Bar("upload", 50).
+		Style(style.Style{}.Part(style.PartTrack, style.Style{}.Height(9))).
+		resolveStyle(ctx, gtx, "upload", cache)
+
+	if got := first.track.Box.Height; got == nil || *got != 3 {
+		t.Fatalf("first track height = %v, want 3", got)
+	}
+	if got := second.track.Box.Height; got == nil || *got != 9 {
+		t.Fatalf("second track height = %v, want 9", got)
+	}
+}
+
 func TestBarAnimation(t *testing.T) {
 	state := new(progressBarState)
 	start := time.Unix(1, 0)
 	gtx := testLayoutContext()
 	gtx.Now = start
-	metrics := testProgressBarMetrics(t)
-	duration := metrics.ValueDuration
+	defaults := testProgressBarDefaults(t)
+	duration := defaults.valueDuration
 
-	if got := state.progress(gtx, 0, false, duration, testtheme.Behavior().Motion); got != 0 {
+	if got := state.progress(gtx, 0, false, duration, defaults.motion); got != 0 {
 		t.Fatalf("initial progress = %v, want 0", got)
 	}
-	if got := state.progress(gtx, 1, false, duration, testtheme.Behavior().Motion); got != 0 {
+	if got := state.progress(gtx, 1, false, duration, defaults.motion); got != 0 {
 		t.Fatalf("animation start = %v, want 0", got)
 	}
 
 	gtx.Now = start.Add(duration / 2)
-	mid := state.progress(gtx, 1, false, duration, testtheme.Behavior().Motion)
+	mid := state.progress(gtx, 1, false, duration, defaults.motion)
 	if mid <= 0 || mid >= 1 {
 		t.Fatalf("animation midpoint = %v, want between 0 and 1", mid)
 	}
 
 	gtx.Now = start.Add(duration)
-	if got := state.progress(gtx, 1, false, duration, testtheme.Behavior().Motion); got != 1 {
+	if got := state.progress(gtx, 1, false, duration, defaults.motion); got != 1 {
 		t.Fatalf("animation end = %v, want 1", got)
 	}
 }
@@ -163,7 +178,7 @@ func TestBarAnimation(t *testing.T) {
 func TestBarIndeterminateOffset(t *testing.T) {
 	width := 40
 	start := time.Unix(1, 0)
-	period := testProgressBarMetrics(t).IndeterminatePeriod
+	period := testProgressBarDefaults(t).indeterminatePeriod
 	if got := progressBarIndeterminateOffset(time.Time{}, width, period); got != -width {
 		t.Fatalf("zero time offset = %d, want %d", got, -width)
 	}
@@ -177,19 +192,14 @@ func TestBarIndeterminateOffset(t *testing.T) {
 	}
 }
 
-func testProgressBarMetrics(t *testing.T) theme.ProgressBarMetrics {
+func testProgressBarDefaults(t *testing.T) progressBarDefaults {
 	t.Helper()
-	active := testtheme.Behavior()
-	provider, err := theme.ComponentProvider(active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return provider.ProgressBar(active, theme.ProgressBarRequest{}).Metrics
+	return Bar("upload", 0).defaultStyles(new(theme.Light()))
 }
 
 func TestIndeterminateBarRespectsMotionTheme(t *testing.T) {
 	wakes := func(enabled bool) bool {
-		themeValue := *testtheme.Behavior()
+		themeValue := theme.Light()
 		themeValue.Motion.Enabled = enabled
 		ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 		var router input.Router
@@ -236,7 +246,7 @@ func TestBarLabelPartUsesCommonBoxRenderer(t *testing.T) {
 	base := Bar("upload", 50).
 		Label("Upload").
 		Layout(newContext(nil), progressBarTestContext())
-	styled := (Bar("upload", 50).Label("Upload")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.PaddingY(7))).Layout(newContext(nil), progressBarTestContext())
+	styled := (Bar("upload", 50).Label("Upload")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7))).Layout(newContext(nil), progressBarTestContext())
 	if styled.Size.Y != base.Size.Y+14 {
 		t.Fatalf("styled label height = %d, want %d", styled.Size.Y, base.Size.Y+14)
 	}

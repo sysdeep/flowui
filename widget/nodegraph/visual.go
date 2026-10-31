@@ -1,36 +1,46 @@
 package nodegraph
 
 import (
+	"gioui.org/widget/material"
 	"github.com/qianniancn/flowui/internal/computed"
+	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
-type nodeGraphVisualCache struct {
-	cache          computed.ProviderCache[struct{}, theme.NodeGraphVisual]
-	visualHost     nodeGraphVisualHost
+// nodeGraphDefaults is the theme-derived appearance shared by every graph
+// instance. Instance declarations are resolved separately and are never stored
+// here, so the cache key only contains inputs that change the defaults.
+type nodeGraphDefaults struct {
+	root     style.Style
+	metrics  nodeGraphMetrics
+	colors   nodeGraphColors
+	material *material.Theme
+}
+
+type nodeGraphSettingsCache = computed.VisualCache[struct{}, nodeGraphDefaults]
+
+type nodeGraphDefaultsCache struct {
+	cache          nodeGraphSettingsCache
+	layoutHost     nodeGraphLayoutHost
 	minimapScratch nodeGraphMinimapScratch
 }
 
-// NodeGraphVisualCacheStats exposes provider cache counters for diagnostics
-// and benchmark assertions without exposing the cache implementation.
-type NodeGraphVisualCacheStats = computed.ProviderCacheStats
+// nodeGraphDefaultsCacheStats exposes cache counters for diagnostics and
+// benchmark assertions without exposing the cache implementation.
+type nodeGraphDefaultsCacheStats = computed.VisualCacheStats
 
-func (c *nodeGraphVisualCache) Stats() NodeGraphVisualCacheStats {
+func (c *nodeGraphDefaultsCache) Stats() nodeGraphDefaultsCacheStats {
 	if c == nil {
-		return NodeGraphVisualCacheStats{}
+		return nodeGraphDefaultsCacheStats{}
 	}
 	return c.cache.Stats()
 }
 
-func (w Widget) resolveVisual(active *theme.Theme, override *theme.NodeGraphOverride) theme.NodeGraphVisual {
-	load := func(value *theme.NodeGraphOverride) theme.NodeGraphVisual {
-		return theme.ResolveVisual(active, theme.NodeGraphRequest{Override: value},
-			theme.ComponentVisualProvider.NodeGraph, theme.ValidateNodeGraphVisual)
+func (w Widget) resolveDefaults(active *theme.Theme) nodeGraphDefaults {
+	if w.visualCache == nil {
+		return defaultNodeGraphDefaults(active)
 	}
-	if override != nil || w.visualCache == nil {
-		return load(override)
-	}
-	return w.visualCache.cache.Resolve(active, struct{}{}, func() theme.NodeGraphVisual {
-		return load(nil)
+	return w.visualCache.cache.Resolve(active, struct{}{}, func() nodeGraphDefaults {
+		return defaultNodeGraphDefaults(active)
 	})
 }

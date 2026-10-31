@@ -55,13 +55,15 @@ button.New("保存").Content(
 
 ### 宽度与局部样式
 
-`FullWidth` 占满可用宽度。需要修改单个按钮外观时，先配置行为，再用 `.Style(...)` 追加外观。
+`FillWidth` 占满可用宽度。需要修改单个按钮外观时，先配置行为，再用 `.Style(...)` 追加外观。
 
 ```go
 button.New("继续").
-    FullWidth().OnClick(next)
+    FillWidth().OnClick(next)
 
-button.New("保存").OnClick(save).Style(style.New().Radius(8).PaddingX(20))
+button.New("保存").Primary().Width(120).OnClick(save)
+
+button.New("保存").OnClick(save).Style(style.New().Radius(8).Padding(20))
 ```
 
 ## 参数与方法
@@ -69,10 +71,13 @@ button.New("保存").OnClick(save).Style(style.New().Radius(8).PaddingX(20))
 | 参数 / 方法 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `Variant(value)` | `button.Variant` | `Primary` | 设置操作的视觉层级，支持下方列出的 8 种变体。 |
+| `Primary()` | 无参数 | 已是默认值 | `.Variant(button.Primary)` 的便捷写法。 |
 | `Size(value)` | `button.Size` | `Medium` | Small / Medium / Large；尺寸由当前主题定义。 |
 | `Disabled(value)` | `bool` | `false` | 禁用操作；不会触发 OnClick，也不能通过键盘激活。 |
 | `Loading(value)` | `bool` | `false` | 显示加载指示器并阻止点击；应用负责开启和结束加载状态。 |
-| `FullWidth()` | 无参数 | 未开启 | 占满父布局允许的宽度；默认按内容和主题内边距确定宽度。 |
+| `FillWidth()` | 无参数 | 未开启 | 占满父布局允许的宽度；默认按内容和主题内边距确定宽度。 |
+| `FillWidth()` | 无参数 | 未开启 | 占满父布局允许的宽度。 |
+| `Width(dp)` | `int` | 按内容决定 | 设置固定宽度；超出父布局约束时会收缩到可用宽度。与 `FillWidth()` 同时设置时固定宽度优先。 |
 | `IconOnly()` | 无参数 | 未开启 | 使用正方形图标按钮尺寸；图标内容仍需通过 Content 提供。 |
 | `Content(value)` | `ui.Widget` | label 文本 | 替换可见内容，可传图标或组合布局；保留原有无障碍名称。 |
 | `Label(value)` | `string` | 构造时的 label | 只修改无障碍名称，不改变当前可见文字或内容。 |
@@ -125,7 +130,7 @@ button.Group(
 | `Variant(value)` | `button.Variant` | `Primary` | 设置组内按钮的默认变体。 |
 | `Size(value)` | `button.Size` | `Medium` | 设置组内按钮的默认尺寸。 |
 | `Disabled(value)` | `bool` | `false` | 设置组内按钮的默认禁用状态。 |
-| `FullWidth()` | 无参数 | 未开启 | 占满可用宽度，横向排列时按钮等分宽度。 |
+| `FillWidth()` | 无参数 | 未开启 | 占满可用宽度，横向排列时按钮等分宽度。 |
 | `Separators(value)` | `bool` | `false` | 显示相邻按钮之间的分隔线。 |
 
 单个按钮显式设置的 `Variant`、`Size`、`Disabled` 优先于组设置。例如 `Disabled(false)` 可以覆盖组的 `Disabled(true)`。按钮组表示一组操作；互斥选择请使用 Segmented 或 RadioGroup。

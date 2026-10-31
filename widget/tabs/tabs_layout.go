@@ -21,18 +21,18 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	iconui "github.com/qianniancn/flowui/widget/icon"
 	textui "github.com/qianniancn/flowui/widget/text"
 )
 
-func (t Widget) layout(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, visual theme.TabsVisual) layout.Dimensions {
+func (t Widget) layout(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, defaults tabsDefaults) layout.Dimensions {
 	if t.panelsForceRender() {
-		t.layoutForcedPanels(ctx, gtx, state, selectedKey, visual)
+		t.layoutForcedPanels(ctx, gtx, state, selectedKey, defaults)
 	}
 	var listDims layout.Dimensions
 	list := func(gtx layout.Context) layout.Dimensions {
-		listDims = t.layoutList(ctx, gtx, state, selectedKey, disabled, visual)
+		listDims = t.layoutList(ctx, gtx, state, selectedKey, disabled, defaults)
 		return listDims
 	}
 	item, hasPanel := t.selectedItem(selectedKey)
@@ -42,16 +42,16 @@ func (t Widget) layout(ctx *core.Context, gtx layout.Context, state *tabsState, 
 	}
 	var panelPlacement core.OverlayPlacement
 	panel := func(gtx layout.Context) layout.Dimensions {
-		opacity := state.panelOpacityFor(gtx, selectedKey, t.panelTransition, t.panelAnimationDuration(ctx, visual), visual.Motion)
+		opacity := state.panelOpacityFor(gtx, selectedKey, t.panelTransition, t.panelAnimationDuration(ctx, defaults), defaults.motion)
 		fade := paint.PushOpacity(gtx.Ops, opacity)
 		defer fade.Pop()
 		dims, placement := core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
-			return t.layoutPanel(ctx, gtx, item, visual)
+			return t.layoutPanel(ctx, gtx, item, defaults)
 		})
 		panelPlacement = placement
 		return dims
 	}
-	gap := max(gtx.Dp(visual.Metrics.RootGap+visual.Metrics.PanelGap), 0)
+	gap := max(gtx.Dp(defaults.geometry.rootGap+defaults.geometry.panelGap), 0)
 	alignment := layout.Start
 	if t.centered && t.orientation == Horizontal {
 		alignment = layout.Middle
@@ -92,7 +92,7 @@ func (t Widget) layout(ctx *core.Context, gtx layout.Context, state *tabsState, 
 // The frame helper gives each panel a disabled input source and a private ops
 // stream, so this pass can initialize component state without adding visible
 // paint, semantics, focus targets, or overlays to the current core.
-func (t Widget) layoutForcedPanels(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, visual theme.TabsVisual) {
+func (t Widget) layoutForcedPanels(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, defaults tabsDefaults) {
 	for _, item := range t.items {
 		if item.Key == selectedKey || item.Panel == nil {
 			continue
@@ -102,15 +102,15 @@ func (t Widget) layoutForcedPanels(ctx *core.Context, gtx layout.Context, state 
 		}
 		scope := t.panelStateScope(ctx, item.Key)
 		core.LayoutHidden(ctx, gtx, scope, core.WidgetFunc(func(ctx *core.Context, hiddenGtx layout.Context) layout.Dimensions {
-			return t.layoutPanel(ctx, hiddenGtx, item, visual)
+			return t.layoutPanel(ctx, hiddenGtx, item, defaults)
 		}))
 		state.renderedPanels[item.Key] = struct{}{}
 	}
 }
 
-func (t Widget) layoutList(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, visual theme.TabsVisual) layout.Dimensions {
+func (t Widget) layoutList(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, defaults tabsDefaults) layout.Dimensions {
 	tabStrip := func(gtx layout.Context) layout.Dimensions {
-		return t.layoutTabStrip(ctx, gtx, state, selectedKey, disabled, visual)
+		return t.layoutTabStrip(ctx, gtx, state, selectedKey, disabled, defaults)
 	}
 	if t.centered && t.orientation == Horizontal {
 		// Keep the strip's intrinsic width while centering it in the available
@@ -147,14 +147,14 @@ func (t Widget) layoutList(ctx *core.Context, gtx layout.Context, state *tabsSta
 	}
 	if t.onAdd != nil {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return t.layoutAddButton(ctx, gtx, state, disabled, visual)
+			return t.layoutAddButton(ctx, gtx, state, disabled, defaults)
 		}))
 	}
 	axis := layout.Horizontal
 	if t.orientation == Vertical {
 		axis = layout.Vertical
 	}
-	return layout.Flex{Axis: axis, Alignment: layout.Middle, Gap: gtx.Dp(visual.Metrics.ExtraContentGap)}.Layout(gtx, children...)
+	return layout.Flex{Axis: axis, Alignment: layout.Middle, Gap: gtx.Dp(defaults.geometry.extraContentGap)}.Layout(gtx, children...)
 }
 
 func (t Widget) layoutSlot(ctx *core.Context, gtx layout.Context, role string, content core.Widget) layout.Dimensions {
@@ -193,25 +193,19 @@ func (w tabsSlotWidget) Measure(ctx *core.Context, gtx layout.Context) layout.Di
 	return core.MeasureWidget(ctx, gtx, w.content)
 }
 
-func (t Widget) layoutTabStripDefault(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, visual theme.TabsVisual) layout.Dimensions {
-	metrics := visual.Metrics
+func (t Widget) layoutTabStripDefault(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, defaults tabsDefaults) layout.Dimensions {
+	geometry := defaults.geometry
 	variant := t.variant
-	padding := gtx.Dp(metrics.ListPadding)
+	padding := gtx.Dp(geometry.listPadding)
 	if variant == Secondary {
 		padding = 0
 	}
-	sizeStyle := tabsSizeStyleForVisual(metrics, t.size)
+	sizeStyle := tabsSizeStyleFor(geometry, t.size)
 	tabHeight := max(gtx.Dp(sizeStyle.height), 1)
-	widths := t.tabWidths(ctx, gtx, padding, sizeStyle, visual)
-	tabGap := gtx.Dp(metrics.TabGap)
+	widths := t.tabWidths(ctx, gtx, padding, sizeStyle, defaults)
+	tabGap := gtx.Dp(geometry.tabGap)
 	size := t.listSize(gtx, widths, tabHeight, padding, tabGap)
-	if visual.List == nil {
-		panic(theme.ErrIncompleteVisualProvider)
-	}
-	visual.List(gtx, theme.TabsListRenderRequest{
-		Size: size, Orientation: uint8(t.orientation), Variant: uint8(variant),
-		Background: visual.Colors.ListBackground, Border: visual.Colors.ListBorder,
-	})
+	tabsDrawList(gtx, geometry, size, t.orientation, variant, defaults.palette.listBackground, defaults.palette.listBorder)
 
 	innerSize := image.Pt(max(size.X-padding*2, 0), max(size.Y-padding*2, 0))
 	listGtx := gtx
@@ -241,37 +235,33 @@ func (t Widget) layoutTabStripDefault(ctx *core.Context, gtx layout.Context, sta
 	state.list.Layout(listGtx, len(t.items), func(gtx layout.Context, index int) layout.Dimensions {
 		itemSize := image.Pt(widths[index], tabHeight)
 		gtx.Constraints = layout.Exact(itemSize)
-		return t.layoutTab(ctx, gtx, state, sizeStyle, index, selectedKey, disabled, visual)
+		return t.layoutTab(ctx, gtx, state, sizeStyle, index, selectedKey, disabled, defaults)
 	})
 	content := contentMacro.Stop()
 	position := state.list.Position
 	if state.ensureSelectionVisible(t.items, selectedKey) {
 		ctx.Invalidate()
 	}
-	t.drawSelectionIndicator(ctx, gtx, state, position, widths, tabHeight, tabGap, selectedKey, disabled, visual)
+	t.drawSelectionIndicator(ctx, gtx, state, position, widths, tabHeight, tabGap, selectedKey, disabled, defaults)
 	content.Add(gtx.Ops)
 	clipStack.Pop()
 	stack.Pop()
 
 	previous := state.canScrollPrevious()
 	next := state.canScrollNext(len(t.items))
-	shadowBackground := visual.Colors.ListBackground
+	shadowBackground := defaults.palette.listBackground
 	if shadowBackground.A == 0 {
-		shadowBackground = visual.Colors.ScrollBackground
+		shadowBackground = defaults.palette.scrollBackground
 	}
-	if visual.Scroll == nil {
-		panic(theme.ErrIncompleteVisualProvider)
-	}
-	visual.Scroll(gtx, theme.TabsScrollRenderRequest{
-		Size: size, Orientation: uint8(t.orientation), Variant: uint8(variant),
-		Previous: previous, Next: next, Background: shadowBackground,
-		Border: visual.Colors.ListBorder,
-	})
-	t.layoutScrollButtons(ctx, gtx, state, size, disabled, visual)
+	tabsDrawScroll(
+		gtx, geometry, size, t.orientation, variant, previous, next,
+		shadowBackground, defaults.palette.listBorder,
+	)
+	t.layoutScrollButtons(ctx, gtx, state, size, disabled, defaults)
 	return layout.Dimensions{Size: size}
 }
 
-func (t Widget) drawSelectionIndicator(ctx *core.Context, gtx layout.Context, state *tabsState, position layout.Position, widths []int, tabHeight, tabGap int, selectedKey string, tabsDisabled bool, visual theme.TabsVisual) {
+func (t Widget) drawSelectionIndicator(ctx *core.Context, gtx layout.Context, state *tabsState, position layout.Position, widths []int, tabHeight, tabGap int, selectedKey string, tabsDisabled bool, defaults tabsDefaults) {
 	if t.indicatorVisibleSet && !t.indicatorVisible {
 		state.indicator.set = false
 		return
@@ -282,24 +272,18 @@ func (t Widget) drawSelectionIndicator(ctx *core.Context, gtx layout.Context, st
 		return
 	}
 	target := t.tabRect(position, widths, index, tabHeight, tabGap)
-	target = t.indicatorTarget(ctx, gtx, target, visual)
-	rect := state.indicator.transitionWithDuration(gtx, selectedKey, t.orientation, target, t.indicatorAnimationDuration(ctx, visual), visual.Motion)
+	target = t.indicatorTarget(ctx, gtx, target, defaults)
+	rect := state.indicator.transitionWithDuration(gtx, selectedKey, t.orientation, target, t.indicatorAnimationDuration(ctx, defaults), defaults.motion)
 	disabled := tabsDisabled || t.items[index].Disabled
-	item := visual.Item(theme.TabsItemRequest{State: style.State{Disabled: disabled}, Foreground: visual.Colors.SelectedForeground})
-	if visual.Indicator == nil {
-		panic(theme.ErrIncompleteVisualProvider)
-	}
-	visual.Indicator(gtx, theme.TabsIndicatorRenderRequest{
-		Bounds: rect, Orientation: uint8(t.orientation), Variant: uint8(t.variant),
-		Color: item.Indicator,
-	})
+	_, indicator, _, _ := defaults.palette.itemColors(disabled)
+	tabsDrawIndicator(gtx, defaults.geometry, rect, t.orientation, t.variant, indicator)
 }
 
-func (t Widget) indicatorTarget(ctx *core.Context, gtx layout.Context, target image.Rectangle, visual theme.TabsVisual) image.Rectangle {
-	tokens := visual.Metrics
+func (t Widget) indicatorTarget(ctx *core.Context, gtx layout.Context, target image.Rectangle, defaults tabsDefaults) image.Rectangle {
+	tokens := defaults.geometry
 	width := t.indicatorWidth
 	if width <= 0 {
-		width = tokens.IndicatorWidth
+		width = tokens.indicatorWidth
 	}
 	// Align against the measured tab node. Its padding is part of the tab's
 	// interactive and visual slot, so start/center/end use the same bounds as
@@ -312,8 +296,8 @@ func (t Widget) indicatorTarget(ctx *core.Context, gtx layout.Context, target im
 	minLength := 0
 	variant := t.variant
 	if variant == Secondary {
-		inset = gtx.Dp(tokens.IndicatorInset)
-		minLength = gtx.Dp(tokens.IndicatorMinWidth)
+		inset = gtx.Dp(tokens.indicatorInset)
+		minLength = gtx.Dp(tokens.indicatorMinWidth)
 	}
 	mainLength = min(max(mainLength-inset*2, minLength), mainLength)
 	if width > 0 {
@@ -335,7 +319,7 @@ func (t Widget) indicatorTarget(ctx *core.Context, gtx layout.Context, target im
 		target.Min.Y += offset
 		target.Max.Y = target.Min.Y + mainLength
 		if variant == Secondary {
-			lineWidth := min(max(gtx.Dp(tokens.IndicatorLineWidth), 1), max(target.Dx(), 1))
+			lineWidth := min(max(gtx.Dp(tokens.indicatorLineWidth), 1), max(target.Dx(), 1))
 			if t.placement == End {
 				target.Min.X = target.Max.X - lineWidth
 				target.Max.X = target.Min.X + lineWidth
@@ -353,7 +337,7 @@ func (t Widget) indicatorTarget(ctx *core.Context, gtx layout.Context, target im
 	target.Min.X += offset
 	target.Max.X = target.Min.X + mainLength
 	if variant == Secondary && t.placement == Bottom {
-		lineWidth := min(max(gtx.Dp(tokens.IndicatorLineWidth), 1), max(target.Dy(), 1))
+		lineWidth := min(max(gtx.Dp(tokens.indicatorLineWidth), 1), max(target.Dy(), 1))
 		target.Max.Y = target.Min.Y + lineWidth
 	}
 	return target
@@ -385,25 +369,25 @@ func (t Widget) tabRect(position layout.Position, widths []int, index, tabHeight
 	return image.Rect(start, 0, start+widths[index], tabHeight)
 }
 
-func (t Widget) tabWidths(ctx *core.Context, gtx layout.Context, padding int, sizeStyle tabsSizeStyle, visuals ...theme.TabsVisual) []int {
-	var visual theme.TabsVisual
-	if len(visuals) > 0 {
-		visual = visuals[0]
+func (t Widget) tabWidths(ctx *core.Context, gtx layout.Context, padding int, sizeStyle tabsSizeStyle, values ...tabsDefaults) []int {
+	effective := tabsDefaults{}
+	if len(values) > 0 {
+		effective = values[0]
 	} else {
-		visual = t.visual(ctx)
+		effective = t.defaultsWithCache(ctx)
 	}
 	widths := make([]int, len(t.items))
 	if len(widths) == 0 {
 		return widths
 	}
-	metrics := visual.Metrics
+	geometry := effective.geometry
 	available := max(gtx.Constraints.Max.X-padding*2, 0)
-	tabGap := gtx.Dp(metrics.TabGap)
+	tabGap := gtx.Dp(geometry.tabGap)
 	total := 0
 	for index, item := range t.items {
-		width := t.measureTabWidth(ctx, gtx, item, sizeStyle, visual)
+		width := t.measureTabWidth(ctx, gtx, item, sizeStyle, effective)
 		if t.orientation == Vertical {
-			width = max(width, gtx.Dp(metrics.TabMinWidth))
+			width = max(width, gtx.Dp(geometry.tabMinWidth))
 		}
 		widths[index] = width
 		total += width
@@ -433,37 +417,37 @@ func (t Widget) tabWidths(ctx *core.Context, gtx layout.Context, padding int, si
 	return widths
 }
 
-func (t Widget) measureTabWidth(ctx *core.Context, gtx layout.Context, item TabItem, sizeStyle tabsSizeStyle, visuals ...theme.TabsVisual) int {
-	var visual theme.TabsVisual
-	if len(visuals) > 0 {
-		visual = visuals[0]
+func (t Widget) measureTabWidth(ctx *core.Context, gtx layout.Context, item TabItem, sizeStyle tabsSizeStyle, values ...tabsDefaults) int {
+	effective := tabsDefaults{}
+	if len(values) > 0 {
+		effective = values[0]
 	} else {
-		visual = t.visual(ctx)
+		effective = t.defaultsWithCache(ctx)
 	}
 	measure := gtx
 	measure.Constraints = layout.Constraints{Max: image.Pt(1e6, max(gtx.Constraints.Max.Y, 1))}
 	leftPadding := gtx.Dp(sizeStyle.paddingX)
-	rightPadding := gtx.Dp(t.tabRightPadding(ctx, sizeStyle, item, visual))
+	rightPadding := gtx.Dp(t.tabRightPadding(ctx, sizeStyle, item, effective))
 	width := 0
 	if item.Content != nil {
 		width = t.measureTabContent(ctx, measure, item.Key, item.Content).Size.X
 	} else {
-		label := textui.WithResolvedText(textui.New(item.Label), t.itemTextStyle(ctx, visual, visual.Colors.Foreground))
+		label := textui.WithResolvedText(textui.New(item.Label), t.itemTextStyle(ctx, effective, effective.palette.foreground))
 		dims := textui.Measure(ctx, measure, label)
 		width = dims.Size.X
 	}
 	if len(item.Icon) > 0 {
-		width += gtx.Dp(visual.Metrics.IconSize) + gtx.Dp(visual.Metrics.IconGap)
+		width += gtx.Dp(effective.geometry.iconSize) + gtx.Dp(effective.geometry.iconGap)
 	}
 	for _, leading := range []core.Widget{item.Leading, item.Trailing} {
 		if leading == nil {
 			continue
 		}
 		child := t.measureTabContent(ctx, measure, item.Key, leading)
-		width += child.Size.X + gtx.Dp(visual.Metrics.IconGap)
+		width += child.Size.X + gtx.Dp(effective.geometry.iconGap)
 	}
 	if item.Closable && t.onClose != nil {
-		closeSize, closeGap := t.closeButtonMetrics(visual)
+		closeSize, closeGap := t.closeButtonMetrics(effective)
 		width += gtx.Dp(closeSize) + gtx.Dp(closeGap)
 	}
 	return width + leftPadding + rightPadding
@@ -472,10 +456,10 @@ func (t Widget) measureTabWidth(ctx *core.Context, gtx layout.Context, item TabI
 // tabRightPadding keeps a closable tab's close slot inside the normal right
 // padding whenever there is enough room. This avoids adding a full padding
 // allowance and then adding the hidden close slot on top of it.
-func (t Widget) tabRightPadding(ctx *core.Context, sizeStyle tabsSizeStyle, item TabItem, visual theme.TabsVisual) unit.Dp {
+func (t Widget) tabRightPadding(ctx *core.Context, sizeStyle tabsSizeStyle, item TabItem, defaults tabsDefaults) unit.Dp {
 	right := sizeStyle.paddingX
 	if item.Closable && t.onClose != nil {
-		closeSize, closeGap := t.closeButtonMetrics(visual)
+		closeSize, closeGap := t.closeButtonMetrics(defaults)
 		slot := closeSize + closeGap
 		right = max(right-slot, 0)
 	}
@@ -525,7 +509,7 @@ func (t Widget) listSize(gtx layout.Context, widths []int, tabHeight, padding, t
 	return gtx.Constraints.Constrain(image.Pt(width, height))
 }
 
-func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState *tabsState, sizeStyle tabsSizeStyle, index int, selectedKey string, tabsDisabled bool, visual theme.TabsVisual) layout.Dimensions {
+func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState *tabsState, sizeStyle tabsSizeStyle, index int, selectedKey string, tabsDisabled bool, defaults tabsDefaults) layout.Dimensions {
 	item := t.items[index]
 	itemState := componentState.item(item.Key)
 	disabled := tabsDisabled || item.Disabled
@@ -536,7 +520,6 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 	}
 	editing := t.itemIsEditing(componentState, item)
 	animGtx := gtx
-	presses := core.ActivePresses(itemState.clickable.History())
 	closeClicked := false
 	if !disabled && !editing && item.Editable {
 		for {
@@ -557,38 +540,37 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 		gtx = gtx.Disabled()
 	} else if !editing {
 		if item.Closable && t.onClose != nil && t.closeVisible(itemState) {
-			for itemState.close.Clicked(gtx) {
-				closeClicked = true
-				core.PreserveFocus(ctx)
-				t.onClose(item.Key)
-				if selected {
-					if fallback, ok := tabsCloseFallback(t.items, index); ok {
-						selectedKey = componentState.requestSelectedKey(t, t.items[fallback].Key)
-						if t.hasSelectedKey {
-							// Controlled bindings return the old value until the
-							// caller feeds the request back. Keep the current frame
-							// usable while preserving that contract.
-							selectedKey = t.items[fallback].Key
+			base.UpdateRow(ctx, gtx, base.RowInput{
+				Clickable: &itemState.close, PreserveFocus: true,
+				OnClick: func(widget.Click) {
+					closeClicked = true
+					t.onClose(item.Key)
+					if selected {
+						if fallback, ok := tabsCloseFallback(t.items, index); ok {
+							selectedKey = componentState.requestSelectedKey(t, t.items[fallback].Key)
+							if t.hasSelectedKey {
+								// Controlled bindings return the old value until the
+								// caller feeds the request back. Keep the current frame
+								// usable while preserving that contract.
+								selectedKey = t.items[fallback].Key
+							}
+							componentState.selectionPending = true
+						} else {
+							selectedKey = componentState.requestSelectedKey(t, "")
+							if t.hasSelectedKey {
+								selectedKey = ""
+							}
+							componentState.selectionPending = false
 						}
-						componentState.selectionPending = true
-					} else {
-						selectedKey = componentState.requestSelectedKey(t, "")
-						if t.hasSelectedKey {
-							selectedKey = ""
-						}
-						componentState.selectionPending = false
 					}
-				}
-			}
+				},
+			})
 		}
-		for itemState.clickable.Clicked(gtx) {
+		base.RowInteraction(ctx, gtx, &itemState.clickable, false, func() {
 			if !closeClicked && !selected {
-				// Route pointer activation through the same disclosure binding as
-				// keyboard activation so uncontrolled Tabs update their own state.
 				componentState.requestSelectedKey(t, item.Key)
 			}
-		}
-		core.FocusOnPress(ctx, &itemState.clickable, itemState.clickable.History(), presses)
+		})
 	}
 
 	return itemState.clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -619,32 +601,27 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 		})
 
 		focusVisible := core.FocusVisible(ctx, &itemState.clickable, gtx.Focused(&itemState.clickable))
-		motion := visual.Motion
+		motion := defaults.motion
 		focus := itemState.interaction.Opacity(animGtx, focusVisible && !disabled, motion)
-		progress := itemState.selectionProgressWithDuration(animGtx, selected, t.selectionDuration(ctx, visual), motion)
+		progress := itemState.selectionProgressWithDuration(animGtx, selected, t.selectionDuration(ctx, defaults), motion)
 		variant := t.variant
-		itemStyle := visual.Item(theme.TabsItemRequest{State: style.State{Hovered: itemState.clickable.Hovered() && !selected, Disabled: disabled, Selected: selected}, Foreground: visual.Colors.Foreground})
+		selectedForeground, _, separatorColor, focusColor := defaults.palette.itemColors(disabled)
 		if t.separators && variant != Secondary && index > 0 && !selected && t.items[index-1].Key != selectedKey {
-			if visual.Separator == nil {
-				panic(theme.ErrIncompleteVisualProvider)
-			}
-			visual.Separator(gtx, theme.TabsSeparatorRenderRequest{
-				Size: size, Orientation: uint8(t.orientation), Color: itemStyle.Separator,
-			})
+			tabsDrawSeparator(gtx, defaults.geometry, size, t.orientation, separatorColor)
 		}
-		foreground := animation.LerpColor(itemStyle.Foreground, itemStyle.SelectedForeground, progress)
+		foreground := animation.LerpColor(defaults.palette.foreground, selectedForeground, progress)
 		styleState := style.State{
 			Hovered: itemState.clickable.Hovered(), Pressed: itemState.clickable.Pressed(),
 			Focused: gtx.Focused(&itemState.clickable), FocusVisible: focusVisible,
 			Disabled: disabled, Selected: selected,
 		}
-		resolved := t.resolveItemStyle(ctx, animGtx, item.Key, styleState, foreground, visual)
+		resolved := t.resolveItemStyle(ctx, animGtx, item.Key, styleState, foreground, defaults)
 		if editing {
 			t.prepareTabEditor(ctx, gtx, componentState, item, itemState)
 		}
 		return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 			if resolved.Text == nil || resolved.Text.FontSize == nil || resolved.Text.FontWeight == nil {
-				panic(theme.ErrIncompleteVisualProvider)
+				panic("flowui/tabs: missing editable tab typography")
 			}
 			textSize := *resolved.Text.FontSize
 			weight := font.Weight(*resolved.Text.FontWeight)
@@ -657,7 +634,7 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 			children := make([]layout.FlexChild, 0, 4)
 			if len(item.Icon) > 0 {
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return iconui.New(item.Icon).Size(float32(visual.Metrics.IconSize)).Layout(ctx, gtx)
+					return iconui.New(item.Icon).Size(float32(defaults.geometry.iconSize)).Layout(ctx, gtx)
 				}))
 			}
 			if item.Leading != nil {
@@ -690,11 +667,11 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 				}))
 			}
 			contentLayout := func(contentGtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: contentGtx.Dp(visual.Metrics.IconGap)}.Layout(contentGtx, children...)
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: contentGtx.Dp(defaults.geometry.iconGap)}.Layout(contentGtx, children...)
 			}
 			layoutContent := contentLayout
 			if item.Closable && t.onClose != nil {
-				closeSize, closeGap := t.closeButtonMetrics(visual)
+				closeSize, closeGap := t.closeButtonMetrics(defaults)
 				closeSizePx := gtx.Dp(closeSize)
 				closeGapPx := gtx.Dp(closeGap)
 				closeChild := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -702,7 +679,7 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 						size := max(gtx.Dp(closeSize), 1)
 						return layout.Dimensions{Size: image.Pt(size, size)}
 					}
-					return t.layoutCloseButton(ctx, gtx, item, itemState, disabled, visual)
+					return t.layoutCloseButton(ctx, gtx, item, itemState, disabled, defaults)
 				})
 				layoutContent = func(contentGtx layout.Context) layout.Dimensions {
 					content := contentGtx
@@ -711,11 +688,11 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 					// to be removed from the content constraint.
 					content.Constraints.Max.X = max(content.Constraints.Max.X-closeSizePx, 0)
 					content.Constraints.Min.X = min(content.Constraints.Min.X, content.Constraints.Max.X)
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: content.Dp(visual.Metrics.IconGap)}.Layout(content, children...)
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: content.Dp(defaults.geometry.iconGap)}.Layout(content, children...)
 				}
 				layout.Inset{
 					Left:  sizeStyle.paddingX,
-					Right: t.tabRightPadding(ctx, sizeStyle, item, visual),
+					Right: t.tabRightPadding(ctx, sizeStyle, item, defaults),
 				}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: closeGapPx}.Layout(gtx,
 						layout.Rigid(layoutContent),
@@ -725,17 +702,12 @@ func (t Widget) layoutTab(ctx *core.Context, gtx layout.Context, componentState 
 			} else {
 				layout.Inset{
 					Left:  sizeStyle.paddingX,
-					Right: t.tabRightPadding(ctx, sizeStyle, item, visual),
+					Right: t.tabRightPadding(ctx, sizeStyle, item, defaults),
 				}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layoutContent(gtx)
 				})
 			}
-			if visual.Focus == nil {
-				panic(theme.ErrIncompleteVisualProvider)
-			}
-			visual.Focus(gtx, theme.TabsFocusRenderRequest{
-				Size: size, Variant: uint8(t.variant), Opacity: focus, Color: itemStyle.Focus,
-			})
+			tabsDrawFocus(gtx, defaults.geometry, size, t.variant, focus, focusColor)
 			return layout.Dimensions{Size: size}
 		}))
 	})
@@ -755,24 +727,22 @@ func (t Widget) itemIsEditing(state *tabsState, item TabItem) bool {
 func (t Widget) prepareTabEditor(ctx *core.Context, gtx layout.Context, componentState *tabsState, item TabItem, itemState *tabsItemState) {
 	editKey := core.DerivedKey(ctx, core.FullKey(ctx, t.key), "edit:"+item.Key)
 	editKey = core.ClaimKey(ctx, core.KindInput, editKey)
-	core.RegisterFieldFocus(ctx, editKey, &itemState.editor, gtx.Enabled())
-	itemState.editor.SingleLine = true
-	itemState.editor.Submit = true
-	itemState.editor.ReadOnly = false
 	if !itemState.editReady {
 		itemState.editor.SetText(item.Label)
 		itemState.editReady = true
 		core.RequestFocus(ctx, &itemState.editor)
 	}
-	for {
-		event, ok := itemState.editor.Update(gtx)
-		if !ok {
-			break
-		}
-		if _, ok := event.(widget.SubmitEvent); ok {
-			t.finishTabEdit(componentState, item, itemState, true)
-			return
-		}
+	events := (base.TextEditor{SingleLine: true}).Update(ctx, gtx, base.TextEditorRequest{
+		FieldKey: editKey,
+		Editor:   &itemState.editor,
+		Value:    itemState.editor.Text(),
+	})
+	if !gtx.Enabled() {
+		return
+	}
+	if events.Submitted {
+		t.finishTabEdit(componentState, item, itemState, true)
+		return
 	}
 	for {
 		event, ok := gtx.Event(key.Filter{Focus: &itemState.editor, Name: key.NameEscape})
@@ -803,8 +773,8 @@ func (t Widget) finishTabEdit(componentState *tabsState, item TabItem, itemState
 	}
 }
 
-func (t Widget) layoutCloseButton(ctx *core.Context, gtx layout.Context, item TabItem, itemState *tabsItemState, disabled bool, visual theme.TabsVisual) layout.Dimensions {
-	closeSize, _ := t.closeButtonMetrics(visual)
+func (t Widget) layoutCloseButton(ctx *core.Context, gtx layout.Context, item TabItem, itemState *tabsItemState, disabled bool, defaults tabsDefaults) layout.Dimensions {
+	closeSize, _ := t.closeButtonMetrics(defaults)
 	size := max(gtx.Dp(closeSize), 1)
 	gtx.Constraints = layout.Exact(image.Pt(size, size))
 	buttonGtx := gtx
@@ -815,19 +785,14 @@ func (t Widget) layoutCloseButton(ctx *core.Context, gtx layout.Context, item Ta
 		semantic.Button.Add(gtx.Ops)
 		semantic.LabelOp(ctx.Textf(i18n.TabsClose, t.itemAccessibleLabel(item))).Add(gtx.Ops)
 		semantic.EnabledOp(gtx.Enabled()).Add(gtx.Ops)
-		col := visual.Colors.Foreground
+		col := defaults.palette.foreground
 		if itemState.close.Hovered() {
-			col = visual.Colors.ScrollForeground
+			col = defaults.palette.scrollForeground
 		}
 		if disabled {
-			col = visual.Colors.DisabledForeground
+			col = defaults.palette.disabledForeground
 		}
-		if visual.Close == nil {
-			panic(theme.ErrIncompleteVisualProvider)
-		}
-		visual.Close(gtx, theme.TabsCloseRenderRequest{
-			Size: image.Pt(size, size), Color: col,
-		})
+		tabsDrawClose(gtx, image.Pt(size, size), col)
 		return layout.Dimensions{Size: image.Pt(size, size)}
 	})
 }
@@ -842,34 +807,33 @@ func (t Widget) itemAccessibleLabel(item TabItem) string {
 	return item.Key
 }
 
-func (t Widget) resolveItemStyle(ctx *core.Context, gtx layout.Context, itemKey string, state style.State, foreground color.NRGBA, visuals ...theme.TabsVisual) style.ResolvedStyle {
-	var visual theme.TabsVisual
-	if len(visuals) > 0 {
-		visual = visuals[0]
+func (t Widget) resolveItemStyle(ctx *core.Context, gtx layout.Context, itemKey string, state style.State, foreground color.NRGBA, values ...tabsDefaults) style.ResolvedStyle {
+	effective := tabsDefaults{}
+	if len(values) > 0 {
+		effective = values[0]
 	} else {
-		visual = t.visual(ctx)
+		effective = t.defaultsWithCache(ctx)
 	}
-	defaults := visual.Item(theme.TabsItemRequest{State: state, Foreground: foreground}).Declaration
-
+	item := style.Join(effective.item, style.Style{}.Part(style.PartItem, style.New().TextColor(style.Solid(foreground))))
 	return computed.ResolvePart(
 		ctx, gtx, core.DerivedKey(ctx, core.FullKey(ctx, t.key), "item:"+itemKey),
-		style.PartItem, state, defaults, style.Style{}, style.Style{}, visual.Override,
+		style.PartItem, state, item, style.Style{}, style.Style{}, t.style,
 	)
 }
 
-// itemTextStyle resolves the provider's neutral item declaration for text
-// measurement. Typography is a theme decision and must be identical to the
-// declaration consumed by the painted item.
-func (t Widget) itemTextStyle(ctx *core.Context, visual theme.TabsVisual, foreground color.NRGBA) *style.TextStyle {
-	item := visual.Item(theme.TabsItemRequest{Foreground: foreground})
-	resolved := computed.ResolvePartStatic(ctx, style.PartItem, style.State{}, item.Declaration, style.Style{}, style.Style{}, visual.Override)
+// itemTextStyle resolves the item declaration for text measurement.
+// Typography is a theme decision and must be identical to the declaration
+// consumed by the painted item.
+func (t Widget) itemTextStyle(ctx *core.Context, defaults tabsDefaults, foreground color.NRGBA) *style.TextStyle {
+	item := style.Join(defaults.item, style.Style{}.Part(style.PartItem, style.New().TextColor(style.Solid(foreground))))
+	resolved := computed.ResolvePartStatic(ctx, style.PartItem, style.State{}, item, style.Style{}, style.Style{}, t.style)
 	if resolved.Text == nil || resolved.Text.FontSize == nil || resolved.Text.FontWeight == nil {
-		panic(theme.ErrIncompleteVisualProvider)
+		panic("flowui/tabs: missing item typography")
 	}
 	return resolved.Text
 }
 
-func (t Widget) layoutPanel(ctx *core.Context, gtx layout.Context, item TabItem, visual theme.TabsVisual) layout.Dimensions {
+func (t Widget) layoutPanel(ctx *core.Context, gtx layout.Context, item TabItem, defaults tabsDefaults) layout.Dimensions {
 	semanticRoot := core.FullKey(ctx, t.key)
 	scope := t.panelStateScope(ctx, item.Key)
 	restoreHost := core.PushKey(ctx, t.key)
@@ -900,26 +864,26 @@ func (t Widget) layoutPanel(ctx *core.Context, gtx layout.Context, item TabItem,
 	resolved := computed.ResolvePart(
 		ctx, gtx, semanticRoot, style.PartPanel,
 		style.State{Selected: true, Disabled: !gtx.Enabled()},
-		visual.Panel, style.Style{}, style.Style{}, visual.Override,
+		defaults.panel, style.Style{}, style.Style{}, t.style,
 	)
 	return layoutui.Resolved(ctx, gtx, resolved, item.Panel)
 }
 
-func (t Widget) layoutScrollButtons(ctx *core.Context, gtx layout.Context, state *tabsState, size image.Point, disabled bool, visual theme.TabsVisual) {
+func (t Widget) layoutScrollButtons(ctx *core.Context, gtx layout.Context, state *tabsState, size image.Point, disabled bool, defaults tabsDefaults) {
 	previous := state.canScrollPrevious()
 	next := state.canScrollNext(len(t.items))
 	if previous {
-		t.layoutScrollButton(ctx, gtx, state, &state.previous, size, -1, disabled, visual)
+		t.layoutScrollButton(ctx, gtx, state, &state.previous, size, -1, disabled, defaults)
 	}
 	if next {
-		t.layoutScrollButton(ctx, gtx, state, &state.next, size, 1, disabled, visual)
+		t.layoutScrollButton(ctx, gtx, state, &state.next, size, 1, disabled, defaults)
 	}
 }
 
-func (t Widget) layoutScrollButton(ctx *core.Context, gtx layout.Context, state *tabsState, clickable *widget.Clickable, listSize image.Point, direction int, disabled bool, visual theme.TabsVisual) {
-	metrics := visual.Metrics
-	buttonSize := min(gtx.Dp(metrics.ScrollButtonSize), min(listSize.X, listSize.Y))
-	inset := gtx.Dp(metrics.ScrollButtonInset)
+func (t Widget) layoutScrollButton(ctx *core.Context, gtx layout.Context, state *tabsState, clickable *widget.Clickable, listSize image.Point, direction int, disabled bool, defaults tabsDefaults) {
+	geometry := defaults.geometry
+	buttonSize := min(gtx.Dp(geometry.scrollButtonSize), min(listSize.X, listSize.Y))
+	inset := gtx.Dp(geometry.scrollButtonInset)
 	position := image.Pt(inset, max((listSize.Y-buttonSize)/2, 0))
 	if direction > 0 {
 		position.X = max(listSize.X-buttonSize-inset, 0)
@@ -944,20 +908,14 @@ func (t Widget) layoutScrollButton(ctx *core.Context, gtx layout.Context, state 
 	clickable.Layout(buttonGtx, func(gtx layout.Context) layout.Dimensions {
 		semantic.Button.Add(gtx.Ops)
 		semantic.LabelOp(t.scrollButtonLabel(ctx, direction)).Add(gtx.Ops)
-		col := visual.Colors.ScrollForeground
+		col := defaults.palette.scrollForeground
 		if clickable.Hovered() {
 			col.A = byte(float32(col.A)*0.7 + 0.5)
 		}
 		if disabled {
-			col = visual.Colors.DisabledForeground
+			col = defaults.palette.disabledForeground
 		}
-		if visual.Chevron == nil {
-			panic(theme.ErrIncompleteVisualProvider)
-		}
-		visual.Chevron(gtx, theme.TabsChevronRenderRequest{
-			Size: image.Pt(buttonSize, buttonSize), Orientation: uint8(t.orientation),
-			Direction: direction, Color: col,
-		})
+		tabsDrawChevron(gtx, geometry, image.Pt(buttonSize, buttonSize), t.orientation, direction, col)
 		return layout.Dimensions{Size: image.Pt(buttonSize, buttonSize)}
 	})
 	stack.Pop()
@@ -976,12 +934,12 @@ func (t Widget) scrollButtonLabel(ctx *core.Context, direction int) string {
 	return ctx.Text(i18n.TabsScrollRight)
 }
 
-func (t Widget) layoutAddButton(ctx *core.Context, gtx layout.Context, state *tabsState, disabled bool, visual theme.TabsVisual) layout.Dimensions {
-	metrics := visual.Metrics
-	sizeStyle := tabsSizeStyleForVisual(metrics, t.size)
-	size := max(gtx.Dp(sizeStyle.height)+gtx.Dp(metrics.ListPadding)*2, 1)
+func (t Widget) layoutAddButton(ctx *core.Context, gtx layout.Context, state *tabsState, disabled bool, defaults tabsDefaults) layout.Dimensions {
+	geometry := defaults.geometry
+	sizeStyle := tabsSizeStyleFor(geometry, t.size)
+	size := max(gtx.Dp(sizeStyle.height)+gtx.Dp(geometry.listPadding)*2, 1)
 	if t.orientation == Vertical {
-		size = max(gtx.Dp(metrics.TabHeight), 1)
+		size = max(gtx.Dp(geometry.tabHeight), 1)
 	}
 	gtx.Constraints = layout.Exact(image.Pt(size, size))
 	buttonGtx := gtx
@@ -1000,23 +958,18 @@ func (t Widget) layoutAddButton(ctx *core.Context, gtx layout.Context, state *ta
 		semantic.Button.Add(gtx.Ops)
 		semantic.LabelOp(ctx.Text(i18n.TabsAddTab)).Add(gtx.Ops)
 		semantic.EnabledOp(gtx.Enabled()).Add(gtx.Ops)
-		col := visual.Colors.ScrollForeground
+		col := defaults.palette.scrollForeground
 		if state.add.Hovered() {
 			col.A = byte(float32(col.A)*0.7 + 0.5)
 		}
 		if disabled {
-			col = visual.Colors.DisabledForeground
+			col = defaults.palette.disabledForeground
 		}
-		iconSize := min(gtx.Dp(metrics.IconSize), size)
+		iconSize := min(gtx.Dp(geometry.iconSize), size)
 		iconGtx := gtx
 		iconGtx.Constraints = layout.Exact(image.Pt(iconSize, iconSize))
 		iconOffset := op.Offset(image.Pt((size-iconSize)/2, (size-iconSize)/2)).Push(gtx.Ops)
-		if visual.Add == nil {
-			panic(theme.ErrIncompleteVisualProvider)
-		}
-		visual.Add(iconGtx, theme.TabsAddRenderRequest{
-			Size: image.Pt(iconSize, iconSize), Color: col,
-		})
+		tabsDrawAdd(iconGtx, image.Pt(iconSize, iconSize), col)
 		iconOffset.Pop()
 		return layout.Dimensions{Size: image.Pt(size, size)}
 	})

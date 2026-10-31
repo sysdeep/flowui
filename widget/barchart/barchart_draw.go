@@ -10,11 +10,10 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
-func drawChartGrid(gtx layout.Context, geometry chartGeometry, style chartStyle, show bool, metrics theme.BarChartMetrics) {
+func drawChartGrid(gtx layout.Context, geometry chartGeometry, style chartStyle, show bool, metrics barChartMetrics) {
 	if !show || geometry.plot.Empty() {
 		return
 	}
@@ -28,7 +27,7 @@ func drawChartGrid(gtx layout.Context, geometry chartGeometry, style chartStyle,
 	}
 }
 
-func drawChartAxes(gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.BarChartMetrics) {
+func drawChartAxes(gtx layout.Context, geometry chartGeometry, style chartStyle, metrics barChartMetrics) {
 	if geometry.plot.Empty() {
 		return
 	}
@@ -64,7 +63,7 @@ func drawCategoryHighlight(gtx layout.Context, geometry chartGeometry, selection
 	}
 }
 
-func drawChartSeries(ctx *core.Context, gtx layout.Context, data chartData, geometry chartGeometry, style chartStyle, metrics theme.BarChartMetrics, foreground theme.BarChartLabelForeground) {
+func drawChartSeries(ctx *core.Context, gtx layout.Context, data chartData, geometry chartGeometry, style chartStyle, metrics barChartMetrics, foreground func(color.NRGBA) color.NRGBA) {
 	if geometry.plot.Empty() || data.categories == 0 {
 		return
 	}
@@ -100,7 +99,7 @@ func drawChartSeries(ctx *core.Context, gtx layout.Context, data chartData, geom
 	area.Pop()
 }
 
-func drawBarLabel(ctx *core.Context, gtx layout.Context, geometry chartGeometry, rect image.Rectangle, series resolvedSeries, bar resolvedBar, style chartStyle, metrics theme.BarChartMetrics, foreground theme.BarChartLabelForeground) {
+func drawBarLabel(ctx *core.Context, gtx layout.Context, geometry chartGeometry, rect image.Rectangle, series resolvedSeries, bar resolvedBar, style chartStyle, metrics barChartMetrics, foreground func(color.NRGBA) color.NRGBA) {
 	text := chart.FormatAxisNumber(bar.value, 1)
 	if series.formatLabel != nil {
 		text = series.formatLabel(bar.value)
@@ -145,7 +144,7 @@ func (g chartGeometry) bandWidthToInt() int {
 	return int(math.Ceil(float64(max(g.bandWidth, 1))))
 }
 
-func drawBarBackgrounds(gtx layout.Context, data chartData, geometry chartGeometry, style chartStyle, metrics theme.BarChartMetrics) {
+func drawBarBackgrounds(gtx layout.Context, data chartData, geometry chartGeometry, style chartStyle, metrics barChartMetrics) {
 	radius := max(gtx.Dp(metrics.BackgroundRadius), 0)
 	for _, column := range data.columns {
 		if !column.showBackground {

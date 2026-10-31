@@ -11,7 +11,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -42,7 +41,7 @@ func TestCircleRatioAndSemantics(t *testing.T) {
 
 func TestIndeterminateCircleRespectsMotionTheme(t *testing.T) {
 	wakes := func(enabled bool) bool {
-		themeValue := *testtheme.Behavior()
+		themeValue := theme.Light()
 		themeValue.Motion.Enabled = enabled
 		ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 		var router input.Router
@@ -77,14 +76,13 @@ func TestCircleLayout(t *testing.T) {
 func TestCircleInstanceOverrideAppliesPartOpacity(t *testing.T) {
 	declaration := style.Style{}.
 		Part(style.PartFill, style.Style{}.Opacity(.5))
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageAuto)
 	resolved := Circle("upload", 50).Style(declaration).resolveStyle(
 		ctx,
 		testLayoutContext(),
 		"upload",
-		&progressCircleVisualCache{},
-		&theme.ProgressOverride{Declaration: declaration},
+		&progressCircleStyleCache{},
 	)
 	if resolved.fill.A != 128 {
 		t.Fatalf("circle fill alpha = %d, want 128", resolved.fill.A)

@@ -14,6 +14,7 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
+	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -46,16 +47,11 @@ func TestGraphGridStepRemainsVisibleAtLowZoom(t *testing.T) {
 	}
 }
 
-func TestGridAppearanceOverridesUseStyledBoundary(t *testing.T) {
-	colorValue := color.NRGBA{R: 0x32, G: 0x78, B: 0xc8, A: 0xff}
-	opacity := float32(.45)
-	override := theme.NodeGraphOverride{GridColor: &colorValue, GridOpacity: &opacity}
-	styled := (New("graph", Graph{})).StyleOverride(override)
-	if styled.override.GridColor == nil || *styled.override.GridColor != colorValue {
-		t.Fatalf("provider grid color = %#v, want %#v", styled.override.GridColor, override.GridColor)
-	}
-	if styled.override.GridOpacity == nil || *styled.override.GridOpacity != opacity {
-		t.Fatalf("provider grid opacity = %#v, want %#v", styled.override.GridOpacity, override.GridOpacity)
+func TestGridAppearanceUsesInstanceStyle(t *testing.T) {
+	declaration := style.Style{}.BorderWidth(2)
+	styled := (New("graph", Graph{})).Style(declaration)
+	if styled.style.Hash64() != declaration.Hash64() {
+		t.Fatal("instance style was not retained on the node graph")
 	}
 }
 
@@ -67,7 +63,7 @@ func TestPortColorPrefersExplicitValueAndFallsBackToProvider(t *testing.T) {
 		t.Fatalf("explicit port color = %#v, want %#v", got, explicit)
 	}
 	if got := portColor(Port{}, fallback); got != fallback {
-		t.Fatalf("unset port color = %#v, want provider fallback %#v", got, fallback)
+		t.Fatalf("unset port color = %#v, want theme fallback %#v", got, fallback)
 	}
 }
 
@@ -149,7 +145,7 @@ func TestResolveGraphUsesConfiguredHandlePositions(t *testing.T) {
 }
 
 func TestCustomNodeContentContributesToAutomaticSize(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	core.BeginFrameWithViewport(ctx, image.Pt(640, 360))
 	var ops op.Ops
@@ -469,7 +465,7 @@ func TestNodeGraphResizeHitSlopIsIndependentOfThemeMetrics(t *testing.T) {
 	node := NewNode("node", "Node", Point{}).WithSize(100, 80).Resizable(true)
 	graph := resolvedGraph{nodes: []resolvedNode{{node: node, position: Point{}, size: Size{Width: 100, Height: 80}}}}
 	widget := New("graph", Graph{}).NodesResizable(true)
-	metrics := theme.NodeGraphMetrics{NodeHeaderHeight: 26, NodeVerticalPadding: 8, NodePortRowHeight: 20}
+	metrics := nodeGraphMetrics{NodeHeaderHeight: 26, NodeVerticalPadding: 8, NodePortRowHeight: 20}
 	selected := map[string]bool{"node": true}
 	anchor := f32.Pt(100, 80)
 	if _, ok := widget.resizeAt(graph, selected, anchor.Add(f32.Pt(defaultNodeGraphBehavior.resizeHitSlopPx, 0)), Viewport{Zoom: 1}, 1, metrics); !ok {
@@ -517,7 +513,7 @@ func TestMinimapMapsScreenPointToGraphCoordinates(t *testing.T) {
 		NewNode("first", "First", Point{X: 0, Y: 0}),
 		NewNode("last", "Last", Point{X: 600, Y: 400}),
 	}})
-	metrics := theme.NodeGraphMetrics{MinimapWidth: 180, MinimapHeight: 120, MinimapMargin: 12, MinimapPadding: 8}
+	metrics := nodeGraphMetrics{MinimapWidth: 180, MinimapHeight: 120, MinimapMargin: 12, MinimapPadding: 8}
 	geometry, ok := resolveMinimapGeometry(graph, image.Pt(480, 320), metrics, 1)
 	if !ok {
 		t.Fatal("minimap geometry was not resolved")
@@ -837,8 +833,8 @@ func TestNodeGraphPointerCallbacksDispatchTargets(t *testing.T) {
 	if nodeMenus != 1 {
 		t.Fatalf("node context menus = %d, want 1", nodeMenus)
 	}
-	widget.updateHover(&state, graph, nil, viewport, 1, nodePosition, 0, theme.NodeGraphMetrics{})
-	widget.updateHover(&state, graph, nil, viewport, 1, f32.Pt(520, 180), 0, theme.NodeGraphMetrics{})
+	widget.updateHover(&state, graph, nil, viewport, 1, nodePosition, 0, nodeGraphMetrics{})
+	widget.updateHover(&state, graph, nil, viewport, 1, f32.Pt(520, 180), 0, nodeGraphMetrics{})
 	if nodeEnters != 1 || nodeLeaves != 1 {
 		t.Fatalf("node hover callbacks = %d/%d, want 1/1", nodeEnters, nodeLeaves)
 	}

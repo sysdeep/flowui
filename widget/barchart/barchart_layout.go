@@ -9,7 +9,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -76,12 +75,12 @@ type chartSelection struct {
 	entries []chartSelectionEntry
 }
 
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.BarChartVisual) layout.Dimensions {
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, defaults barChartDefaults) layout.Dimensions {
 	if w.animationDuration <= 0 {
-		w.animationDuration = visual.Metrics.AnimationDuration
+		w.animationDuration = defaults.Metrics.AnimationDuration
 	}
 	if w.updateAnimationDuration <= 0 {
-		w.updateAnimationDuration = visual.Metrics.UpdateDuration
+		w.updateAnimationDuration = defaults.Metrics.UpdateDuration
 	}
 
 	state := chartStateFor(ctx, w.key)
@@ -92,13 +91,13 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.BarCh
 	enabled := gtx.Enabled() && !w.disabled
 	activated, resetWindow := state.updateClicks(gtx, enabled)
 
-	metrics := visual.Metrics
+	metrics := defaults.Metrics
 	height := metrics.Height
 	if w.height > 0 {
 		height = w.height
 	}
 	size := gtx.Constraints.Constrain(image.Pt(gtx.Constraints.Max.X, gtx.Dp(height)))
-	data := state.dataCache.resolveWithColors(w, core.ActiveTheme(ctx), visual.Colors, gtx.Metric)
+	data := state.dataCache.resolveWithColors(w, core.ActiveTheme(ctx), defaults.Colors, gtx.Metric)
 	if w.handleLegendClicks(gtx, state, data, enabled) {
 		activated = false
 		resetWindow = false
@@ -118,17 +117,17 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.BarCh
 	eventGtx.Constraints = layout.Exact(size)
 	semantic.EnabledOp(enabled).Add(eventGtx.Ops)
 	semantic.DescriptionOp(w.semanticDescription(ctx, data)).Add(eventGtx.Ops)
-	w.layoutContent(ctx, eventGtx, state, data, visual, enabled, activated, size)
+	w.layoutContent(ctx, eventGtx, state, data, defaults, enabled, activated, size)
 	state.addClickInput(eventGtx, size, enabled && (w.onDataClick != nil || w.onDataWindowChange != nil))
 	return layout.Dimensions{Size: size}
 }
 
-func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, visual theme.BarChartVisual, enabled, activated bool, size image.Point) {
+func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, defaults barChartDefaults, enabled, activated bool, size image.Point) {
 	if size.X <= 0 || size.Y <= 0 {
 		return
 	}
-	metrics := visual.Metrics
-	chartStyle := barChartStyleFor(visual, !enabled)
+	metrics := defaults.Metrics
+	chartStyle := barChartStyleFor(defaults, !enabled)
 	displayData := w.animatedData(ctx, gtx, state, data)
 	leftLabelWidth := w.measureYAxisLabelWidth(ctx, gtx, data, metrics, chartStyle.axisLabel, max(size.X/2, 1))
 	if w.orientation == Horizontal {
@@ -141,7 +140,7 @@ func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *char
 
 	legend := recordedChartBlock{}
 	if w.legendVisible(data) {
-		legend = w.recordLegend(ctx, gtx, state, data, chartStyle, metrics, visual.LegendHiddenOpacity, availableWidth, enabled)
+		legend = w.recordLegend(ctx, gtx, state, data, chartStyle, metrics, defaults.LegendHiddenOpacity, availableWidth, enabled)
 	}
 	xAxisLabel, yAxisLabel := w.axisLabels()
 	yName := recordChartText(ctx, gtx, yAxisLabel, metrics.AxisTextSize, metrics.EmphasisWeight, chartStyle.axisLabel, availableWidth)
@@ -231,19 +230,19 @@ func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *char
 	placeChartBlock(gtx, legend, legendPosition)
 	placeChartText(gtx, yName, yNamePosition)
 	drawChartGrid(gtx, geometry, chartStyle, w.showGrid, metrics)
-	w.drawMarkAreas(ctx, gtx, geometry, chartStyle, visual)
+	w.drawMarkAreas(ctx, gtx, geometry, chartStyle, defaults)
 	drawChartAxes(gtx, geometry, chartStyle, metrics)
 	if selected {
 		drawCategoryHighlight(gtx, geometry, selection, chartStyle)
 	}
-	drawChartSeries(ctx, gtx, displayData, geometry, chartStyle, metrics, visual.BarLabelForeground)
-	w.drawMarkLinesAndPoints(ctx, gtx, geometry, chartStyle, visual)
+	drawChartSeries(ctx, gtx, displayData, geometry, chartStyle, metrics, barChartLabelForeground)
+	w.drawMarkLinesAndPoints(ctx, gtx, geometry, chartStyle, defaults)
 	w.layoutAxisLabels(ctx, gtx, geometry, chartStyle, metrics)
 	if !data.yExtent.Valid {
 		w.layoutEmpty(ctx, gtx, geometry, chartStyle, metrics)
 	}
 	if tooltipVisible || tooltipProgress > 0 {
-		w.drawTooltip(ctx, geometry, state.tooltipSelection, chart.TooltipAnchor(tooltipPointer), tooltipProgress, state.tooltipTransition.Exiting(), metrics, visual.Colors.OverlayForeground)
+		w.drawTooltip(ctx, geometry, state.tooltipSelection, chart.TooltipAnchor(tooltipPointer), tooltipProgress, state.tooltipTransition.Exiting(), metrics, defaults.Colors.OverlayForeground)
 	}
 	if xName.dims.Size.X > 0 {
 		position := image.Pt(max(geometry.plot.Max.X-xName.dims.Size.X, 0), max(size.Y-xName.dims.Size.Y, 0))

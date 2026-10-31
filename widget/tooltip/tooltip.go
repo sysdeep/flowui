@@ -7,7 +7,6 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -19,7 +18,7 @@ const (
 )
 
 type Widget struct {
-	override         *theme.TooltipOverride
+	style            style.Style
 	key              string
 	trigger          core.Widget
 	content          core.Widget
@@ -106,33 +105,33 @@ func (t Widget) Disabled(disabled bool) Widget {
 }
 
 func (t Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return t.layoutWithOverride(ctx, gtx, t.override)
+	return t.layoutWithStyle(ctx, gtx)
 }
 
-// Styled applies an instance declaration at the Tooltip Provider boundary.
-// Tooltip behavior itself does not retain visual state.
-func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.TooltipOverride) layout.Dimensions {
+// layoutWithStyle resolves the built-in appearance and applies the instance
+// declaration as the last cascade layer.
+func (t Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	coordinator := tooltipCoordinatorFor(ctx)
 	coordinator.update(gtx)
 	fullKey, state := tooltipStateFor(ctx, t.key)
 	coordinator.register(ctx, gtx, fullKey)
-	visual := tooltipVisualWithCache(ctx, override, &state.visualCache)
+	visual := tooltipVisualWithCache(ctx, &state.visualCache)
 	disabled := t.disabled || !gtx.Enabled()
-	wasActive := state.active
-	wasOpen := state.open
+	wasActive := state.Active
+	wasOpen := state.Open
 	delay := t.showDelay(visual)
 	if coordinator.warmed {
 		delay = 0
 	}
 	closeDelay := t.hideDelay(visual)
 	state.update(gtx, t.triggerMode, disabled, delay, closeDelay)
-	if wasActive && !state.active {
+	if wasActive && !state.Active {
 		coordinator.beginCooldown(gtx, fullKey, closeDelay)
 	}
-	if state.open && !wasOpen {
+	if state.Open && !wasOpen {
 		coordinator.open(fullKey, closeDelay)
 		core.ActivateExclusive(ctx, tooltipExclusiveGroup, fullKey)
-	} else if wasOpen && !state.open {
+	} else if wasOpen && !state.Open {
 		core.ReleaseExclusive(ctx, tooltipExclusiveGroup, fullKey)
 	}
 
@@ -140,7 +139,7 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	state.addInput(gtx, triggerDims.Size, disabled)
 
 	progress := state.progress(gtx, visual.Motion, visual.Metrics.EnterDuration, visual.Metrics.ExitDuration)
-	if progress <= 0 && !state.open {
+	if progress <= 0 && !state.Open {
 		return triggerDims
 	}
 
@@ -154,7 +153,8 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		Layout: func(gtx layout.Context, anchor image.Rectangle, _ bool) layout.Dimensions {
 			popup := t.popup(progress, state.exiting())
 			popup.styleKey = fullKey
-			popup.styleState = style.State{Disabled: disabled, Open: state.open}
+			popup.styleState = style.State{Disabled: disabled, Open: state.Open}
+			popup.style = t.style
 			return popup.layoutWithVisual(ctx, gtx, anchor, visual)
 		},
 	})
@@ -168,19 +168,24 @@ func (t Widget) layoutTrigger(ctx *core.Context, gtx layout.Context) layout.Dime
 	return t.trigger.Layout(ctx, gtx)
 }
 
-func (t Widget) showDelay(visual theme.TooltipVisual) time.Duration {
+func (t Widget) showDelay(visual tooltipVisual) time.Duration {
 	if t.hasDelay {
 		return t.delay
 	}
 	return max(visual.Metrics.Delay, 0)
 }
 
-func (t Widget) hideDelay(visual theme.TooltipVisual) time.Duration {
+func (t Widget) hideDelay(visual tooltipVisual) time.Duration {
 	if t.hasCloseDelay {
 		return t.closeDelay
 	}
 	return max(visual.Metrics.CloseDelay, 0)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (t Widget) Style(values ...style.Style) Widget {
+	t.style = style.Join(t.style, style.Join(values...))
+	return t
+}

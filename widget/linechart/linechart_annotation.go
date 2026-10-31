@@ -9,15 +9,14 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
-func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, visual theme.LineChartVisual) {
+func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, defaults lineChartDefaults) {
 	if geometry.plot.Empty() {
 		return
 	}
-	fallback := visual.Colors.AnnotationArea
+	fallback := defaults.Colors.AnnotationArea
 	areaClip := clip.Rect(geometry.plot).Push(gtx.Ops)
 	for _, mark := range w.markAreas {
 		rect, ok := lineMarkAreaRect(mark, geometry)
@@ -35,26 +34,26 @@ func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry ch
 		if !ok {
 			continue
 		}
-		label := recordChartText(ctx, gtx, mark.Label, visual.Metrics.AxisTextSize, visual.Metrics.EmphasisWeight, style.axisLabel, max(rect.Dx()-8, 1))
+		label := recordChartText(ctx, gtx, mark.Label, defaults.Metrics.AxisTextSize, defaults.Metrics.EmphasisWeight, style.axisLabel, max(rect.Dx()-8, 1))
 		placeChartText(gtx, label, image.Pt(rect.Min.X+4, rect.Min.Y+4))
 	}
 }
 
-func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, visual theme.LineChartVisual) {
+func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, defaults lineChartDefaults) {
 	if geometry.plot.Empty() {
 		return
 	}
-	lineFallback := visual.Colors.AnnotationLine
+	lineFallback := defaults.Colors.AnnotationLine
 	for _, mark := range w.markLines {
 		from, to, ok := lineMarkEndpoints(mark, geometry)
 		if !ok {
 			continue
 		}
-		width := float32(max(gtx.Dp(mark.ResolvedWidth(visual.Metrics.AnnotationLineWidth)), 1))
+		width := float32(max(gtx.Dp(mark.ResolvedWidth(defaults.Metrics.AnnotationLineWidth)), 1))
 		color := mark.ResolvedColor(lineFallback)
 		drawChartLine(gtx, from, to, width, color)
 		if mark.Label != "" {
-			label := recordChartText(ctx, gtx, mark.Label, visual.Metrics.AxisTextSize, visual.Metrics.EmphasisWeight, color, max(geometry.plot.Dx()/2, 1))
+			label := recordChartText(ctx, gtx, mark.Label, defaults.Metrics.AxisTextSize, defaults.Metrics.EmphasisWeight, color, max(geometry.plot.Dx()/2, 1))
 			position := image.Pt(int(from.X)+4, int(from.Y)+4)
 			if mark.Axis == chart.AxisY {
 				position = image.Pt(max(geometry.plot.Max.X-label.dims.Size.X-4, geometry.plot.Min.X), max(int(from.Y)-label.dims.Size.Y-3, geometry.plot.Min.Y))
@@ -64,19 +63,19 @@ func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, ge
 		}
 	}
 
-	pointFallback := visual.Colors.AnnotationPoint
+	pointFallback := defaults.Colors.AnnotationPoint
 	for _, mark := range w.markPoints {
 		if !geometry.xScale.Contains(mark.X) || !geometry.yScale.Contains(mark.Y) {
 			continue
 		}
 		center := image.Pt(int(math.Round(float64(geometry.mapX(mark.X)))), int(math.Round(float64(geometry.mapY(mark.Y)))))
 		color := mark.ResolvedColor(pointFallback)
-		size, custom := chart.LayoutMarkPointContent(ctx, gtx, mark, floatPoint(center), geometry.plot, visual.Metrics.AnnotationPointSize, pointFallback)
+		size, custom := chart.LayoutMarkPointContent(ctx, gtx, mark, floatPoint(center), geometry.plot, defaults.Metrics.AnnotationPointSize, pointFallback)
 		if !custom {
 			paint.FillShape(gtx.Ops, color, clip.Ellipse(chart.PointRect(floatPoint(center), size)).Op(gtx.Ops))
 		}
 		if mark.Label != "" {
-			label := recordChartText(ctx, gtx, mark.Label, visual.Metrics.AxisTextSize, visual.Metrics.EmphasisWeight, style.axisLabel, max(geometry.plot.Dx()/2, 1))
+			label := recordChartText(ctx, gtx, mark.Label, defaults.Metrics.AxisTextSize, defaults.Metrics.EmphasisWeight, style.axisLabel, max(geometry.plot.Dx()/2, 1))
 			position := chart.ClampLabelPosition(image.Pt(center.X+size/2+4, center.Y-label.dims.Size.Y/2), label.dims.Size, geometry.plot)
 			placeChartText(gtx, label, position)
 		}

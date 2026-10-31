@@ -16,7 +16,7 @@ import (
 )
 
 func TestRecordTextDefersOpsUntilPlaced(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	gtx, router := chartTextContext()
 	RecordText(ctx, gtx, "Recorded", 14, font.Normal, color.NRGBA{A: 0xff}, 200)

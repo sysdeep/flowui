@@ -65,11 +65,11 @@ func (t *FloatTransition) Value(gtx layout.Context, target float32, duration tim
 		t.value = t.to
 		return t.value
 	}
-	progress := applyEasing(easing, Progress(gtx.Now.Sub(t.at), duration))
+	progress := Progress(gtx.Now.Sub(t.at), duration)
 	if progress < 1 {
 		gtx.Execute(op.InvalidateCmd{})
 	}
-	t.value = LerpFloat(t.from, t.to, progress)
+	t.value = LerpFloat(t.from, t.to, applyEasing(easing, progress))
 	return t.value
 }
 
@@ -127,11 +127,11 @@ func (t *ColorTransition) Value(gtx layout.Context, target color.NRGBA, duration
 		t.value = t.to
 		return t.value
 	}
-	progress := applyEasing(easing, Progress(gtx.Now.Sub(t.at), duration))
+	progress := Progress(gtx.Now.Sub(t.at), duration)
 	if progress < 1 {
 		gtx.Execute(op.InvalidateCmd{})
 	}
-	t.value = LerpColor(t.from, t.to, progress)
+	t.value = LerpColor(t.from, t.to, applyEasing(easing, progress))
 	return t.value
 }
 

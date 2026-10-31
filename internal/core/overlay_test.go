@@ -7,14 +7,57 @@ import (
 	"testing"
 
 	"gioui.org/f32"
+	"gioui.org/io/event"
 	"gioui.org/io/input"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/locale"
 	"github.com/qianniancn/flowui/style"
 )
+
+func TestOverlayReconstructedChildRetainsFocus(t *testing.T) {
+	for _, name := range []string{"automatic", "explicit"} {
+		t.Run(name, func(t *testing.T) {
+			ctx := New(nil, nil, locale.LanguageAuto)
+			var router input.Router
+			var ops op.Ops
+			var target event.Tag
+			for frame := range 2 {
+				ops.Reset()
+				BeginFrameWithViewport(ctx, image.Pt(100, 100))
+				gtx := layout.Context{Constraints: layout.Exact(image.Pt(100, 100)), Ops: &ops, Source: router.Source()}
+				RegisterOverlay(ctx, OverlayRequest{Key: "popup", Layout: func(gtx layout.Context, _ image.Rectangle, _ bool) layout.Dimensions {
+					token := anonymousTestToken()
+					if name == "explicit" {
+						token = "field"
+					}
+					resolved := ClaimKey(ctx, KindCustom, token)
+					focus := UseState[int](ctx, resolved, "focus")
+					if target == nil {
+						target = focus
+					}
+					region := clip.Rect(image.Rect(0, 0, 20, 20)).Push(gtx.Ops)
+					event.Op(gtx.Ops, focus)
+					gtx.Event(key.FocusFilter{Target: focus})
+					region.Pop()
+					RequestFocus(ctx, focus)
+					return layout.Dimensions{Size: image.Pt(20, 20)}
+				}})
+				LayoutOverlays(ctx, gtx)
+				ApplyFrameCommands(ctx, gtx)
+				EndFrame(ctx)
+				router.Frame(&ops)
+				if !router.Source().Focused(target) {
+					t.Fatalf("visible child lost requested focus in frame %d", frame)
+				}
+			}
+		})
+	}
+}
 
 func TestOverlayCapturesStyleForLayoutTailAndAfterWork(t *testing.T) {
 	ctx, gtx := overlayTestContext(image.Pt(100, 100))

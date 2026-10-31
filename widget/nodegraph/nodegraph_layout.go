@@ -8,43 +8,37 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, nil)
-}
-
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.NodeGraphOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	if w.visualCache == nil {
-		w.visualCache = &nodeGraphVisualCache{}
+		w.visualCache = &nodeGraphDefaultsCache{}
 	}
 	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
-	host := &w.visualCache.visualHost
+	defaults := w.resolveDefaults(active)
+	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, defaults.root, style.Style{}, style.Style{}, w.style)
+	host := &w.visualCache.layoutHost
 	host.value = w
-	host.visual = visual
+	host.defaults = defaults
 	return layoutui.Resolved(ctx, gtx, resolved, host)
 }
 
-type nodeGraphVisualHost struct {
-	value  Widget
-	visual theme.NodeGraphVisual
+type nodeGraphLayoutHost struct {
+	value    Widget
+	defaults nodeGraphDefaults
 }
 
-func (v *nodeGraphVisualHost) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return v.value.layout(ctx, gtx, v.visual)
+func (h *nodeGraphLayoutHost) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	return h.value.layout(ctx, gtx, h.defaults)
 }
 
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.NodeGraphVisual) layout.Dimensions {
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, defaults nodeGraphDefaults) layout.Dimensions {
 	if w.disabled {
 		gtx = gtx.Disabled()
 	}
 	key := core.ClaimKey(ctx, core.KindNodeGraph, w.key)
 	value := core.UseState[graphState](ctx, key, stateSlotNodeGraph)
-	resolved := resolveGraphMeasuredWithMetrics(ctx, gtx, w.graph, visual.Metrics, w.key)
+	resolved := resolveGraphMeasuredWithMetrics(ctx, gtx, w.graph, defaults.metrics, w.key)
 	size := gtx.Constraints.Max
 	if w.height > 0 {
 		size.Y = gtx.Dp(w.height)
@@ -61,7 +55,7 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.NodeG
 	enabled := gtx.Enabled() && !w.disabled
 	selected := w.selectedNodeSet(resolved)
 	selectedEdges := w.selectedEdgeSet(resolved)
-	if next, changed := w.updateGestures(ctx, gtx, value, resolved, viewport, selected, selectedEdges, size, enabled, visual.Metrics); changed {
+	if next, changed := w.updateGestures(ctx, gtx, value, resolved, viewport, selected, selectedEdges, size, enabled, defaults.metrics); changed {
 		viewport = next
 		value.viewport = next
 		value.ready = true
@@ -93,12 +87,12 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.NodeG
 	if value.focusVisible {
 		focusedNode = value.focusedNode
 	}
-	drawNodeGraph(ctx, graphGtx, resolved, viewport, renderSelected, selectedEdges, value.hoveredNode, focusedNode, w.key, w.showGrid, w.gridPattern, w.gridSize, w.nodesResizable, w.resizeHandles, w.minimapEnabled, w.controlsEnabled, w.cullingEnabled, w.panels, w.viewportOverlays, w.nodeToolbars, w.edgeToolbars, &w.visualCache.minimapScratch, visual)
+	drawNodeGraph(ctx, graphGtx, resolved, viewport, renderSelected, selectedEdges, value.hoveredNode, focusedNode, w.key, w.showGrid, w.gridPattern, w.gridSize, w.nodesResizable, w.resizeHandles, w.minimapEnabled, w.controlsEnabled, w.cullingEnabled, w.panels, w.viewportOverlays, w.nodeToolbars, w.edgeToolbars, &w.visualCache.minimapScratch, defaults)
 	if value.gesture == gestureSelectionBox && value.dragStarted {
-		drawSelectionBox(graphGtx, value.selectionStart, value.selectionCurrent, visual)
+		drawSelectionBox(graphGtx, value.selectionStart, value.selectionCurrent, defaults)
 	}
 	if value.gesture == gestureConnect {
-		drawConnectionPreview(graphGtx, viewport, value, visual)
+		drawConnectionPreview(graphGtx, viewport, value, defaults)
 	}
 	return layout.Dimensions{Size: size}
 }

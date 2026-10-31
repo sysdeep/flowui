@@ -82,65 +82,29 @@ func (s Style) AspectRatio(value float32) Style {
 	return s.editBox(func(box *BoxStyle) { box.AspectRatio = new(value) })
 }
 
-func (s Style) Padding(value unit.Dp) Style {
-	if !finite(float32(value)) {
+// Padding uses CSS shorthand order: all, vertical/horizontal,
+// top/horizontal/bottom, or top/right/bottom/left.
+func (s Style) Padding(values ...unit.Dp) Style {
+	var padding Insets
+	switch len(values) {
+	case 1:
+		padding = Insets{Top: values[0], Right: values[0], Bottom: values[0], Left: values[0]}
+	case 2:
+		padding = Insets{Top: values[0], Right: values[1], Bottom: values[0], Left: values[1]}
+	case 3:
+		padding = Insets{Top: values[0], Right: values[1], Bottom: values[2], Left: values[1]}
+	case 4:
+		padding = Insets{Top: values[0], Right: values[1], Bottom: values[2], Left: values[3]}
+	default:
+		return s
+	}
+	if !finite(float32(padding.Top)) || !finite(float32(padding.Right)) ||
+		!finite(float32(padding.Bottom)) || !finite(float32(padding.Left)) {
 		return s
 	}
 	return s.editBox(func(box *BoxStyle) {
-		box.Padding = &Insets{Top: value, Right: value, Bottom: value, Left: value}
+		box.Padding = &padding
 		box.paddingMask = sidesAll
-	})
-}
-
-func (s Style) PaddingX(value unit.Dp) Style {
-	if !finite(float32(value)) {
-		return s
-	}
-	return s.editBox(func(box *BoxStyle) {
-		padding := insets(box.Padding)
-		padding.Left, padding.Right = value, value
-		box.Padding = &padding
-		box.paddingMask |= sideLeft | sideRight
-	})
-}
-
-func (s Style) PaddingY(value unit.Dp) Style {
-	if !finite(float32(value)) {
-		return s
-	}
-	return s.editBox(func(box *BoxStyle) {
-		padding := insets(box.Padding)
-		padding.Top, padding.Bottom = value, value
-		box.Padding = &padding
-		box.paddingMask |= sideTop | sideBottom
-	})
-}
-
-func (s Style) PaddingTop(value unit.Dp) Style {
-	return s.paddingSide(sideTop, value)
-}
-
-func (s Style) PaddingRight(value unit.Dp) Style {
-	return s.paddingSide(sideRight, value)
-}
-
-func (s Style) PaddingBottom(value unit.Dp) Style {
-	return s.paddingSide(sideBottom, value)
-}
-
-func (s Style) PaddingLeft(value unit.Dp) Style {
-	return s.paddingSide(sideLeft, value)
-}
-
-func (s Style) paddingSide(side uint8, value unit.Dp) Style {
-	if !finite(float32(value)) {
-		return s
-	}
-	return s.editBox(func(box *BoxStyle) {
-		padding := insets(box.Padding)
-		setInsetSide(&padding, side, value)
-		box.Padding = &padding
-		box.paddingMask |= side
 	})
 }
 

@@ -1,7 +1,6 @@
 package image
 
 import (
-	"github.com/qianniancn/flowui/theme"
 	"image"
 
 	"gioui.org/io/semantic"
@@ -14,12 +13,6 @@ import (
 )
 
 func (i Widget) layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	active := core.ActiveTheme(ctx)
-	visual := theme.ResolveVisual(active, theme.ImageRequest{Override: i.override},
-		theme.ComponentVisualProvider.Image, theme.ValidateImageVisual)
-	if !i.hasRadius {
-		i.radius = visual.Metrics.Radius
-	}
 	i.applyConstraints(&gtx)
 	macro := op.Record(gtx.Ops)
 	dims := widget.Image{

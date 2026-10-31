@@ -1,16 +1,16 @@
 package button
 
 import (
-	"time"
-
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"gioui.org/widget"
 
 	"github.com/qianniancn/flowui/internal/core"
 	flowlayout "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
+	widgetbase "github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -27,39 +27,18 @@ type Widget struct {
 	disabledSet bool
 	loading     bool
 	fullWidth   bool
+	width       *unit.Dp
 	iconOnly    bool
 	group       buttonGroupItemStyle
-	override    *theme.ButtonOverride
+	style       style.Style
 }
-
-type Variant = theme.ButtonVariant
-
-const (
-	Primary    = theme.ButtonPrimary
-	Secondary  = theme.ButtonSecondary
-	Tertiary   = theme.ButtonTertiary
-	Ghost      = theme.ButtonGhost
-	Outline    = theme.ButtonOutline
-	Danger     = theme.ButtonDanger
-	DangerSoft = theme.ButtonDangerSoft
-	// DangerOutline is the bordered danger button.
-	DangerOutline = theme.ButtonDangerOutline
-)
-
-type Size = theme.ButtonSize
-
-const (
-	Medium = theme.ButtonMedium
-	Small  = theme.ButtonSmall
-	Large  = theme.ButtonLarge
-)
 
 // New creates a button with visible text and a matching accessible label.
 // Use Content to replace the text with an icon or composite widget.
-// New creates a button. Its identity is derived from the enclosing scope; call
+// Its identity is derived from the enclosing scope; call
 // Key when the same position may hold different buttons.
 func New(label string) Widget {
-	return Widget{key: core.AutoKey(), child: text.New(label), label: label}
+	return Widget{key: core.AutoKey("button"), child: text.New(label), label: label}
 }
 
 // Key sets an explicit identity for the button state.
@@ -74,19 +53,9 @@ func (b Widget) Content(value core.Widget) Widget {
 	return b
 }
 
-// Styled applies an instance visual declaration at the provider boundary.
-//
-// New code should prefer this wrapper when a style is supplied separately from
-// button behavior. The declaration lives on the wrapper, while the wrapped
-// Widget continues to contain only behavior and semantic configuration.
-// Style merges instance declarations into the button. The declaration reaches
-// the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the built-in button appearance.
 func (b Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if b.override == nil {
-		b.override = &theme.ButtonOverride{}
-	}
-	b.override.Declaration = style.Join(b.override.Declaration, declaration)
+	b.style = style.Join(b.style, style.Join(values...))
 	return b
 }
 
@@ -118,14 +87,26 @@ func (b Widget) Variant(variant Variant) Widget {
 	return b
 }
 
+// Primary selects the primary action appearance.
+func (b Widget) Primary() Widget {
+	return b.Variant(Primary)
+}
+
 func (b Widget) Size(size Size) Widget {
 	b.size = size
 	b.sizeSet = true
 	return b
 }
 
-func (b Widget) FullWidth() Widget {
+func (b Widget) FillWidth() Widget {
 	b.fullWidth = true
+	return b
+}
+
+// Width sets a fixed width in dp. It overrides FillWidth when both are set.
+func (b Widget) Width(dp int) Widget {
+	width := unit.Dp(max(dp, 0))
+	b.width = &width
 	return b
 }
 
@@ -141,48 +122,87 @@ func (b Widget) DisabledState() bool {
 }
 
 func (b Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return layoutWithClickable(b, ctx, gtx, nil, true, b.override)
+	return widgetbase.Button(b.key).
+		Label(b.label).
+		Disabled(b.disabled).
+		Loading(b.loading).
+		OnClick(b.onClick).
+		Content(func(state widgetbase.ButtonState) core.Widget {
+			return core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+				dims, _ := b.layoutState(ctx, gtx, state.Key, styleState(state), nil)
+				return dims
+			})
+		}).
+		Layout(ctx, gtx)
+}
+
+// Visual draws only the button appearance for an existing behavior state.
+// It neither consumes events nor registers a hit target or button semantics;
+// the owning base must provide those around the returned widget.
+func (b Widget) Visual(state widgetbase.ButtonState) core.Widget {
+	return core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		dims, _ := b.layoutState(ctx, gtx, state.Key, styleState(state), nil)
+		return dims
+	})
 }
 
 // LayoutWithClickable renders a button with caller-owned interaction state.
-// It is intended for internal component composition.
 func LayoutWithClickable(b Widget, ctx *core.Context, gtx layout.Context, clickable *widget.Clickable) layout.Dimensions {
-	return layoutWithClickable(b, ctx, gtx, clickable, true, b.override)
+	return b.layoutWithClickable(ctx, gtx, clickable, true)
 }
 
-// LayoutWithClickableNoEvents renders a button with caller-owned event handling.
+// LayoutWithClickableNoEvents renders a button with caller-owned state and event handling.
 func LayoutWithClickableNoEvents(b Widget, ctx *core.Context, gtx layout.Context, clickable *widget.Clickable) layout.Dimensions {
-	return layoutWithClickable(b, ctx, gtx, clickable, false, b.override)
+	return b.layoutWithClickable(ctx, gtx, clickable, false)
 }
 
-func layoutWithClickable(b Widget, ctx *core.Context, gtx layout.Context, clickable *widget.Clickable, handleEvents bool, override *theme.ButtonOverride) layout.Dimensions {
-	dims, _ := layoutWithClickableResolved(b, ctx, gtx, clickable, handleEvents, override, nil)
-	return dims
+func (b Widget) layoutWithClickable(ctx *core.Context, gtx layout.Context, clickable *widget.Clickable, handleEvents bool) layout.Dimensions {
+	return widgetbase.Button(b.key).
+		Label(b.label).
+		Disabled(b.disabled).
+		Loading(b.loading).
+		OnClick(b.onClick).
+		Clickable(clickable).
+		Events(handleEvents).
+		Content(func(state widgetbase.ButtonState) core.Widget {
+			return core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+				dims, _ := b.layoutState(ctx, gtx, state.Key, styleState(state), nil)
+				return dims
+			})
+		}).
+		Layout(ctx, gtx)
 }
 
-func layoutWithClickableResolved(b Widget, ctx *core.Context, gtx layout.Context, clickable *widget.Clickable, handleEvents bool, override *theme.ButtonOverride, prepared *buttonPreparedContent) (layout.Dimensions, buttonStyle) {
-	core.RequireVisualProvider(ctx)
+// layoutState draws a button for an interaction state already owned by a base.
+func (b Widget) layoutState(
+	ctx *core.Context,
+	gtx layout.Context,
+	key string,
+	styleState style.State,
+	prepared *buttonPreparedContent,
+) (layout.Dimensions, buttonStyle) {
 	animGtx := gtx
-	click := core.Begin(ctx, gtx, b.key, clickable, !b.disabled && !b.loading, handleEvents, b.onClick)
-	styleState := click.State
-	styleState.Disabled = b.disabled || !gtx.Enabled()
-	styleState.Loading = b.loading
+	layoutGtx := gtx
+	if styleState.Disabled {
+		layoutGtx = layoutGtx.Disabled()
+	}
 	var resolvedStyle buttonStyle
 	if prepared != nil {
-		resolvedStyle = b.resolvePreparedStyleWithDeclarations(ctx, animGtx, click.Key, styleState, prepared.declarations)
+		resolvedStyle = b.resolvePreparedStyleWithDeclarations(ctx, animGtx, key, styleState, prepared.declarations)
 	} else {
-		resolvedStyle = b.resolveStyle(ctx, animGtx, click.Key, styleState, override)
+		resolvedStyle = b.resolveStyle(ctx, animGtx, key, styleState)
 	}
 
-	if b.fullWidth {
-		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	}
-	if b.loading && !b.iconOnly && !b.fullWidth {
-		resolvedStyle = buttonLoadingStyle(gtx, resolvedStyle)
+	if b.width != nil {
+		width := min(max(layoutGtx.Dp(*b.width), layoutGtx.Constraints.Min.X), layoutGtx.Constraints.Max.X)
+		layoutGtx.Constraints.Min.X = width
+		layoutGtx.Constraints.Max.X = width
+	} else if b.fullWidth {
+		layoutGtx.Constraints.Min.X = layoutGtx.Constraints.Max.X
 	}
 
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		motion := resolvedStyle.visual.Motion
+		motion := resolvedStyle.defaults.motion
 		if b.loading && theme.MotionEnabled(motion) {
 			animGtx.Execute(op.InvalidateCmd{})
 		}
@@ -195,45 +215,6 @@ func layoutWithClickableResolved(b Widget, ctx *core.Context, gtx layout.Context
 		})
 	})
 
-	// ripple: keyed state absorbs presses, the overlay paints
-	// them on top of the button box while one is animating. The wave anchors
-	// to the button box (the overlay's dims), not the inner content; the
-	// box-shadow spread hugs the border, padding included.
-	ripples, spreadDuration, fadeDuration := b.rippleOverlay(ctx, click, resolvedStyle.visual, gtx)
-	var waveOverlay func(layout.Context, layout.Dimensions)
-	if ripples != nil {
-		waveCol, waveOK := buttonRippleColor(resolvedStyle.visual, resolvedStyle.root)
-		waveOverlay = func(gtx layout.Context, dims layout.Dimensions) {
-			resolvedStyle.visual.RippleRenderer(gtx, theme.ButtonRippleRequest{
-				Ripples:        ripples.active,
-				SpreadDuration: spreadDuration,
-				FadeDuration:   fadeDuration,
-				Size:           dims.Size,
-				Radius:         buttonRadius(resolvedStyle.root),
-				Color:          waveCol,
-				ColorValid:     waveOK,
-			})
-		}
-	}
-
-	dims := flowlayout.InteractiveResolvedWithDrawAndOverlay(ctx, gtx, resolvedStyle.root, content, func(gtx layout.Context, visual layout.Widget) layout.Dimensions {
-		// Keep the semantic and pointer region bounded by the button size while
-		// letting paint that overflows it -- the focus ring, the drop shadow --
-		// escape the hit target's clip.
-		return click.LayoutVisualOverflow(gtx, visual, b.label)
-	}, nil, waveOverlay)
+	dims := flowlayout.InteractiveResolved(ctx, layoutGtx, resolvedStyle.root, content, nil)
 	return dims, resolvedStyle
-}
-
-// rippleOverlay returns the keyed ripple state while ButtonTheme.Ripple is on
-// and the button is interactive; nil disables the overlay entirely.
-func (b Widget) rippleOverlay(ctx *core.Context, click core.Click, visual theme.ButtonVisual, gtx layout.Context) (*rippleState, time.Duration, time.Duration) {
-	if !visual.Ripple || b.disabled || b.loading || !gtx.Enabled() {
-		return nil, 0, 0
-	}
-	state := core.UseStateWith(ctx, click.Key, stateSlotRipple, func() *rippleState { return &rippleState{} })
-	spread := rippleDurationFor(visual)
-	fade := rippleFadeDurationFor(visual)
-	updateRipples(state, click.Clickable.History(), fade, gtx.Now)
-	return state, spread, fade
 }

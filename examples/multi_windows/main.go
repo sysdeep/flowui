@@ -7,10 +7,11 @@ import (
 	lucide "github.com/qianniancn/flowui-icons-lucide"
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/datepicker"
+	"github.com/qianniancn/flowui/widget/divider"
 	"github.com/qianniancn/flowui/widget/icon"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/widget/toggle"
@@ -69,9 +70,9 @@ func mainUpdate(application *ui.Application) ui.Update[MainModel, MainMsg] {
 		switch msg.kind {
 		case setDark:
 			model.Dark = msg.enabled
-			activeTheme := base.Light()
+			activeTheme := theme.Light()
 			if model.Dark {
-				activeTheme = base.Dark()
+				activeTheme = theme.Dark()
 			}
 			application.SetTheme("main", activeTheme)
 		case setChinese:
@@ -103,7 +104,7 @@ func mainView(application *ui.Application, counter ui.WindowSpec) ui.View[MainMo
 				layout.Column(
 					text.New("FlowUI Multi-window").Size(24),
 					text.New(status).Size(13),
-					layout.Divider(),
+					divider.New(),
 					layout.Wrap(
 						windowAction(application, "minimize", "Minimize", window.ActionMinimize),
 						windowAction(application, "maximize", "Maximize", window.ActionMaximize),
@@ -132,7 +133,7 @@ func mainView(application *ui.Application, counter ui.WindowSpec) ui.View[MainMo
 						datepicker.New("locale-preview", model.Date).
 							OnChange(func(value time.Time) { send(MainMsg{kind: setDate, date: value}) }),
 					).Gap(8).LineGap(8),
-					layout.Divider(),
+					divider.New(),
 					layout.Row(
 						button.New("Open counter").OnClick(func() { application.Open(counter) }),
 						button.New("Close all").Variant(button.Secondary).OnClick(application.CloseAll),
@@ -154,14 +155,14 @@ func main() {
 	counter := ui.NewWindow(
 		"counter", ui.NewProgram(CounterModel{}, counterUpdate, counterView(application)), window.Title("Counter"),
 		window.Size(420, 260),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 	mainWindow := ui.NewWindow(
 		"main", ui.NewProgram(MainModel{}, mainUpdate(application), mainView(application, counter)), window.Title("Multi-window"),
 		window.Size(760, 520),
 		window.MinSize(520, 360),
 		window.MaxSize(1400, 1000),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 	application.Run(mainWindow)
 }

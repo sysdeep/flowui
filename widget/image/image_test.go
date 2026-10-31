@@ -1,7 +1,7 @@
 package image
 
 import (
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"image"
 	"testing"
 
@@ -119,7 +119,7 @@ func imageSource(width, height int) paint.ImageOp {
 }
 
 func imageTestFrameContext() *core.Context {
-	activeTheme := testtheme.Behavior()
+	activeTheme := new(theme.Light())
 	return core.New(nil, activeTheme, locale.LanguageEnglish)
 }
 

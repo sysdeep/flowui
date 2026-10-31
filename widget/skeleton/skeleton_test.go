@@ -6,7 +6,8 @@ import (
 	"time"
 
 	giolayout "gioui.org/layout"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
 )
@@ -21,7 +22,7 @@ func TestAnimationAndSize(t *testing.T) {
 		{name: "reduced motion", animated: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			active := base.Light()
+			active := theme.Light()
 			active.Motion.Enabled = tc.motion
 			h := uitest.New(image.Pt(200, 100), active)
 			root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
@@ -56,7 +57,7 @@ func TestSizeInStretchingParent(t *testing.T) {
 		{name: "oversized width", widget: New().Width(300), want: image.Pt(200, 16)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := uitest.New(image.Pt(200, 100), base.Light())
+			h := uitest.New(image.Pt(200, 100), theme.Light())
 			if got := h.Frame(tc.widget).Size; got != tc.want {
 				t.Fatalf("size = %v, want %v", got, tc.want)
 			}

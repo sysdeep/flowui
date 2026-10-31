@@ -13,10 +13,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
-	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/button"
 )
@@ -37,7 +34,7 @@ func (p *alertProbe) Layout(ctx *core.Context, gtx layout.Context) layout.Dimens
 
 func newAlertContext(activeTheme *theme.Theme) *core.Context {
 	if activeTheme == nil {
-		activeTheme = testtheme.Behavior()
+		activeTheme = new(theme.Light())
 	}
 	return core.New(nil, activeTheme, locale.LanguageEnglish)
 }
@@ -69,7 +66,7 @@ func TestAlertCustomSlotsReceiveScopedColors(t *testing.T) {
 	indicator := &alertProbe{size: image.Pt(16, 16)}
 	content := &alertProbe{size: image.Pt(120, 20)}
 	action := &alertProbe{size: image.Pt(64, 32)}
-	activeTheme := testtheme.Behavior()
+	activeTheme := new(theme.Light())
 	New("Processing", "ignored").
 		Status(Accent).
 		Indicator(indicator).
@@ -95,53 +92,26 @@ func TestAlertCustomSlotsReceiveScopedColors(t *testing.T) {
 	}
 }
 
-func TestAlertVisualCacheTracksStatusOverrideAndTheme(t *testing.T) {
-	active := testtheme.Behavior()
+func TestAlertVisualCacheTracksStatusAndTheme(t *testing.T) {
+	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
 	value := New("cache", "description")
 	cache := alertVisualCache{}
 	value.visualCache = &cache
 
-	value.visualWithCache(ctx, nil)
-	value.visualWithCache(ctx, nil)
-	value.Status(Success).visualWithCache(ctx, nil)
-	override := &theme.AlertOverride{Declaration: style.Style{}.Padding(2)}
-	value.visualWithCache(ctx, override)
+	value.visualWithCache(ctx)
+	value.visualWithCache(ctx)
+	success := value.Status(Success)
+	success.visualWithCache(ctx)
+	success.visualWithCache(ctx)
 	replacement := *active
 	core.ReplaceTheme(ctx, replacement)
-	value.visualWithCache(ctx, override)
+	success.visualWithCache(ctx)
 
-	stats := cache.stats()
-	if stats.Hits != 1 || stats.Misses != 4 || stats.ThemeInvalidations != 1 || stats.KeyInvalidations != 2 {
+	stats := cache.Stats()
+	if stats.Hits != 2 || stats.Misses != 3 || stats.ThemeInvalidations != 1 || stats.KeyInvalidations != 1 {
 		t.Fatalf("alert visual cache stats = %#v", stats)
 	}
-}
-
-func TestAlertProviderReceivesStatusAndOverride(t *testing.T) {
-	active := testtheme.Behavior()
-	provider := &recordingAlertProvider{ComponentVisualProvider: testtheme.BehaviorProvider()}
-	active.VisualProvider = provider
-	ctx := core.New(nil, active, locale.LanguageEnglish)
-	override := &theme.AlertOverride{Declaration: style.Style{}.Padding(2)}
-	New("status", "description").Status(Danger).visualWithCache(ctx, override)
-
-	if len(provider.requests) != 1 {
-		t.Fatalf("alert provider requests = %d, want one", len(provider.requests))
-	}
-	request := provider.requests[0]
-	if request.Status != theme.AlertDanger || request.Override != override {
-		t.Fatalf("alert provider request = %#v", request)
-	}
-}
-
-type recordingAlertProvider struct {
-	theme.ComponentVisualProvider
-	requests []theme.AlertRequest
-}
-
-func (p *recordingAlertProvider) Alert(active *theme.Theme, request theme.AlertRequest) theme.AlertVisual {
-	p.requests = append(p.requests, request)
-	return p.ComponentVisualProvider.Alert(active, request)
 }
 
 func TestAlertSemanticsExposeTitleAndDescription(t *testing.T) {
@@ -180,7 +150,7 @@ func TestAlertActionButtonRemainsInteractive(t *testing.T) {
 }
 
 func TestAlertClosableCallsOnClose(t *testing.T) {
-	h := uitest.New(image.Pt(480, 200), base.Light())
+	h := uitest.New(image.Pt(480, 200), theme.Light())
 	closed := false
 	root := New("Update available", "Refresh to get the latest version.").
 		Closable(true).

@@ -4,6 +4,7 @@ import (
 	"image"
 	"io"
 	"math"
+	"slices"
 	"time"
 
 	"gioui.org/f32"
@@ -14,7 +15,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type graphState struct {
@@ -137,7 +137,7 @@ var resizeHandleOrder = [...]ResizeHandle{
 	ResizeHandleLeft,
 }
 
-func (w Widget) updateGestures(ctx *core.Context, gtx layout.Context, value *graphState, graph resolvedGraph, current Viewport, selected, selectedEdges map[string]bool, size image.Point, enabled bool, metrics theme.NodeGraphMetrics) (Viewport, bool) {
+func (w Widget) updateGestures(ctx *core.Context, gtx layout.Context, value *graphState, graph resolvedGraph, current Viewport, selected, selectedEdges map[string]bool, size image.Point, enabled bool, metrics nodeGraphMetrics) (Viewport, bool) {
 	next := current
 	changed := false
 	pixelsPerDP := graphPixelsPerDP(gtx)
@@ -482,9 +482,9 @@ func (w Widget) startNodeDrag(gtx layout.Context, value *graphState, graph resol
 	core.GrabPointer(gtx, value, eventValue)
 }
 
-func (w Widget) resizeAt(graph resolvedGraph, selected map[string]bool, position f32.Point, viewport Viewport, pixelsPerDP float32, metrics theme.NodeGraphMetrics) (resizeNode, bool) {
-	for index := len(graph.nodes) - 1; index >= 0; index-- {
-		node := graph.nodes[index]
+func (w Widget) resizeAt(graph resolvedGraph, selected map[string]bool, position f32.Point, viewport Viewport, pixelsPerDP float32, metrics nodeGraphMetrics) (resizeNode, bool) {
+	for _, node := range slices.Backward(graph.nodes) {
+
 		if !selected[node.node.ID] || !node.node.isResizable(w.nodesResizable) {
 			continue
 		}
@@ -1006,7 +1006,7 @@ func (w Widget) completeConnection(value *graphState, graph resolvedGraph, viewp
 	}
 }
 
-func (w Widget) updateHover(value *graphState, graph resolvedGraph, selected map[string]bool, viewport Viewport, pixelsPerDP float32, position f32.Point, modifiers key.Modifiers, metrics theme.NodeGraphMetrics) {
+func (w Widget) updateHover(value *graphState, graph resolvedGraph, selected map[string]bool, viewport Viewport, pixelsPerDP float32, position f32.Point, modifiers key.Modifiers, metrics nodeGraphMetrics) {
 	previousNode := value.hoveredNode
 	previousEdge := value.hoveredEdge
 	world := screenToWorld(viewport, position, pixelsPerDP)
@@ -1157,8 +1157,8 @@ func (w Widget) reconnectAt(graph resolvedGraph, point Point, radius float32) (r
 		return reconnectHit{}, false
 	}
 	radiusSquared := radius * radius
-	for index := len(graph.edges) - 1; index >= 0; index-- {
-		edge := graph.edges[index]
+	for _, edge := range slices.Backward(graph.edges) {
+
 		if edge.edge.isReconnectable(reconnectSource, w.edgesReconnectable) && squaredDistance(point, edge.source) <= radiusSquared {
 			node := graph.byID[edge.edge.Target.NodeID]
 			port, ok := node.port(false, edge.edge.Target.PortID)

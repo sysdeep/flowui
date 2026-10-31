@@ -33,6 +33,54 @@ func TestScrollKeepsState(t *testing.T) {
 	}
 }
 
+func TestScrollScrollbarModesKeepIdentityAndOffset(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	probe := &scrollbarConstraintWidget{height: 400}
+	value := Scroll(probe).Key("body")
+	start := time.Unix(1, 0)
+	layoutScrollFrame(ctx, router, value, start)
+	layoutScrollFrame(ctx, router, value, start.Add(time.Millisecond))
+	state := testComponentState[layout.List](ctx, "body", stateSlotScroll)
+	state.Position.Offset = 40
+
+	for index, tc := range []struct {
+		name  string
+		value ScrollWidget
+		width int
+	}{
+		{name: "hidden", value: value.WithoutScrollbar(), width: 100},
+		{name: "overlay", value: value.Overlay(), width: 100},
+		{name: "gutter", value: value, width: 86},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			layoutScrollFrame(ctx, router, tc.value, start.Add(time.Duration(index+2)*time.Millisecond))
+			if got := testComponentState[layout.List](ctx, "body", stateSlotScroll); got != state || got.Position.Offset != 40 {
+				t.Fatalf("mode change replaced or reset scroll state: %+v", got.Position)
+			}
+			if probe.constraints.Max.X != tc.width {
+				t.Fatalf("content width = %d, want %d", probe.constraints.Max.X, tc.width)
+			}
+		})
+	}
+}
+
+func TestScrollWithoutScrollbarKeepsWheelScrolling(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	value := Scroll(Spacer(100, 400)).Key("body").WithoutScrollbar()
+	start := time.Unix(1, 0)
+	layoutScrollFrame(ctx, router, value, start)
+	router.Queue(pointer.Event{
+		Kind: pointer.Scroll, Source: pointer.Mouse,
+		Position: f32.Pt(50, 50), Scroll: f32.Pt(0, 30),
+	})
+	layoutScrollFrame(ctx, router, value, start.Add(time.Millisecond))
+	if got := testComponentState[layout.List](ctx, "body", stateSlotScroll).Position.Offset; got <= 0 {
+		t.Fatalf("hidden scrollbar disabled wheel scrolling: offset = %d", got)
+	}
+}
+
 func TestScrollPassesDisabledContext(t *testing.T) {
 	probe := &enabledProbeWidget{}
 
@@ -50,7 +98,7 @@ func TestScrollOptions(t *testing.T) {
 	Scroll(Spacer(20, 200)).
 		Key("body").
 		AlignMiddle().
-		StickToEnd().
+		FollowEnd().
 		ScrollAnyAxis().
 		Layout(ctx, layout.Context{
 			Constraints: layout.Constraints{Max: image.Pt(100, 100)},
@@ -69,20 +117,15 @@ func TestScrollOptions(t *testing.T) {
 	}
 }
 
-func TestScrollOverlayKeepsContentWidth(t *testing.T) {
-	probe := &scrollbarConstraintWidget{height: 300}
-	var ops op.Ops
-
-	Scroll(probe).
-		Key("overlay").
-		Overlay().
-		Layout(newContext(nil), layout.Context{
-			Constraints: layout.Constraints{Max: image.Pt(100, 100)},
-			Ops:         &ops,
-		})
-
-	if got := probe.constraints.Max.X; got != 100 {
-		t.Fatalf("overlay content width = %d, want 100", got)
+func TestScrollFollowEndUsesGioEndFollowing(t *testing.T) {
+	ctx := newContext(nil)
+	Scroll(Spacer(20, 200)).Key("follow-body").FollowEnd().Layout(ctx, layout.Context{
+		Constraints: layout.Constraints{Max: image.Pt(100, 100)},
+		Ops:         new(op.Ops),
+	})
+	state := testComponentState[layout.List](ctx, "follow-body", stateSlotScroll)
+	if !state.ScrollToEnd {
+		t.Fatal("follow-end did not enable Gio end following")
 	}
 }
 

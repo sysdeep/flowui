@@ -86,20 +86,6 @@ func prepareFieldAssociation(ctx *Context, widget Widget) {
 		if widget != nil {
 			prepareFieldAssociation(ctx, widget.child)
 		}
-	case ScrollbarWidget:
-		prepareFieldAssociation(ctx, widget.child)
-	case *ScrollbarWidget:
-		if widget != nil {
-			prepareFieldAssociation(ctx, widget.child)
-		}
-	case SplitPaneWidget:
-		prepareFieldAssociation(ctx, widget.first)
-		prepareFieldAssociation(ctx, widget.second)
-	case *SplitPaneWidget:
-		if widget != nil {
-			prepareFieldAssociation(ctx, widget.first)
-			prepareFieldAssociation(ctx, widget.second)
-		}
 	case StackWidget:
 		prepareStackFieldAssociations(ctx, widget.layers)
 	case *StackWidget:

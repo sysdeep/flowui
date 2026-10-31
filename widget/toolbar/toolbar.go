@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"gioui.org/io/event"
-	"gioui.org/io/key"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -15,7 +14,11 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
+	"github.com/qianniancn/flowui/widget/button"
+	"github.com/qianniancn/flowui/widget/command"
+	"github.com/qianniancn/flowui/widget/dropdown"
+	"github.com/qianniancn/flowui/widget/menu"
 )
 
 type Orientation uint8
@@ -27,8 +30,11 @@ const (
 
 // Widget groups related controls and provides directional keyboard navigation.
 type Widget struct {
-	override    *theme.ToolbarOverride
+	style       style.Style
 	children    []core.Widget
+	commands    []command.Command
+	key         string
+	commandMode bool
 	orientation Orientation
 	attached    bool
 	disabled    bool
@@ -39,6 +45,16 @@ type Widget struct {
 
 func New(children ...core.Widget) Widget {
 	return Widget{children: children, loopFocus: true, visualCache: &toolbarVisualCache{}}
+}
+
+// Commands creates a horizontal command toolbar. Commands that do not fit
+// are moved from the end into a More menu. The key identifies its retained
+// overflow menu state.
+func Commands(key string, commands ...command.Command) Widget {
+	if key == "" {
+		panic("flowui: empty command toolbar key")
+	}
+	return Widget{key: key, commands: append([]command.Command(nil), commands...), commandMode: true, loopFocus: true, visualCache: &toolbarVisualCache{}}
 }
 
 func (w Widget) Orientation(orientation Orientation) Widget {
@@ -67,15 +83,15 @@ func (w Widget) Alt(alt string) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
+	return w.layoutWithStyle(ctx, gtx)
 }
 
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ToolbarOverride) layout.Dimensions {
+func (w Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	if !gtx.Enabled() {
 		w.disabled = true
 	}
 	gtx.Constraints.Min = image.Point{}
-	visual := w.visualWithCache(ctx, override)
+	visual := w.visualWithCache(ctx)
 	resolved := w.resolveStyle(ctx, gtx, visual)
 	group := &core.FocusGroup{}
 	dims := layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -103,7 +119,10 @@ func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	return dims
 }
 
-func (w Widget) layoutChildren(ctx *core.Context, gtx layout.Context, visual theme.ToolbarVisual) layout.Dimensions {
+func (w Widget) layoutChildren(ctx *core.Context, gtx layout.Context, visual toolbarVisual) layout.Dimensions {
+	if w.commandMode {
+		return w.layoutCommands(ctx, gtx, visual)
+	}
 	axis := layout.Horizontal
 	align := layout.Middle
 	if w.orientation == Vertical {
@@ -130,82 +149,92 @@ func (w Widget) layoutChildren(ctx *core.Context, gtx layout.Context, visual the
 	)
 }
 
-func (w Widget) updateKeys(ctx *core.Context, gtx layout.Context, items []core.FocusGroupItem) {
-	if len(items) == 0 {
-		return
-	}
-	previous, next := key.NameLeftArrow, key.NameRightArrow
+func (w Widget) layoutCommands(ctx *core.Context, gtx layout.Context, visual toolbarVisual) layout.Dimensions {
 	if w.orientation == Vertical {
-		previous, next = key.NameUpArrow, key.NameDownArrow
+		panic("flowui: command toolbar only supports horizontal orientation")
 	}
-	filters := make([]event.Filter, 0, len(items)*4)
-	for _, item := range items {
-		filters = append(filters,
-			key.Filter{Focus: item.Tag, Name: previous},
-			key.Filter{Focus: item.Tag, Name: next},
-			key.Filter{Focus: item.Tag, Name: key.NameHome},
-			key.Filter{Focus: item.Tag, Name: key.NameEnd},
-		)
+	commandWidgets := make([]core.Widget, len(w.commands))
+	commandSizes := make([]int, len(w.commands))
+	measureGtx := gtx
+	measureGtx.Constraints.Min = image.Point{}
+	for index, item := range w.commands {
+		menuItem := command.MenuItemFor(ctx, item)
+		commandWidgets[index] = command.Button(core.DerivedKey(ctx, w.key, "command:"+menuItem.Key), item)
+		commandSizes[index] = core.MeasureWidget(ctx, measureGtx, commandWidgets[index]).Size.X
 	}
-	for {
-		value, ok := gtx.Event(filters...)
-		if !ok {
-			return
-		}
-		e, ok := value.(key.Event)
-		if !ok || e.State != key.Press {
-			continue
-		}
-		current := focusedIndex(gtx, items)
-		target := current
-		switch e.Name {
-		case previous:
-			target = moveIndex(current, -1, len(items), w.loopFocus)
-		case next:
-			target = moveIndex(current, 1, len(items), w.loopFocus)
-		case key.NameHome:
-			target = 0
-		case key.NameEnd:
-			target = len(items) - 1
-		}
-		if target < 0 || target >= len(items) || target == current {
-			continue
-		}
-		core.RequestFocusVisible(ctx, items[target].Tag, true)
+	if len(commandWidgets) == 0 {
+		return layoutui.TrackedFlex(ctx, gtx, layout.Horizontal, visual.Metrics.Gap, layout.Middle)
 	}
+
+	more := button.New(ctx.Text(i18n.ToolbarMore)).Key(core.DerivedKey(ctx, w.key, "overflow-trigger")).Variant(button.Tertiary)
+	moreWidth := core.MeasureWidget(ctx, measureGtx, more).Size.X
+	visible := commandVisibleCount(commandSizes, gtx.Constraints.Max.X, max(gtx.Dp(visual.Metrics.Gap), 0), moreWidth)
+
+	children := append([]core.Widget(nil), commandWidgets[:visible]...)
+	if visible < len(commandWidgets) {
+		items := make([]dropdown.Item, 0, len(commandWidgets)-visible)
+		for _, item := range w.commands[visible:] {
+			items = append(items, command.MenuItemFor(ctx, item))
+		}
+		popup := menu.New(core.DerivedKey(ctx, w.key, "overflow:menu"), items).AutoWidth()
+		children = append(children, dropdown.New(core.DerivedKey(ctx, w.key, "overflow"), more, nil).Menu(popup))
+	}
+	return layoutui.TrackedFlex(ctx, gtx, layout.Horizontal, visual.Metrics.Gap, layout.Middle, children...)
 }
 
-func focusedIndex(gtx layout.Context, items []core.FocusGroupItem) int {
-	for index, item := range items {
-		if gtx.Focused(item.Tag) {
-			return index
-		}
+func commandVisibleCount(widths []int, available, gap, moreWidth int) int {
+	total := max(len(widths)-1, 0) * gap
+	for _, width := range widths {
+		total += width
 	}
-	return -1
+	if total <= available {
+		return len(widths)
+	}
+	available -= moreWidth + gap
+	used, visible := 0, 0
+	for visible < len(widths) {
+		candidate := widths[visible]
+		if visible > 0 {
+			candidate += gap
+		}
+		if used+candidate > available {
+			break
+		}
+		used += candidate
+		visible++
+	}
+	return visible
 }
 
-func moveIndex(current, delta, count int, loop bool) int {
-	if count == 0 {
-		return -1
+func (w Widget) updateKeys(ctx *core.Context, gtx layout.Context, items []core.FocusGroupItem) {
+	if w.disabled {
+		gtx = gtx.Disabled()
 	}
-	if current < 0 {
-		if delta < 0 {
-			return count - 1
-		}
-		return 0
+	axis := base.CollectionHorizontal
+	if w.orientation == Vertical {
+		axis = base.CollectionVertical
 	}
-	next := current + delta
-	if loop {
-		return (next + count) % count
-	}
-	return min(max(next, 0), count-1)
+	var navigation base.CollectionNavigation
+	navigation.UpdateWithEvents(gtx, base.Collection{
+		Count: len(items),
+		Targets: func(yield func(int, event.Tag) bool) {
+			for index, item := range items {
+				if !yield(index, item.Tag) {
+					return
+				}
+			}
+		},
+	}, -1, base.CollectionPolicy{Axis: axis, Wrap: w.loopFocus}, func(e base.CollectionEvent) int {
+		core.RequestFocusVisible(ctx, items[e.Index].Tag, true)
+		return e.Index
+	})
 }
 
 type SeparatorWidget struct {
 	orientation Orientation
 	key         string
-	override    *theme.ToolbarSeparatorOverride
-	visual      *theme.ToolbarVisual
+	style       style.Style
+	visual      *toolbarVisual
 }
 
 func Separator() SeparatorWidget {
@@ -215,14 +244,14 @@ func Separator() SeparatorWidget {
 func (s SeparatorWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	visual := s.visual
 	if visual == nil {
-		resolvedVisual := resolveToolbarVisual(core.ActiveTheme(ctx), theme.ToolbarRequest{Orientation: toolbarOrientation(s.orientation)})
+		resolvedVisual := buildToolbar(core.ActiveTheme(ctx), false)
 		visual = &resolvedVisual
 	}
 	declaration := visual.Separator
 	if s.orientation == Vertical {
 		declaration = visual.VerticalSeparator
 	}
-	resolved := computed.ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, theme.ToolbarSeparatorOverrideStyle(s.override))
+	resolved := computed.ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, s.style)
 	if len(resolved.Transitions) != 0 {
 		key := s.key
 		if key == "" {
@@ -234,14 +263,14 @@ func (s SeparatorWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Di
 	return layoutui.Resolved(ctx, gtx, resolved, nil)
 }
 
-func (w Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual theme.ToolbarVisual) style.ResolvedStyle {
+func (w Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual toolbarVisual) style.ResolvedStyle {
 	resolved := computed.ResolveStatic(
 		ctx,
 		style.State{Disabled: w.disabled},
 		visual.Defaults,
 		visual.Variant,
 		style.Style{},
-		visual.Override,
+		w.style,
 	)
 	if len(resolved.Transitions) == 0 {
 		return resolved
@@ -250,23 +279,16 @@ func (w Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual theme
 	return computed.ApplyTransitions(ctx, gtx, key, resolved)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ToolbarOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }
 
 // Style merges instance declarations into the separator.
 func (s SeparatorWidget) Style(values ...style.Style) SeparatorWidget {
-	declaration := style.Join(values...)
-	if s.override == nil {
-		s.override = &theme.ToolbarSeparatorOverride{}
-	}
-	s.override.Declaration = style.Join(s.override.Declaration, declaration)
+	s.style = style.Join(s.style, style.Join(values...))
 	return s
 }

@@ -9,13 +9,6 @@ import (
 	"github.com/qianniancn/flowui/theme"
 )
 
-func TestDefaultMotionTheme(t *testing.T) {
-	motion := theme.NeutralTheme().Motion
-	if !motion.Enabled || motion.DefaultDuration != 200*time.Millisecond || motion.DurationScale != 1 {
-		t.Fatalf("default motion theme = %#v", motion)
-	}
-}
-
 func TestResolveMotionDuration(t *testing.T) {
 	if got := theme.ResolveMotionDuration(theme.MotionTheme{Enabled: true, DurationScale: 0.5}, time.Second); got != 500*time.Millisecond {
 		t.Fatalf("scaled duration = %v, want 500ms", got)
@@ -31,50 +24,39 @@ func TestResolveMotionDuration(t *testing.T) {
 	}
 }
 
-func TestDisabledColorUsesOpacity(t *testing.T) {
-	theme := theme.NeutralTheme()
-	theme.DisabledOpacity = 0.25
-
-	got := theme.DisabledColor(color.NRGBA{R: 1, G: 2, B: 3, A: 200})
-	want := color.NRGBA{R: 1, G: 2, B: 3, A: 50}
-	if got != want {
-		t.Fatalf("disabled color = %#v, want %#v", got, want)
-	}
-}
-
-func TestDisabledColorAllowsZeroOpacity(t *testing.T) {
-	theme := theme.NeutralTheme()
-	theme.DisabledOpacity = 0
-
-	if got := theme.DisabledColor(color.NRGBA{A: 200}); got.A != 0 {
-		t.Fatalf("disabled alpha = %d, want 0", got.A)
-	}
-}
-
-func TestDisabledOpacityIsClamped(t *testing.T) {
-	theme := theme.NeutralTheme()
-	theme.DisabledOpacity = 2
-	if got := theme.DisabledColor(color.NRGBA{A: 200}).A; got != 200 {
-		t.Fatalf("disabled alpha = %d, want 200", got)
-	}
-
-	theme.DisabledOpacity = -1
-	if got := theme.DisabledColor(color.NRGBA{A: 200}).A; got != 0 {
-		t.Fatalf("disabled alpha = %d, want 0", got)
+func TestDisabledColor(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		opacity float32
+		alpha   uint8
+	}{
+		{name: "scaled", opacity: .25, alpha: 50},
+		{name: "transparent", opacity: 0, alpha: 0},
+		{name: "above range", opacity: 2, alpha: 200},
+		{name: "below range", opacity: -1, alpha: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			active := theme.Light()
+			active.DisabledOpacity = tc.opacity
+			got := active.DisabledColor(color.NRGBA{R: 1, G: 2, B: 3, A: 200})
+			if want := (color.NRGBA{R: 1, G: 2, B: 3, A: tc.alpha}); got != want {
+				t.Fatalf("disabled color = %#v, want %#v", got, want)
+			}
+		})
 	}
 }
 
 func TestDefaultThemeSyncsMaterialBridge(t *testing.T) {
-	active := theme.NeutralTheme()
+	active := theme.Light()
 	bridge := theme.MaterialOf(&active)
 	if bridge == nil {
 		t.Fatal("missing material bridge")
 	}
-	if bridge.Palette.ContrastBg != active.Palette.Accent {
-		t.Fatalf("material accent = %#v, want %#v", bridge.Palette.ContrastBg, active.Palette.Accent)
+	if bridge.Palette.ContrastBg != active.Colors.Tones[theme.TonePrimary].Fill {
+		t.Fatalf("material accent = %#v, want %#v", bridge.Palette.ContrastBg, active.Colors.Tones[theme.TonePrimary].Fill)
 	}
-	if bridge.Palette.Fg != active.Palette.Foreground {
-		t.Fatalf("material foreground = %#v, want %#v", bridge.Palette.Fg, active.Palette.Foreground)
+	if bridge.Palette.Fg != active.Colors.Foreground {
+		t.Fatalf("material foreground = %#v, want %#v", bridge.Palette.Fg, active.Colors.Foreground)
 	}
 	if bridge.Face != active.Typography.Typeface {
 		t.Fatalf("material face = %q, want %q", bridge.Face, active.Typography.Typeface)
@@ -85,22 +67,37 @@ func TestDefaultThemeSyncsMaterialBridge(t *testing.T) {
 }
 
 func TestThemesUseIndependentTextShapers(t *testing.T) {
-	first := theme.NeutralTheme()
-	second := theme.NeutralTheme()
+	first := theme.Light()
+	second := theme.Light()
 	if theme.MaterialOf(&first).Shaper == theme.MaterialOf(&second).Shaper {
 		t.Fatal("default themes share a text shaper")
 	}
 
 	copy := first
 	theme.DetachMaterial(&copy)
+	bridge := theme.MaterialOf(&copy)
+	if bridge.Shaper == nil || bridge.Shaper == theme.MaterialOf(&first).Shaper {
+		t.Fatal("detached theme did not acquire an independent text shaper")
+	}
+	if theme.MaterialOf(&copy).Shaper != bridge.Shaper {
+		t.Fatal("reading the material bridge replaced its text shaper")
+	}
+	copy.Colors.Foreground = color.NRGBA{R: 12, A: 255}
+	theme.SyncMaterialTheme(&copy)
 	if theme.MaterialOf(&first).Shaper == theme.MaterialOf(&copy).Shaper {
 		t.Fatal("detached themes share a text shaper")
 	}
 	theme.SyncMaterialTheme(&copy)
+	if theme.MaterialOf(&first) == theme.MaterialOf(&copy) {
+		t.Fatal("detached themes share a material bridge")
+	}
+	if theme.MaterialOf(&first).Palette.Fg == theme.MaterialOf(&copy).Palette.Fg {
+		t.Fatal("detached palette mutation reached the original theme")
+	}
 }
 
 func TestSyncMaterialThemeUsesFontConfig(t *testing.T) {
-	active := theme.NeutralTheme()
+	active := theme.Light()
 	active.Typography.Typeface = "FlowUI Sans"
 	active.Fonts.SystemFonts = false
 	theme.SyncMaterialTheme(&active)
@@ -114,99 +111,45 @@ func TestSyncMaterialThemeUsesFontConfig(t *testing.T) {
 	}
 }
 
-func TestDetachMaterialSeparatesBridge(t *testing.T) {
-	source := theme.NeutralTheme()
-	copy := source
-	theme.DetachMaterial(&copy)
-	if theme.MaterialOf(&source) == theme.MaterialOf(&copy) {
-		t.Fatal("DetachMaterial retained the source bridge")
-	}
-}
-
 func TestDarkThemeDefinesThemedSurfaceAndShadow(t *testing.T) {
-	dark := theme.NeutralDarkTheme()
-	if dark.Palette.Surface == theme.NeutralTheme().Palette.Surface {
+	dark := theme.Dark()
+	if dark.Colors.Surface == theme.Light().Colors.Surface {
 		t.Fatal("dark theme did not override surface")
 	}
-	if dark.Palette.OverlayShadow == theme.NeutralTheme().Palette.OverlayShadow {
+	if dark.Colors.OverlayShadow == theme.Light().Colors.OverlayShadow {
 		t.Fatal("dark theme did not override overlay shadow")
 	}
 }
 
-func TestWorkbenchThemeFollowsLightAndDarkSurfaces(t *testing.T) {
-	light := theme.NeutralTheme()
-	dark := theme.NeutralDarkTheme()
-	if light.Components.Workbench.SidebarWidth <= light.Components.Workbench.SidebarMinWidth || light.Components.Workbench.Density != 1 {
-		t.Fatalf("light workbench sizing = %#v", light.Components.Workbench)
-	}
-	if dark.Components.Workbench.EditorBackground != dark.Palette.Background ||
-		dark.Components.Workbench.SidebarBackground != dark.Palette.SurfaceSecondary {
-		t.Fatalf("dark workbench surfaces = %#v", dark.Components.Workbench)
-	}
-	workbench := light.Components.Workbench
-	workbench.Density = 1.5
-	if workbench.EffectiveDensity() != 1.5 || workbench.Scale(10) != 15 {
-		t.Fatalf("scaled workbench density = %v/%v", workbench.EffectiveDensity(), workbench.Scale(10))
-	}
-}
-
-func TestNodeGraphThemeFollowsLightAndDarkPalettes(t *testing.T) {
-	light := theme.NeutralTheme()
-	dark := theme.NeutralDarkTheme()
-	if light.Components.NodeGraph.CanvasBackground != light.Palette.Background ||
-		light.Components.NodeGraph.CanvasBorder != light.Palette.Border ||
-		light.Components.NodeGraph.CanvasRadius != 8 ||
-		light.Components.NodeGraph.GridColor != light.Palette.MutedForeground ||
-		light.Components.NodeGraph.GridOpacity != .35 ||
-		light.Components.NodeGraph.NodeBackground != light.Palette.FieldBackground ||
-		light.Components.NodeGraph.EdgeColor != light.Palette.Accent ||
-		light.Components.NodeGraph.SelectedEdgeColor != light.Palette.AccentHover ||
-		light.Components.NodeGraph.SelectionBorder != light.Palette.Accent {
-		t.Fatalf("light node graph theme = %#v", light.Components.NodeGraph)
-	}
-	if dark.Components.NodeGraph.CanvasBackground != dark.Palette.Background ||
-		dark.Components.NodeGraph.NodeBackground != dark.Palette.FieldBackground ||
-		dark.Components.NodeGraph.GridColor != dark.Palette.MutedForeground ||
-		dark.Components.NodeGraph.GridOpacity != .35 ||
-		dark.Components.NodeGraph.EdgeColor != dark.Palette.Accent ||
-		dark.Components.NodeGraph.SelectedEdgeColor != dark.Palette.AccentHover {
-		t.Fatalf("dark node graph theme = %#v", dark.Components.NodeGraph)
-	}
-}
-
-// Selection is a semantic role — the primary tone's soft rung — so a brandless
-// default derives it from the grey ramp rather than stating a colour of its own.
-// The two canvases read that ramp from opposite ends: the light one takes the
-// pale rung, the dark one the dark rung.
+// Text selection blends the primary color over each mode's field background.
 func TestSelectionColorsMatchTheme(t *testing.T) {
 	for name, want := range map[string]struct {
 		th    theme.Theme
 		value color.NRGBA
 	}{
-		"light": {theme.NeutralTheme(), color.NRGBA{R: 0xcc, G: 0xcc, B: 0xcc, A: 0xff}},
-		"dark":  {theme.NeutralDarkTheme(), color.NRGBA{R: 0x38, G: 0x38, B: 0x38, A: 0xff}},
+		"light": {theme.Light(), color.NRGBA{R: 0xc5, G: 0xd0, B: 0xf5, A: 0xff}},
+		"dark":  {theme.Dark(), color.NRGBA{R: 0x1f, G: 0x2b, B: 0x50, A: 0xff}},
 	} {
-		if got := want.th.Palette.Selection; got != want.value {
+		if got := want.th.Colors.Selection; got != want.value {
 			t.Fatalf("%s selection = %#v, want %#v", name, got, want.value)
 		}
-		if got := want.th.Semantic().Tones[theme.TonePrimary].Soft; got != want.value {
-			t.Fatalf("%s selection is not the primary tone's soft rung: %#v", name, got)
+		semantic := want.th.Semantic()
+		if got := theme.Composite(semantic.FieldBackground, semantic.Ring, .3); got != want.value {
+			t.Fatalf("%s selection does not follow the field and focus colors: %#v", name, got)
 		}
 	}
 }
 
-func TestPalettePreservesTransparentSemanticColors(t *testing.T) {
-	palette := theme.Palette{
-		Surface:           color.NRGBA{R: 1, A: 0xff},
-		Overlay:           color.NRGBA{},
-		Default:           color.NRGBA{},
-		FieldBackground:   color.NRGBA{},
-		Separator:         color.NRGBA{},
-		OverlayForeground: color.NRGBA{},
-	}
-	if palette.OverlayColor().A != 0 || palette.DefaultColor().A != 0 ||
-		palette.FieldBackgroundColor().A != 0 || palette.SeparatorColor().A != 0 ||
-		palette.OverlayForegroundColor().A != 0 {
-		t.Fatalf("transparent semantic colors were replaced: %#v", palette)
+func TestSemanticPreservesTransparentColors(t *testing.T) {
+	active := theme.Light()
+	colors := active.Semantic()
+	colors.Overlay = color.NRGBA{}
+	colors.ControlSurface = color.NRGBA{}
+	colors.FieldBackground = color.NRGBA{}
+	colors.Separator = color.NRGBA{}
+	colors.OverlayForeground = color.NRGBA{}
+	active.UseSemantic(colors)
+	if got := active.Semantic(); got != colors {
+		t.Fatalf("semantic colors changed during installation: %#v", got)
 	}
 }

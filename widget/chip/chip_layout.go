@@ -9,14 +9,13 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 func (c Widget) layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return c.layoutWithVisual(ctx, gtx, c.visualWithCache(ctx, nil))
+	return c.layoutWithVisual(ctx, gtx, c.visualWithCache(ctx))
 }
 
-func (c Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual theme.ChipVisual) layout.Dimensions {
+func (c Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual chipVisual) layout.Dimensions {
 	resolved := c.resolveStyle(ctx, gtx, visual)
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		if c.label != "" {

@@ -6,16 +6,16 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/menu"
 )
 
 const defaultTextAreaRows = 3
 
 type TextAreaWidget struct {
-	override                   *theme.InputOverride
+	style                      style.Style
 	key                        string
 	value                      string
 	hasValue                   bool
@@ -23,10 +23,11 @@ type TextAreaWidget struct {
 	hasDefault                 bool
 	hint                       string
 	onChange                   func(string)
-	variant                    TextAreaVariant
+	variant                    Variant
 	disabled                   bool
 	invalid                    bool
 	fullWidth                  bool
+	width                      *unit.Dp
 	readOnly                   bool
 	maxLength                  int
 	rows                       int
@@ -36,17 +37,10 @@ type TextAreaWidget struct {
 	defaultContextMenuDisabled bool
 }
 
-type TextAreaVariant = field.Variant
-
-const (
-	TextAreaPrimary   = field.Primary
-	TextAreaSecondary = field.Secondary
-)
-
 // NewTextArea creates a multi-line input holding value.
 func NewTextArea(value string) TextAreaWidget {
 	return TextAreaWidget{
-		key:      core.AutoKey(),
+		key:      core.AutoKey("text-area"),
 		value:    value,
 		hasValue: true,
 	}
@@ -96,13 +90,20 @@ func (t TextAreaWidget) Invalid(invalid bool) TextAreaWidget {
 	return t
 }
 
-func (t TextAreaWidget) Variant(variant TextAreaVariant) TextAreaWidget {
+func (t TextAreaWidget) Variant(variant Variant) TextAreaWidget {
 	t.variant = variant
 	return t
 }
 
-func (t TextAreaWidget) FullWidth() TextAreaWidget {
+func (t TextAreaWidget) FillWidth() TextAreaWidget {
 	t.fullWidth = true
+	return t
+}
+
+// Width sets a fixed width in dp. It overrides FillWidth when both are set.
+func (t TextAreaWidget) Width(dp int) TextAreaWidget {
+	width := unit.Dp(max(dp, 0))
+	t.width = &width
 	return t
 }
 
@@ -143,11 +144,7 @@ func (t TextAreaWidget) DefaultContextMenu(enabled bool) TextAreaWidget {
 }
 
 func (t TextAreaWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return t.layoutWithOverride(ctx, gtx, t.override)
-}
-
-func (t TextAreaWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instanceOverride *theme.InputOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+	applyFixedWidth(&gtx, t.width)
 	fullKey := core.FullKey(ctx, t.key)
 	state := textAreaStateFor(ctx, fullKey)
 	state.bind(t)
@@ -155,7 +152,7 @@ func (t TextAreaWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context
 
 	gtx, key, editor, enabled := t.prepareEditor(ctx, gtx, state, currentValue, t.disabled)
 	disabled := !enabled
-	state.State.Update(ctx, gtx, disabled, editor)
+	state.FieldInteraction.Update(ctx, gtx, disabled, editor)
 
 	focused := gtx.Focused(editor)
 	focusVisible := core.FocusVisible(ctx, editor, focused)
@@ -168,30 +165,29 @@ func (t TextAreaWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context
 		Invalid:      t.invalid,
 	}
 	activeTheme := core.ActiveTheme(ctx)
-	visual := state.visualDeclarations(t, activeTheme, 0, instanceOverride)
+	defaults := state.defaults(t, activeTheme, 0)
 	root := resolveInputEditorRootStyle(inputEditorStyleResolution{
 		ctx:      ctx,
 		gtx:      gtx,
 		key:      key,
 		state:    styleState,
-		defaults: visual.Defaults,
-		custom:   visual.Override,
+		defaults: defaults,
+		custom:   t.style,
 	})
-	initialEditorStyle := visual.EditorStyle(root, style.ResolvedStyle{}, style.ResolvedStyle{})
-	height := textAreaHeight(gtx, root, initialEditorStyle.LineHeight, t.resolvedRows())
+	_, lineHeight := textMetrics(root)
+	height := textAreaHeight(gtx, root, lineHeight, t.resolvedRows())
 	if height > 0 {
-		visual = state.visualDeclarations(t, activeTheme, height, instanceOverride)
+		defaults = state.defaults(t, activeTheme, height)
 	}
 	root, placeholder, selection := resolveInputEditorStyles(inputEditorStyleResolution{
 		ctx:      ctx,
 		gtx:      gtx,
 		key:      key,
 		state:    styleState,
-		defaults: visual.Defaults,
-		custom:   visual.Override,
+		defaults: defaults,
+		custom:   t.style,
 	})
-	editorStyle := visual.EditorStyle(root, placeholder, selection)
-	editorLayout := t.editorLayoutWithStyle(ctx, key, enabled, editor, editorStyle)
+	editorLayout := t.editorLayoutWithStyle(ctx, key, enabled, editor, activeTheme, root, placeholder, selection)
 	frame := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		return t.layoutFrame(ctx, gtx, state, root, enabled, editorLayout)
 	})
@@ -205,45 +201,20 @@ func (t TextAreaWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context
 func (t TextAreaWidget) prepareEditor(ctx *core.Context, gtx layout.Context, state *textAreaState, currentValue string, disabled bool) (layout.Context, string, *widget.Editor, bool) {
 	fieldKey, editor := core.InputEditor(ctx, t.key)
 	enabled := gtx.Enabled() && !disabled
-	core.RegisterFieldFocus(ctx, fieldKey, editor, enabled)
-
-	editor.SingleLine = false
-	editor.Submit = false
-	editor.ReadOnly = t.readOnly
-	editor.MaxLen = t.maxLength
-	editor.Mask = 0
-	editor.InputHint = key.HintText
-	editor.Filter = ""
+	behavior := base.TextEditor{InputHint: key.HintText, ReadOnly: t.readOnly, MaxLength: t.maxLength}
 	if !enabled {
 		gtx = gtx.Disabled()
 	}
-	// Context-menu edits must run before the update loop so their ChangeEvent
-	// surfaces through editor.Update like an ordinary keystroke; material's
-	// render pass runs its own Update and would swallow the flag otherwise.
-	if enabled {
-		state.takePendingEdit(gtx, editor, t.readOnly)
-	}
-
-	changed := false
-	for {
-		event, ok := editor.Update(gtx)
-		if !ok {
-			break
-		}
-		if _, ok := event.(widget.ChangeEvent); ok {
-			changed = true
-		}
-	}
-	if changed {
-		state.requestValue(t, editor.Text())
-	} else if !changed && editor.Text() != currentValue {
-		editor.SetText(currentValue)
-	}
+	behavior.Update(ctx, gtx, base.TextEditorRequest{
+		FieldKey: fieldKey, Editor: editor, Value: currentValue,
+		BeforeUpdate: func(gtx layout.Context) { state.takePendingEdit(gtx, editor, t.readOnly) },
+		OnChange:     func(value string) { state.requestValue(t, value) },
+	})
 	return gtx, fieldKey, editor, enabled
 }
 
-func (t TextAreaWidget) editorLayoutWithStyle(ctx *core.Context, key string, enabled bool, editor *widget.Editor, resolved theme.InputEditorStyle) layout.Widget {
-	return t.withSemantics(ctx, key, enabled, editorLayoutFor(ctx, editor, t.hint, resolved))
+func (t TextAreaWidget) editorLayoutWithStyle(ctx *core.Context, key string, enabled bool, editor *widget.Editor, active *theme.Theme, content, placeholder, selection style.ResolvedStyle) layout.Widget {
+	return t.withSemantics(ctx, key, enabled, editorLayoutFor(ctx, editor, t.hint, active, content, placeholder, selection))
 }
 
 func textAreaHeight(gtx layout.Context, resolved style.ResolvedStyle, lineHeight unit.Sp, rows int) unit.Dp {
@@ -265,13 +236,10 @@ func (t TextAreaWidget) resolvedRows() int {
 	return defaultTextAreaRows
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w TextAreaWidget) Style(values ...style.Style) TextAreaWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.InputOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (t TextAreaWidget) Style(values ...style.Style) TextAreaWidget {
+	t.style = style.Join(t.style, style.Join(values...))
+	return t
 }

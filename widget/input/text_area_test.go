@@ -10,8 +10,8 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func TestTextAreaSyncsValueAndConfiguresMultilineEditor(t *testing.T) {
@@ -41,19 +41,19 @@ func TestTextAreaOptionsAreImmutable(t *testing.T) {
 	configured := base.
 		Placeholder("Meeting notes").
 		OnChange(func(string) {}).
-		Variant(TextAreaSecondary).
+		Variant(Secondary).
 		Disabled(true).
 		Invalid(true).
-		FullWidth().
+		FillWidth().
 		ReadOnly(true).
 		MaxLength(240).
 		Rows(6).
 		Label("Notes")
 
-	if configured.hint != "Meeting notes" || configured.onChange == nil || configured.variant != TextAreaSecondary || !configured.disabled || !configured.invalid || !configured.fullWidth || !configured.readOnly || configured.maxLength != 240 || configured.rows != 6 || configured.label != "Notes" {
+	if configured.hint != "Meeting notes" || configured.onChange == nil || configured.variant != Secondary || !configured.disabled || !configured.invalid || !configured.fullWidth || !configured.readOnly || configured.maxLength != 240 || configured.rows != 6 || configured.label != "Notes" {
 		t.Fatalf("configured textarea = %#v", configured)
 	}
-	if base.hint != "" || base.onChange != nil || base.variant != TextAreaPrimary || base.disabled || base.invalid || base.fullWidth || base.readOnly || base.maxLength != 0 || base.rows != 0 || base.label != "" {
+	if base.hint != "" || base.onChange != nil || base.variant != Primary || base.disabled || base.invalid || base.fullWidth || base.readOnly || base.maxLength != 0 || base.rows != 0 || base.label != "" {
 		t.Fatalf("base textarea was mutated: %#v", base)
 	}
 	if got := base.MaxLength(-1).maxLength; got != 0 {
@@ -71,7 +71,7 @@ func TestTextAreaRowsControlHeight(t *testing.T) {
 		want int
 	}{
 		{name: "default", area: NewTextArea("").Key("default"), want: 76},
-		{name: "one", area: NewTextArea("").Key("one").Rows(1), want: 38},
+		{name: "one", area: NewTextArea("").Key("one").Rows(1), want: 64},
 		{name: "six", area: NewTextArea("").Key("six").Rows(6), want: 136},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -104,10 +104,16 @@ func TestTextAreaRowsLimitLongContentHeight(t *testing.T) {
 	}
 }
 
-func TestTextAreaFullWidth(t *testing.T) {
-	dims := NewTextArea("").Key("notes").FullWidth().Layout(newContext(nil), testLayoutContext())
+func TestTextAreaFillWidth(t *testing.T) {
+	dims := NewTextArea("").Key("notes").FillWidth().Layout(newContext(nil), testLayoutContext())
 	if dims.Size.X != 300 {
 		t.Fatalf("textarea width = %d, want 300", dims.Size.X)
+	}
+}
+
+func TestTextAreaWidthOverridesFillWidth(t *testing.T) {
+	if got := NewTextArea("").FillWidth().Width(140).Layout(newContext(nil), testLayoutContext()).Size.X; got != 140 {
+		t.Fatalf("textarea width = %d, want 140", got)
 	}
 }
 
@@ -118,13 +124,13 @@ func TestTextAreaFrameConstrainsInnerGeometryToRows(t *testing.T) {
 		return layout.Dimensions{Size: gtx.Constraints.Min}
 	}
 
-	activeTheme := *testtheme.Behavior()
-	declaration := (&textAreaState{}).visualDeclarations(NewTextArea("").Key("notes").Variant(TextAreaPrimary).FullWidth(), &activeTheme, 76, nil).Defaults
+	activeTheme := theme.Light()
+	declaration := (&textAreaState{}).defaults(NewTextArea("").Key("notes").Variant(Primary).FillWidth(), &activeTheme, 76)
 	resolved := resolveInputTestStyle(&activeTheme, declaration, style.State{})
 	state := &textAreaState{}
-	NewTextArea("").Key("notes").FullWidth().layoutFrame(newContext(nil), testLayoutContext(), state, resolved, true, child)
-	if got.Min != image.Pt(276, 60) || got.Max != image.Pt(276, 60) {
-		t.Fatalf("inner constraints = %#v, want fixed 276x60", got)
+	NewTextArea("").Key("notes").FillWidth().layoutFrame(newContext(nil), testLayoutContext(), state, resolved, true, child)
+	if got.Min != image.Pt(284, 60) || got.Max != image.Pt(284, 60) {
+		t.Fatalf("inner constraints = %#v, want fixed 284x60", got)
 	}
 }
 

@@ -9,11 +9,11 @@ import (
 
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func BenchmarkDockLayoutSteadyState(b *testing.B) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
 	router := newRouterForDockBenchmark()
 	root := Split("workspace", Horizontal,
@@ -35,7 +35,7 @@ func BenchmarkDockLayoutSteadyState(b *testing.B) {
 }
 
 func BenchmarkDockControlledSnapshot(b *testing.B) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
 	router := newRouterForDockBenchmark()
 	root := Split("workspace", Horizontal,

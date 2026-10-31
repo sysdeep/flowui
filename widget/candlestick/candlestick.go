@@ -12,7 +12,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -29,7 +28,6 @@ func OHLC(open, close, lowest, highest float64) Candle {
 }
 
 type Widget struct {
-	override                *theme.CandlestickOverride
 	key                     string
 	data                    []Candle
 	categories              []string
@@ -74,7 +72,8 @@ type Widget struct {
 	markLines               []chart.MarkLine
 	markAreas               []chart.MarkArea
 	markPoints              []chart.MarkPoint
-	visualCache             *candlestickVisualCache
+	style                   style.Style
+	defaultsCache           *candlestickDefaultsCache
 }
 
 func New(key string, data []Candle) Widget {
@@ -88,7 +87,7 @@ func New(key string, data []Candle) Widget {
 		animation:             true,
 		animationEasing:       animation.EaseLinear,
 		updateAnimationEasing: animation.EaseLinear,
-		visualCache:           &candlestickVisualCache{},
+		defaultsCache:         &candlestickDefaultsCache{},
 	}
 }
 
@@ -298,24 +297,18 @@ func (w Widget) Disabled(disabled bool) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
-}
-
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.CandlestickOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
-	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
-	return layoutui.Resolved(ctx, gtx, resolved, candlestickVisualWidget{value: w, visual: visual})
-}
-
-type candlestickVisualWidget struct {
-	value  Widget
-	visual *theme.CandlestickVisual
-}
-
-func (v candlestickVisualWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return v.value.layout(ctx, gtx, *v.visual)
+	defaults := w.defaultsFor(ctx)
+	resolved := computed.ResolveStatic(
+		ctx,
+		style.State{Disabled: w.disabled},
+		defaults.Defaults,
+		style.Style{},
+		style.Style{},
+		w.style,
+	)
+	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return w.layout(ctx, gtx, defaults)
+	}))
 }
 
 func (w Widget) categoryLabel(index int) string {
@@ -413,13 +406,11 @@ func (w Widget) yLabel(value, interval float64) string {
 	return chart.FormatAxisNumber(value, interval)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// applied as the last cascade layer when the chart resolves its root style, so
+// Style can sit anywhere in the chain and does not invalidate the cached
+// defaults.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.CandlestickOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

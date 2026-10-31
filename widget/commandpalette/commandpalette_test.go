@@ -8,8 +8,10 @@ import (
 
 	"gioui.org/io/key"
 	giolayout "gioui.org/layout"
+	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/command"
@@ -17,8 +19,31 @@ import (
 	"github.com/qianniancn/flowui/widget/text"
 )
 
+func TestSearchCaretKeysStayWithEditor(t *testing.T) {
+	h := uitest.New(image.Pt(720, 600), theme.Light())
+	commands := []command.Command{
+		command.New("alpha", "Alpha").OnExecute(func() {}),
+		command.New("beta", "Beta").OnExecute(func() {}),
+	}
+	view := New("caret", true, commands)
+	h.Frame(view)
+	h.Advance(time.Second)
+	h.Frame(view)
+	h.Frame(view)
+	h.Router().Queue(key.EditEvent{Text: "ab"})
+	h.Frame(view)
+	h.Key(key.NameHome, 0)
+	h.Frame(view)
+	h.Router().Queue(key.EditEvent{Text: "x"})
+	h.Frame(view)
+	state, ok := core.PeekState[paletteState](h.Context(), "caret", "command-palette")
+	if !ok || state.query != "xab" {
+		t.Fatalf("query after Home and insertion = %+v, want xab", state)
+	}
+}
+
 func TestSearchKeyboardAndExecution(t *testing.T) {
-	h := uitest.New(image.Pt(720, 600), base.Light())
+	h := uitest.New(image.Pt(720, 600), theme.Light())
 	open, executed := true, ""
 	commands := []command.Command{
 		command.New("disabled", "Disabled").Disabled(true).OnExecute(func() { t.Fatal("disabled command executed") }),
@@ -91,7 +116,7 @@ func TestSearchKeyboardAndExecution(t *testing.T) {
 }
 
 func TestSearchWaitsForCoveringModal(t *testing.T) {
-	h := uitest.New(image.Pt(720, 600), base.Light())
+	h := uitest.New(image.Pt(720, 600), theme.Light())
 	covered, open, executed := true, true, false
 	commands := []command.Command{command.New("save", "Save").OnExecute(func() { executed = true })}
 	root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {

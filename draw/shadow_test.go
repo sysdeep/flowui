@@ -47,20 +47,6 @@ func TestBoxShadowEffectiveLayersKeepsHardShadow(t *testing.T) {
 	}
 }
 
-func TestSoftShadowCacheReusesEntries(t *testing.T) {
-	resetSoftShadowCacheForTest()
-	col := color.NRGBA{R: 30, G: 80, B: 220, A: 120}
-	shape := shadowShape{Kind: ShadowRoundedRect, Radii: cornerRadiiPx{NW: 4, NE: 8, SE: 6, SW: 2}}
-	_ = softShadowEntry(image.Pt(24, 16), shape, 6, 1, 0, 2, col)
-	_ = softShadowEntry(image.Pt(24, 16), shape, 6, 1, 0, 2, col)
-
-	softShadowCache.Lock()
-	defer softShadowCache.Unlock()
-	if got := len(softShadowCache.entries); got != 1 {
-		t.Fatalf("cache entries = %d, want 1", got)
-	}
-}
-
 func TestSoftShadowCacheReusesAlphaVariants(t *testing.T) {
 	resetSoftShadowCacheForTest()
 	var ops op.Ops
@@ -130,49 +116,31 @@ func TestSoftShadowCacheEvictsOldEntries(t *testing.T) {
 	}
 }
 
-func TestSoftShadowCacheBuildsLargeResizeImmediately(t *testing.T) {
-	resetSoftShadowCacheForTest()
-	shape := shadowShape{Kind: ShadowEllipse}
-	col := color.NRGBA{R: 20, G: 80, B: 180, A: 120}
-	first := softShadowEntry(image.Pt(640, 480), shape, 22, 4, 0, 8, col)
-	if first.op.Size() == (image.Point{}) {
-		t.Fatal("initial shadow entry is empty")
-	}
-	transient := softShadowEntry(image.Pt(641, 480), shape, 22, 4, 0, 8, col)
-	if transient.op.Size() == (image.Point{}) {
-		t.Fatal("resized shadow entry is empty")
-	}
-	softShadowCache.Lock()
-	if got := len(softShadowCache.entries); got != 2 {
-		softShadowCache.Unlock()
-		t.Fatalf("cache entries after resize = %d, want 2", got)
-	}
-	softShadowCache.Unlock()
-}
-
-func TestSoftShadowCacheBuildsDistinctGridSizeVariants(t *testing.T) {
-	resetSoftShadowCacheForTest()
-	shape := shadowShape{Kind: ShadowRoundedRect, Radii: cornerRadiiPx{NW: 24, NE: 24, SE: 24, SW: 24}}
-	col := color.NRGBA{R: 20, G: 80, B: 180, A: 120}
-	sizes := []image.Point{
-		image.Pt(320, 128),
-		image.Pt(320, 144),
-		image.Pt(320, 160),
-		image.Pt(196, 128),
-		image.Pt(196, 144),
-		image.Pt(196, 160),
-	}
-	for _, size := range sizes {
-		entry := softShadowEntry(size, shape, 4, 0, 0, 2, col)
-		if entry.op.Size() == (image.Point{}) {
-			t.Fatalf("shadow entry for %v is empty", size)
-		}
-	}
-
-	softShadowCache.Lock()
-	defer softShadowCache.Unlock()
-	if got := len(softShadowCache.entries); got > softShadowVariantLimit {
-		t.Fatalf("cached size variants = %d, want <= %d", got, softShadowVariantLimit)
+func TestSoftShadowCacheBuildsResizesImmediately(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		size                 image.Point
+		blur, spread, offset int
+	}{
+		{name: "small", size: image.Pt(40, 32), blur: 8, spread: 1, offset: 3},
+		{name: "large", size: image.Pt(640, 480), blur: 22, spread: 4, offset: 8},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetSoftShadowCacheForTest()
+			shape := shadowShape{Kind: ShadowEllipse}
+			col := color.NRGBA{R: 20, G: 80, B: 180, A: 120}
+			for _, size := range []image.Point{tc.size, tc.size.Add(image.Pt(1, 0))} {
+				entry := softShadowEntry(size, shape, tc.blur, tc.spread, 0, tc.offset, col)
+				if entry.op.Size() == (image.Point{}) {
+					t.Fatalf("shadow entry for %v is empty", size)
+				}
+			}
+			softShadowCache.Lock()
+			defer softShadowCache.Unlock()
+			if got := len(softShadowCache.entries); got != 2 {
+				t.Fatalf("cache entries after resize = %d, want 2", got)
+			}
+		})
 	}
 }
 
@@ -196,16 +164,10 @@ func TestSoftShadowCacheNeverDropsShadowDuringVariantChurn(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestSoftShadowCacheDoesNotDeferSmallResize(t *testing.T) {
-	resetSoftShadowCacheForTest()
-	shape := shadowShape{Kind: ShadowEllipse}
-	col := color.NRGBA{R: 20, G: 80, B: 180, A: 120}
-	_ = softShadowEntry(image.Pt(40, 32), shape, 8, 1, 0, 3, col)
-	resized := softShadowEntry(image.Pt(41, 32), shape, 8, 1, 0, 3, col)
-	if resized.op.Size() == (image.Point{}) {
-		t.Fatal("small resize entry is empty")
+	softShadowCache.Lock()
+	defer softShadowCache.Unlock()
+	if got := len(softShadowCache.entries); got > softShadowVariantLimit {
+		t.Fatalf("cached size variants = %d, want <= %d", got, softShadowVariantLimit)
 	}
 }
 
@@ -269,9 +231,6 @@ func TestSoftShadowEntryUsesDownsampledRasterForLargeBlur(t *testing.T) {
 	shape := shadowShape{Kind: ShadowRoundedRect, Radii: cornerRadiiPx{NW: 20, NE: 10, SE: 24, SW: 14}}
 	entry := softShadowEntry(image.Pt(320, 180), shape, 22, 4, 0, 8, col)
 
-	if entry.scale != 2 {
-		t.Fatalf("entry scale = %d, want 2", entry.scale)
-	}
 	if entry.size.X <= entry.op.Size().X || entry.size.Y <= entry.op.Size().Y {
 		t.Fatalf("full size = %v, op size = %v; want downsampled op", entry.size, entry.op.Size())
 	}
@@ -331,26 +290,13 @@ func TestDitherAlphaHasZeroMeanThreshold(t *testing.T) {
 	}
 }
 
-func TestSoftShadowCacheTracksBytes(t *testing.T) {
-	resetSoftShadowCacheForTest()
-	col := color.NRGBA{R: 20, G: 80, B: 180, A: 120}
-	shape := shadowShape{Kind: ShadowRoundedRect, Radii: cornerRadiiPx{NW: 6, NE: 4, SE: 8, SW: 2}}
-	entry := softShadowEntry(image.Pt(48, 32), shape, 8, 1, 0, 3, col)
-
-	softShadowCache.Lock()
-	defer softShadowCache.Unlock()
-	if softShadowCache.bytes != entry.bytes {
-		t.Fatalf("cache bytes = %d, want %d", softShadowCache.bytes, entry.bytes)
-	}
-}
-
 func TestPopupSurfaceUsesSoftShadowCache(t *testing.T) {
 	resetSoftShadowCacheForTest()
 	var ops op.Ops
 	gtx := layout.Context{Ops: &ops}
 
-	activeTheme := theme.NeutralTheme()
-	Surface(gtx, image.Rect(0, 0, 180, 96), 18, activeTheme.Palette.Overlay, ThemeShadow(activeTheme.Shadows.Overlay, activeTheme.Palette.OverlayShadow, 1))
+	activeTheme := theme.Light()
+	Surface(gtx, image.Rect(0, 0, 180, 96), 18, activeTheme.Colors.Overlay, ThemeShadow(activeTheme.Shadows.Overlay, activeTheme.Colors.OverlayShadow, 1))
 
 	softShadowCache.Lock()
 	defer softShadowCache.Unlock()

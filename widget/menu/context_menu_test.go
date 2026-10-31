@@ -125,7 +125,7 @@ func TestContextMenuMenuStyleTargetsPopupOnly(t *testing.T) {
 	accent := style.RGBA(0x12345680)
 	base := contextMenuTestWidget([]Item{{Key: "copy", Label: "Copy"}})
 	configured := (base).Style(style.Style{}.Background(accent))
-	resolved := style.Cascade(style.State{}, configured.override.Declaration)
+	resolved := style.Cascade(style.State{}, configured.menu.style)
 	if resolved.Paint == nil || resolved.Paint.Background != accent {
 		t.Fatalf("popup menu style = %#v, want %#v", resolved.Paint, accent)
 	}
@@ -156,7 +156,7 @@ func TestContextMenuOpensAtSecondaryClickPosition(t *testing.T) {
 func TestContextMenuUsesMenuRootBackground(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
-	got := core.ActiveTheme(ctx).Palette.Background
+	got := core.ActiveTheme(ctx).Colors.Background
 	content := New("actions", []Item{{Key: "copy", Label: "Copy"}}).
 		BeforeContent(core.WidgetFunc(func(ctx *core.Context, _ layout.Context) layout.Dimensions {
 			got = ctx.BackgroundColor()
@@ -165,7 +165,7 @@ func TestContextMenuUsesMenuRootBackground(t *testing.T) {
 	widget := ContextMenu("row-menu", contextMenuFixedWidget{size: image.Pt(160, 100)}, content)
 
 	openContextMenuForTest(ctx, router, widget)
-	if want := content.visual(ctx).Colors.PanelBackground; got != want {
+	if want := content.visual(ctx).defaults.Colors.PanelBackground; got != want {
 		t.Fatalf("context menu background = %#v, want %#v", got, want)
 	}
 }
@@ -209,21 +209,21 @@ func TestMenuItemContentIsVerticallyCentered(t *testing.T) {
 	defer window.Release()
 
 	ctx := menuTestContext()
-	tokens := &core.ActiveTheme(ctx).Components.Menu
-	tokens.Width = 80
-	tokens.Padding = 0
-	tokens.ItemMinHeight = 30
-	tokens.ItemPaddingX = 0
-	tokens.ItemPaddingY = 0
 	var router input.Router
 	var ops op.Ops
 	want := color.NRGBA{R: 0xff, A: 0xff}
 	core.BeginFrameWithViewport(ctx, image.Pt(80, 30))
 	item := Item{Key: "probe", Label: "Copy", Leading: menuAlignmentWidget{color: want}}
 	menu := New("alignment", []Item{item})
+	visual := menu.visual(ctx)
+	visual.defaults.Metrics.Width = 80
+	visual.defaults.Metrics.Padding = 0
+	visual.defaults.Metrics.ItemMinHeight = 30
+	visual.defaults.Metrics.ItemPaddingX = 0
+	visual.defaults.Metrics.ItemPaddingY = 0
 	menu.layoutItemWithVisual(ctx, layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(80, 30)}, Source: router.Source(), Ops: &ops,
-	}, menu.stateFor(ctx), entry{item: item}, true, menu.visual(ctx))
+	}, menu.stateFor(ctx), entry{item: item}, true, visual)
 	core.EndFrame(ctx)
 	if err := window.Frame(&ops); err != nil {
 		t.Fatal(err)
@@ -245,8 +245,8 @@ func TestMenuItemContentIsVerticallyCentered(t *testing.T) {
 			}
 		}
 	}
-	if bounds != image.Rect(0, 14, 2, 16) {
-		t.Fatalf("menu item content bounds = %v, want vertically centered %v", bounds, image.Rect(0, 14, 2, 16))
+	if bounds != image.Rect(12, 14, 14, 16) {
+		t.Fatalf("menu item content bounds = %v, want vertically centered %v", bounds, image.Rect(12, 14, 14, 16))
 	}
 }
 

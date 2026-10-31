@@ -9,7 +9,6 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/gesture"
-	"gioui.org/io/event"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
@@ -26,7 +25,6 @@ import (
 )
 
 type Widget struct {
-	override                        *theme.HeatmapOverride
 	key                             string
 	xLabels, yLabels                []string
 	calendarStart, calendarEnd      time.Time
@@ -35,13 +33,15 @@ type Widget struct {
 	showGrid, showTooltip, disabled bool
 	min, max                        float64
 	hasRange                        bool
-	heatmapOverride                 theme.HeatmapOverride
+	minColor, maxColor              color.NRGBA
+	hasMinColor, hasMaxColor        bool
 	label, emptyText                string
 	hasEmptyText                    bool
 	onDataClick                     func(chart.Selection)
 	tooltipContent                  func(chart.Selection) core.Widget
 	visualCache                     *heatmapVisualCache
 	cellLabels                      [][]string
+	style                           style.Style
 }
 
 type CalendarValue struct {
@@ -158,13 +158,11 @@ func (w Widget) ValueRange(minimum, maximum float64) Widget {
 	return w
 }
 func (w Widget) MinColor(value color.NRGBA) Widget {
-	w.heatmapOverride.MinColor = value
-	w.heatmapOverride.HasMinColor = true
+	w.minColor, w.hasMinColor = value, true
 	return w
 }
 func (w Widget) MaxColor(value color.NRGBA) Widget {
-	w.heatmapOverride.MaxColor = value
-	w.heatmapOverride.HasMaxColor = true
+	w.maxColor, w.hasMaxColor = value, true
 	return w
 }
 func (w Widget) Label(label string) Widget { w.label = label; return w }
@@ -202,64 +200,45 @@ func stateFor(ctx *core.Context, key string) *heatState {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
-}
-
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.HeatmapOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
-	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
+	visual := w.resolveVisual(core.ActiveTheme(ctx))
+	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.defaults, style.Style{}, style.Style{}, w.style)
 	return layoutui.Resolved(ctx, gtx, resolved, heatmapVisualWidget{value: w, visual: visual})
 }
 
 type heatmapVisualWidget struct {
 	value  Widget
-	visual *theme.HeatmapVisual
+	visual heatmapVisual
 }
 
 func (v heatmapVisualWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return v.value.layout(ctx, gtx, *v.visual)
+	return v.value.layout(ctx, gtx, v.visual)
 }
 
-func (w Widget) resolveVisual(active *theme.Theme, override *theme.HeatmapOverride) *theme.HeatmapVisual {
-	requestOverride := w.providerOverride(override)
-	load := func(value *theme.HeatmapOverride) *theme.HeatmapVisual {
-		visual := theme.ResolveVisual(active, theme.HeatmapRequest{Override: value},
-			theme.ComponentVisualProvider.Heatmap, theme.ValidateHeatmapVisual)
-		return &visual
+// resolveVisual returns the cached theme defaults with the instance-level
+// colors applied. The instance style is resolved separately, so neither it nor
+// the color overrides take part in the defaults cache key.
+func (w Widget) resolveVisual(active *theme.Theme) heatmapVisual {
+	var visual heatmapVisual
+	if w.visualCache == nil {
+		visual = buildHeatmapVisual(active)
+	} else {
+		visual = w.visualCache.Resolve(active, struct{}{}, func() heatmapVisual {
+			return buildHeatmapVisual(active)
+		})
 	}
-	if requestOverride != nil || w.visualCache == nil {
-		return load(requestOverride)
+	if w.hasMinColor {
+		visual.colors.Min = w.minColor
 	}
-	return w.visualCache.cache.Resolve(active, struct{}{}, func() *theme.HeatmapVisual {
-		return load(nil)
-	})
+	if w.hasMaxColor {
+		visual.colors.Max = w.maxColor
+	}
+	return visual
 }
 
-func (w Widget) providerOverride(override *theme.HeatmapOverride) *theme.HeatmapOverride {
-	if !w.heatmapOverride.HasMinColor && !w.heatmapOverride.HasMaxColor {
-		return override
-	}
-	combined := w.heatmapOverride
-	if override != nil {
-		combined.Declaration = override.Declaration
-		if override.HasMinColor {
-			combined.MinColor = override.MinColor
-			combined.HasMinColor = true
-		}
-		if override.HasMaxColor {
-			combined.MaxColor = override.MaxColor
-			combined.HasMaxColor = true
-		}
-	}
-	return &combined
-}
-
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.HeatmapVisual) layout.Dimensions {
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual heatmapVisual) layout.Dimensions {
 	s := stateFor(ctx, w.key)
 	enabled := gtx.Enabled() && !w.disabled
-	metrics := visual.Metrics
+	metrics := visual.metrics
 	height := metrics.Height
 	if w.height > 0 {
 		height = w.height
@@ -296,9 +275,11 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.Heatm
 	plot := image.Rect(plotLeft, plotTop, plotLeft+cellSize*cols, plotTop+cellSize*rows)
 	minValue, maxValue := w.valueExtent(rows, cols)
 	cellW, cellH := float32(cellSize), float32(cellSize)
-	updatePointer(gtx, enabled, plot, &s.tag, &s.hovered, &s.pointer)
-	s.selection = w.selection(s.pointer, s.hovered, plot, cellW, cellH, rows, cols, minValue, maxValue, visual.Scale)
-	activated := updateClick(gtx, enabled, &s.click)
+	scale := heatLinearColorScale(visual.colors.Min, visual.colors.Max)
+	chart.UpdateHoverPointer(gtx, enabled, &s.tag, &s.hovered, &s.pointer)
+	s.hovered = s.hovered && s.pointer.Round().In(plot)
+	s.selection = w.selection(s.pointer, s.hovered, plot, cellW, cellH, rows, cols, minValue, maxValue, scale)
+	activated, _ := chart.UpdateClicks(gtx, enabled, &s.click)
 	if activated && s.selection.valid && w.onDataClick != nil {
 		w.onDataClick(w.publicSelection(s.selection, labelAt(xLabels, s.selection.x), labelAt(yLabels, s.selection.y)))
 	}
@@ -308,13 +289,13 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.Heatm
 		s.tooltipTransition.ProgressWithContext(ctx, gtx, false)
 	}
 	opacity := paint.PushOpacity(gtx.Ops, 1)
-	w.draw(ctx, gtx, plot, rows, cols, cellW, cellH, minValue, maxValue, visual.Scale, s.selection, metrics, visual.Colors, xLabels, yLabels)
+	w.draw(ctx, gtx, plot, rows, cols, cellW, cellH, minValue, maxValue, scale, s.selection, visual, xLabels, yLabels)
 	if w.showTooltip && (s.selection.valid || s.tooltipTransition.Value() > 0) && enabled {
 		w.drawTooltip(ctx, s, s.selection, chart.TooltipAnchor(s.pointer), xLabels, yLabels, visual)
 	}
 	opacity.Pop()
-	addPointerInput(gtx, plot, enabled && (w.showTooltip || w.onDataClick != nil), &s.tag)
-	addClickInput(gtx, size, enabled && w.onDataClick != nil, &s.click)
+	chart.AddPointerInputWithCursor(gtx, plot, enabled && (w.showTooltip || w.onDataClick != nil), pointer.CursorPointer, &s.tag)
+	chart.AddClickInput(gtx, size, enabled && w.onDataClick != nil, &s.click)
 	return layout.Dimensions{Size: size}
 }
 
@@ -395,7 +376,7 @@ func weekdayLabel(ctx *core.Context, weekday int) string {
 	return ctx.Text(keys[weekday])
 }
 
-func (w Widget) selection(pos f32.Point, hovered bool, plot image.Rectangle, cellW, cellH float32, rows, cols int, minValue, maxValue float64, scale theme.HeatmapColorScale) cellSelection {
+func (w Widget) selection(pos f32.Point, hovered bool, plot image.Rectangle, cellW, cellH float32, rows, cols int, minValue, maxValue float64, scale heatmapColorScale) cellSelection {
 	if !hovered || !pos.Round().In(plot) {
 		return cellSelection{}
 	}
@@ -418,7 +399,9 @@ func (w Widget) publicSelection(s cellSelection, xLabel, yLabel string) chart.Se
 	return chart.Selection{Label: label, Index: s.x, X: float64(s.x), Items: []chart.Datum{{SeriesKey: "value", SeriesLabel: yLabel, X: float64(s.x), Y: s.value, Color: s.color}}}
 }
 
-func (w Widget) draw(ctx *core.Context, gtx layout.Context, plot image.Rectangle, rows, cols int, cellW, cellH float32, minValue, maxValue float64, scale theme.HeatmapColorScale, selected cellSelection, metrics theme.HeatmapMetrics, colors theme.HeatmapColors, xLabels, yLabels []string) {
+func (w Widget) draw(ctx *core.Context, gtx layout.Context, plot image.Rectangle, rows, cols int, cellW, cellH float32, minValue, maxValue float64, scale heatmapColorScale, selected cellSelection, visual heatmapVisual, xLabels, yLabels []string) {
+	metrics := visual.metrics
+	colors := visual.colors
 	gap := gtx.Dp(metrics.CellGap)
 	if !w.showGrid {
 		gap = 0
@@ -465,11 +448,11 @@ func labelAt(labels []string, index int) string {
 	return ""
 }
 
-func (w Widget) drawEmpty(ctx *core.Context, gtx layout.Context, size image.Point, text string, visual theme.HeatmapVisual) {
-	call, dims := chart.RecordText(ctx, gtx, text, visual.Metrics.EmptyTextSize, visual.Metrics.EmptyFontWeight, visual.Colors.Muted, size.X)
+func (w Widget) drawEmpty(ctx *core.Context, gtx layout.Context, size image.Point, text string, visual heatmapVisual) {
+	call, dims := chart.RecordText(ctx, gtx, text, visual.metrics.EmptyTextSize, visual.metrics.EmptyFontWeight, visual.colors.Muted, size.X)
 	chart.PlaceRecorded(gtx, call, dims, image.Pt((size.X-dims.Size.X)/2, (size.Y-dims.Size.Y)/2))
 }
-func (w Widget) drawTooltip(ctx *core.Context, state *heatState, selected cellSelection, anchor image.Rectangle, xLabels, yLabels []string, visual theme.HeatmapVisual) {
+func (w Widget) drawTooltip(ctx *core.Context, state *heatState, selected cellSelection, anchor image.Rectangle, xLabels, yLabels []string, visual heatmapVisual) {
 	if !selected.valid {
 		return
 	}
@@ -484,73 +467,15 @@ func (w Widget) drawTooltip(ctx *core.Context, state *heatState, selected cellSe
 				title = selected.label
 			}
 			rows := []chart.TooltipRow{{Text: fmt.Sprintf("%s  %.2f", labelAt(yLabels, selected.y), selected.value), Color: selected.color}}
-			return chart.LayoutTooltipRows(ctx, gtx, title, rows, visual.Metrics.TooltipTextSize, visual.Colors.OverlayForeground, gtx.Dp(visual.Metrics.TooltipMarkerSize), gtx.Dp(visual.Metrics.TooltipRowGap), chart.TooltipMarkerSquare)
+			return chart.LayoutTooltipRows(ctx, gtx, title, rows, visual.metrics.TooltipTextSize, visual.colors.OverlayForeground, gtx.Dp(visual.metrics.TooltipMarkerSize), gtx.Dp(visual.metrics.TooltipRowGap), chart.TooltipMarkerSquare)
 		})
 	}
-	tooltip.NewPopup(widget).Placement(core.PopoverRightStart).Offset(max(visual.Metrics.TooltipGap, 0)).Progress(1).Overlay(ctx, core.FullKey(ctx, "tooltip:"+w.key), anchor)
+	tooltip.NewPopup(widget).Placement(core.PopoverRightStart).Offset(max(visual.metrics.TooltipGap, 0)).Progress(1).Overlay(ctx, core.FullKey(ctx, "tooltip:"+w.key), anchor)
 }
 
-func updatePointer(gtx layout.Context, enabled bool, plot image.Rectangle, tag event.Tag, hovered *bool, position *f32.Point) {
-	for {
-		e, ok := core.NextPointerEvent(gtx, tag, pointer.Enter|pointer.Leave|pointer.Move|pointer.Drag|pointer.Press|pointer.Cancel)
-		if !ok {
-			break
-		}
-		if !enabled {
-			*hovered = false
-			continue
-		}
-		switch e.Kind {
-		case pointer.Enter, pointer.Move, pointer.Drag, pointer.Press:
-			*hovered = e.Position.Round().In(plot)
-			*position = e.Position
-		case pointer.Leave, pointer.Cancel:
-			*hovered = false
-		}
-	}
-}
-func addPointerInput(gtx layout.Context, plot image.Rectangle, enabled bool, tag event.Tag) {
-	if !enabled || plot.Empty() {
-		return
-	}
-	area := clip.Rect(plot).Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	pointer.CursorPointer.Add(gtx.Ops)
-	event.Op(gtx.Ops, tag)
-	pass.Pop()
-	area.Pop()
-}
-func updateClick(gtx layout.Context, enabled bool, click *gesture.Click) bool {
-	activated := false
-	for {
-		value, ok := click.Update(gtx.Source)
-		if !ok {
-			break
-		}
-		if value.Kind == gesture.KindClick {
-			activated = true
-		}
-	}
-	return activated && enabled
-}
-func addClickInput(gtx layout.Context, size image.Point, enabled bool, click *gesture.Click) {
-	if !enabled || size.X <= 0 || size.Y <= 0 {
-		return
-	}
-	area := clip.Rect{Max: size}.Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	click.Add(gtx.Ops)
-	pass.Pop()
-	area.Pop()
-}
-
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.HeatmapOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

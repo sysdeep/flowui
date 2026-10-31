@@ -11,7 +11,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -41,29 +40,24 @@ func BenchmarkListBoxLargeData(b *testing.B) {
 	}
 }
 
-func BenchmarkListBoxProviderDeclaration(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
-	provider, err := theme.ComponentProvider(&activeTheme)
-	if err != nil {
-		b.Fatal(err)
-	}
-	request := theme.ListBoxRequest{}
+func BenchmarkListBoxDefaultDeclaration(b *testing.B) {
+	activeTheme := theme.Light()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = provider.ListBox(&activeTheme, request)
+		_ = buildListBoxDefaults(&activeTheme)
 	}
 }
 
-func BenchmarkListBoxVisualCacheHit(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
+func BenchmarkListBoxDefaultsCacheHit(b *testing.B) {
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	state := new(listBoxState)
-	state.listBoxVisualFor(ctx)
+	state.defaultsFor(ctx)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = state.listBoxVisualFor(ctx)
+		_ = state.defaultsFor(ctx)
 	}
 }
 
@@ -104,7 +98,7 @@ func BenchmarkListBoxLargeLayoutSteadyState(b *testing.B) {
 		items[index] = Item{Key: fmt.Sprintf("item-%d", index), Label: "Item"}
 	}
 	widget := New(items).Key("large-steady").DataVersion(1)
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	var ops op.Ops
@@ -116,7 +110,7 @@ func BenchmarkListBoxLargeLayoutSteadyState(b *testing.B) {
 	}
 	b.ReportAllocs()
 	// Warm the real component tree before timing so the benchmark measures
-	// steady-state Provider and item visual cache behavior.
+	// steady-state defaults and resolved style cache behavior.
 	ops.Reset()
 	core.BeginFrameWithViewport(ctx, viewport)
 	widget.Layout(ctx, gtx)
@@ -127,9 +121,8 @@ func BenchmarkListBoxLargeLayoutSteadyState(b *testing.B) {
 	if state == nil {
 		b.Fatal("listbox state was not initialized")
 	}
-	baseline := state.itemVisualCache.Stats()
 	resolvedBaseline := state.resolvedPartCache.stats()
-	visualBaseline := state.visualCache.stats()
+	defaultsBaseline := listBoxDefaultsStats(&state.defaultsCache)
 	b.ResetTimer()
 	for b.Loop() {
 		ops.Reset()
@@ -139,22 +132,17 @@ func BenchmarkListBoxLargeLayoutSteadyState(b *testing.B) {
 		core.EndFrame(ctx)
 		router.Frame(&ops)
 	}
-	stats := state.itemVisualCache.Stats()
 	resolvedStats := state.resolvedPartCache.stats()
+	defaultsStats := listBoxDefaultsStats(&state.defaultsCache)
 	if b.N > 0 {
-		b.ReportMetric(float64(stats.Hits-baseline.Hits)/float64(b.N), "listbox-item-cache-hits/op")
-		b.ReportMetric(float64(stats.Misses-baseline.Misses)/float64(b.N), "listbox-item-cache-misses/op")
-		b.ReportMetric(float64(stats.Evictions-baseline.Evictions)/float64(b.N), "listbox-item-cache-evictions/op")
-		b.ReportMetric(float64(stats.ThemeInvalidations-baseline.ThemeInvalidations)/float64(b.N), "listbox-item-cache-theme-invalidations/op")
 		b.ReportMetric(float64(resolvedStats.Hits-resolvedBaseline.Hits)/float64(b.N), "listbox-resolved-cache-hits/op")
 		b.ReportMetric(float64(resolvedStats.Misses-resolvedBaseline.Misses)/float64(b.N), "listbox-resolved-cache-misses/op")
 		b.ReportMetric(float64(resolvedStats.ThemeInvalidations-resolvedBaseline.ThemeInvalidations)/float64(b.N), "listbox-resolved-cache-theme-invalidations/op")
 		b.ReportMetric(float64(resolvedStats.ScopeInvalidations-resolvedBaseline.ScopeInvalidations)/float64(b.N), "listbox-resolved-cache-scope-invalidations/op")
 		b.ReportMetric(float64(resolvedStats.OverrideInvalidations-resolvedBaseline.OverrideInvalidations)/float64(b.N), "listbox-resolved-cache-override-invalidations/op")
-		visualStats := state.visualCache.stats()
-		b.ReportMetric(float64(visualStats.Hits-visualBaseline.Hits)/float64(b.N), "listbox-visual-cache-hits/op")
-		b.ReportMetric(float64(visualStats.Misses-visualBaseline.Misses)/float64(b.N), "listbox-visual-cache-misses/op")
-		b.ReportMetric(float64(visualStats.ThemeInvalidations-visualBaseline.ThemeInvalidations)/float64(b.N), "listbox-visual-cache-theme-invalidations/op")
+		b.ReportMetric(float64(defaultsStats.Hits-defaultsBaseline.Hits)/float64(b.N), "listbox-defaults-cache-hits/op")
+		b.ReportMetric(float64(defaultsStats.Misses-defaultsBaseline.Misses)/float64(b.N), "listbox-defaults-cache-misses/op")
+		b.ReportMetric(float64(defaultsStats.ThemeInvalidations-defaultsBaseline.ThemeInvalidations)/float64(b.N), "listbox-defaults-cache-theme-invalidations/op")
 	}
 }
 

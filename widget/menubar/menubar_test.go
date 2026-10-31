@@ -15,7 +15,6 @@ import (
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/menu"
 )
@@ -29,7 +28,7 @@ func (w fixedMenubarWidget) Layout(_ *core.Context, gtx layout.Context) layout.D
 }
 
 func menubarTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func menubarTestWidget() Widget {
@@ -151,6 +150,61 @@ func TestMenubarKeyboardNavigationAndOpen(t *testing.T) {
 	layoutMenubarFrame(ctx, router, widget, now.Add(menubarEnter+6*time.Millisecond))
 	if state.openKey != "file" || state.focusPanelKey != "" {
 		t.Fatalf("keyboard-opened Menubar = open %q pending focus %q", state.openKey, state.focusPanelKey)
+	}
+}
+
+func TestMenubarVerticalNavigationAndTypeahead(t *testing.T) {
+	ctx := menubarTestContext()
+	router := new(input.Router)
+	widget := menubarTestWidget().Orientation(Vertical)
+	now := time.Unix(2, 0)
+	layoutMenubarFrame(ctx, router, widget, now)
+	state, _ := core.PeekState[menubarState](ctx, "application-menu", stateSlotMenubar)
+	router.Source().Execute(key.FocusCmd{Tag: &state.trigger("file").clickable})
+	layoutMenubarFrame(ctx, router, widget, now.Add(time.Millisecond))
+	for i, step := range []struct {
+		key  key.Name
+		want string
+	}{
+		{key: key.NameDownArrow, want: "edit"},
+		{key: key.NameUpArrow, want: "file"},
+		{key: "V", want: "view"},
+	} {
+		router.Queue(key.Event{Name: step.key, State: key.Press})
+		layoutMenubarFrame(ctx, router, widget, now.Add(time.Duration(i+2)*time.Millisecond))
+		if !router.Source().Focused(&state.trigger(step.want).clickable) || state.openKey != "" {
+			t.Fatalf("key %s: wanted focused %s and closed panels, open = %q", step.key, step.want, state.openKey)
+		}
+	}
+	router.Queue(key.Event{Name: key.NameRightArrow, State: key.Press})
+	layoutMenubarFrame(ctx, router, widget, now.Add(6*time.Millisecond))
+	if state.openKey != "view" {
+		t.Fatalf("Right Arrow opened %q, want view", state.openKey)
+	}
+}
+
+func TestMenubarGlobalAcceleratorsAndOpenLast(t *testing.T) {
+	ctx := menubarTestContext()
+	router := new(input.Router)
+	widget := menubarTestWidget()
+	widget.items[1] = widget.items[1].AccessKey('e')
+	now := time.Unix(2, 0)
+	layoutMenubarFrame(ctx, router, widget, now)
+	state, _ := core.PeekState[menubarState](ctx, "application-menu", stateSlotMenubar)
+	router.Queue(key.Event{Name: key.NameF10, State: key.Press})
+	layoutMenubarFrame(ctx, router, widget, now.Add(time.Millisecond))
+	if !router.Source().Focused(&state.trigger("file").clickable) || state.openKey != "" {
+		t.Fatal("F10 did not focus the first trigger with panels closed")
+	}
+	router.Queue(key.Event{Name: key.NameUpArrow, State: key.Press})
+	layoutMenubarFrame(ctx, router, widget, now.Add(2*time.Millisecond))
+	if state.openKey != "file" || !state.focusLast {
+		t.Fatalf("Up Arrow: open = %q, focus last = %v", state.openKey, state.focusLast)
+	}
+	router.Queue(key.Event{Name: "E", Modifiers: key.ModAlt, State: key.Press})
+	layoutMenubarFrame(ctx, router, widget, now.Add(3*time.Millisecond))
+	if state.openKey != "edit" || state.focusLast {
+		t.Fatalf("Alt+E: open = %q, focus last = %v", state.openKey, state.focusLast)
 	}
 }
 
@@ -409,24 +463,6 @@ func clickMenubarPointWithUnderlying(ctx *core.Context, router *input.Router, me
 	router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: position})
 	layoutMenubarWithUnderlying(ctx, router, menubar, underlying, clicks, now.Add(time.Millisecond))
 	return now.Add(time.Millisecond)
-}
-
-// TestMenubarTriggerUsesProviderVisual pins the neutral provider contract:
-// behavior supplies interaction facts and consumes the returned visual plan.
-func TestMenubarTriggerUsesProviderVisual(t *testing.T) {
-	activeTheme := testtheme.Behavior()
-	provider, err := theme.ComponentProvider(activeTheme)
-	if err != nil {
-		t.Fatalf("behavior provider = %v", err)
-	}
-	visual := provider.Menubar(activeTheme, theme.MenubarRequest{})
-	trigger := visual.Trigger(theme.MenubarTriggerRequest{Hovered: true})
-	if trigger.Foreground.A == 0 {
-		t.Fatal("provider returned a transparent trigger foreground")
-	}
-	if visual.RenderTrigger == nil || visual.RenderLabel == nil {
-		t.Fatal("provider returned no trigger renderer")
-	}
 }
 
 func layoutMenubarFrame(ctx *core.Context, router *input.Router, widget Widget, now time.Time) layout.Dimensions {

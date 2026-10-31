@@ -16,7 +16,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -164,10 +163,10 @@ func TestSliderResolvesSemanticParts(t *testing.T) {
 			Background(style.SolidColor{Color: thumb}).
 			Radius(7))
 
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	var ops op.Ops
 	styled := (New("volume", 50)).Style(custom)
-	visual := resolveSliderProvider(core.ActiveTheme(ctx), Horizontal, styled.override)
+	visual := buildSlider(core.ActiveTheme(ctx), Horizontal)
 	resolved := styled.resolveStyle(ctx, layout.Context{Constraints: layout.Constraints{Max: image.Pt(200, 40)}, Ops: &ops}, "volume", style.State{}, visual)
 	if got := resolved.track.Paint.Background.(style.SolidColor).Color; got != track {
 		t.Fatalf("track background = %#v", got)
@@ -178,7 +177,7 @@ func TestSliderResolvesSemanticParts(t *testing.T) {
 	if got := resolved.fill.Paint.Background.(style.SolidColor).Color; got != fill {
 		t.Fatalf("fill background = %#v", got)
 	}
-	if resolved.fill.Paint.Radii == nil || resolved.fill.Paint.Radii.TopLeft != 12 || resolved.fill.Paint.Radii.BottomLeft != 12 || resolved.fill.Paint.Radii.TopRight != 0 || resolved.fill.Paint.Radii.BottomRight != 0 {
+	if resolved.fill.Paint.Radii == nil || resolved.fill.Paint.Radii.TopLeft != 4 || resolved.fill.Paint.Radii.BottomLeft != 4 || resolved.fill.Paint.Radii.TopRight != 0 || resolved.fill.Paint.Radii.BottomRight != 0 {
 		t.Fatalf("horizontal fill radii = %#v", resolved.fill.Paint)
 	}
 	if got := resolved.thumb.Paint.Background.(style.SolidColor).Color; got != thumb {
@@ -191,7 +190,7 @@ func TestSliderResolvesSemanticParts(t *testing.T) {
 		t.Fatalf("thumb radius = %#v", resolved.thumb.Paint)
 	}
 	outer, inner, _, layered := sliderThumbLayers(resolved.thumb)
-	if !layered || len(outer.Paint.Shadows) != 0 || len(inner.Paint.Shadows) != 2 {
+	if !layered || len(outer.Paint.Shadows) != 0 || len(inner.Paint.Shadows) != 1 {
 		t.Fatalf("thumb shadow layers = outer %d, inner %d; want inner shadow", len(outer.Paint.Shadows), len(inner.Paint.Shadows))
 	}
 }
@@ -203,8 +202,8 @@ func TestSliderDefaultAndVerticalLayout(t *testing.T) {
 		Constraints: layout.Constraints{Max: image.Pt(300, 200)},
 		Ops:         &ops,
 	})
-	if dims.Size != image.Pt(300, 20) {
-		t.Fatalf("horizontal size = %v, want (300,20)", dims.Size)
+	if dims.Size != image.Pt(300, 16) {
+		t.Fatalf("horizontal size = %v, want (300,16)", dims.Size)
 	}
 
 	ctx = sliderTestContext()
@@ -240,7 +239,7 @@ func TestSliderThumbOuterEdgeDoesNotLightenFilledTrack(t *testing.T) {
 	if err := window.Screenshot(pixels); err != nil {
 		t.Fatal(err)
 	}
-	accent := theme.NeutralTheme().Palette.Accent
+	accent := theme.Light().Colors.Tones[theme.TonePrimary].Fill
 	lightLimit := int(accent.R) + 16
 	for y := 2; y <= 8; y++ {
 		lightSeen := false
@@ -261,7 +260,7 @@ func TestSliderLabelPartUsesCommonBoxRenderer(t *testing.T) {
 		Label("Volume").
 		Layout(sliderTestContext(), gtx)
 	gtx.Ops = new(op.Ops)
-	styled := (New("volume", 30).Label("Volume")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.PaddingY(7))).Layout(sliderTestContext(), gtx)
+	styled := (New("volume", 30).Label("Volume")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7))).Layout(sliderTestContext(), gtx)
 	if styled.Size.Y != base.Size.Y+14 {
 		t.Fatalf("styled label height = %d, want %d", styled.Size.Y, base.Size.Y+14)
 	}
@@ -269,11 +268,11 @@ func TestSliderLabelPartUsesCommonBoxRenderer(t *testing.T) {
 
 func TestSliderTrackPartUsesCommonBoxRenderer(t *testing.T) {
 	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(300, 200)}, Ops: new(op.Ops)}
-	base := New("volume", 30).Layout(sliderTestContext(), gtx)
-	gtx.Ops = new(op.Ops)
-	styled := (New("volume", 30)).Style(style.Style{}.Part(style.PartTrack, style.Style{}.MarginY(7))).Layout(sliderTestContext(), gtx)
-	if styled.Size.Y != base.Size.Y+14 {
-		t.Fatalf("styled track height = %d, want %d", styled.Size.Y, base.Size.Y+14)
+	ctx := sliderTestContext()
+	styled := (New("volume", 30)).Style(style.Style{}.Part(style.PartTrack, style.Style{}.MarginY(7))).Layout(ctx, gtx)
+	want := gtx.Dp(8) + 14
+	if styled.Size.Y != want {
+		t.Fatalf("styled track height = %d, want %d", styled.Size.Y, want)
 	}
 }
 
@@ -299,8 +298,8 @@ func TestSliderArrowKeyUsesConfiguredStep(t *testing.T) {
 		return New("volume", value).Step(5).OnChange(func(next float64) { value = next })
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 100))
-	state := sliderTestState(ctx, "volume")
-	router.Source().Execute(key.FocusCmd{Tag: &state.lowerThumb.clickable})
+	tag := core.FieldFocusTag(ctx, "volume")
+	router.Source().Execute(key.FocusCmd{Tag: tag})
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(time.Millisecond)), image.Pt(300, 100))
 	router.Queue(key.Event{Name: key.NameRightArrow, State: key.Press})
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(2*time.Millisecond)), image.Pt(300, 100))
@@ -324,6 +323,30 @@ func TestSliderPointerChangesSingleValue(t *testing.T) {
 	}
 }
 
+func TestSliderPointerMovementWithoutPressDoesNotChangeValue(t *testing.T) {
+	ctx := sliderTestContext()
+	router := new(input.Router)
+	value := 30.0
+	changes := 0
+	widget := func() Widget {
+		return New("volume", value).OnChange(func(next float64) {
+			changes++
+			value = next
+		})
+	}
+	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 100))
+	router.Queue(pointer.Event{
+		Kind:      pointer.Move,
+		Source:    pointer.Mouse,
+		PointerID: 1,
+		Position:  f32.Pt(240, 10),
+	})
+	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(time.Millisecond)), image.Pt(300, 100))
+	if value != 30 || changes != 0 {
+		t.Fatalf("unpressed pointer movement changed slider to %v with %d callbacks, want 30 with 0 callbacks", value, changes)
+	}
+}
+
 func TestCompactSliderKeepsMinimumHitTarget(t *testing.T) {
 	ctx := sliderTestContext()
 	router := new(input.Router)
@@ -342,38 +365,6 @@ func TestCompactSliderKeepsMinimumHitTarget(t *testing.T) {
 	}
 }
 
-func TestSliderCursorStyleCoversExpandedHitTarget(t *testing.T) {
-	ctx := sliderTestContext()
-	router := new(input.Router)
-	cursorStyle := style.Style{}.
-		Cursor(pointer.CursorDefault).
-		OnAny(style.Pressed|style.Dragging, style.Style{}.Cursor(pointer.CursorPointer))
-	custom := style.Style{}.
-		Part(style.PartTrack, style.Style{}.
-			Height(4).
-			MarginY(6).
-			Cursor(pointer.CursorDefault).
-			OnAny(style.Pressed|style.Dragging, style.Style{}.Cursor(pointer.CursorPointer))).
-		Part(style.PartThumb, cursorStyle)
-	widget := (New("compact-cursor", 50)).Style(custom)
-	position := f32.Pt(150, 16)
-	router.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, PointerID: 1, Position: position})
-	layoutSliderFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(300, 40))
-	if got := router.Cursor(); got != pointer.CursorDefault {
-		t.Fatalf("released compact cursor = %v, want default", got)
-	}
-	router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: position})
-	layoutSliderFrame(ctx, router, widget, time.Unix(1, int64(time.Millisecond)), image.Pt(300, 40))
-	if got := router.Cursor(); got != pointer.CursorPointer {
-		t.Fatalf("pressed compact cursor = %v, want pointer", got)
-	}
-	router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: position})
-	layoutSliderFrame(ctx, router, widget, time.Unix(1, int64(2*time.Millisecond)), image.Pt(300, 40))
-	if got := router.Cursor(); got != pointer.CursorDefault {
-		t.Fatalf("released compact cursor = %v, want default", got)
-	}
-}
-
 func TestSliderPointerFocusStaysHiddenUntilKeyboardInput(t *testing.T) {
 	ctx := sliderTestContext()
 	router := new(input.Router)
@@ -385,18 +376,18 @@ func TestSliderPointerFocusStaysHiddenUntilKeyboardInput(t *testing.T) {
 	pressSliderAt(router, 1, f32.Pt(150, 10))
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(time.Millisecond)), image.Pt(300, 100))
 
-	state := sliderTestState(ctx, "volume")
-	if core.FocusVisible(ctx, &state.lowerThumb.clickable, true) {
+	tag := core.FieldFocusTag(ctx, "volume")
+	if core.FocusVisible(ctx, tag, true) {
 		t.Fatal("pointer focus was visible while the focus command was pending")
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(2*time.Millisecond)), image.Pt(300, 100))
-	if core.FocusVisible(ctx, &state.lowerThumb.clickable, true) {
+	if core.FocusVisible(ctx, tag, true) {
 		t.Fatal("pointer focus was visible after the deferred focus command")
 	}
 
 	router.Queue(key.Event{Name: key.NameRightArrow, State: key.Press})
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(3*time.Millisecond)), image.Pt(300, 100))
-	if !core.FocusVisible(ctx, &state.lowerThumb.clickable, true) {
+	if !core.FocusVisible(ctx, tag, true) {
 		t.Fatal("keyboard input did not switch the thumb to keyboard-visible focus")
 	}
 	if value != 51 {
@@ -424,6 +415,30 @@ func TestRangeSliderPointerTargetsNearestThumb(t *testing.T) {
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(2*time.Millisecond)), image.Pt(300, 100))
 	if lower != 32 || upper != 68 {
 		t.Fatalf("right press values = %v to %v, want 32 to 68", lower, upper)
+	}
+}
+
+func TestRangeSliderPointerMovementWithoutPressDoesNotChangeValues(t *testing.T) {
+	ctx := sliderTestContext()
+	router := new(input.Router)
+	lower, upper := 20.0, 80.0
+	changes := 0
+	widget := func() Widget {
+		return RangeSlider("price", lower, upper).OnRangeChange(func(nextLower, nextUpper float64) {
+			changes++
+			lower, upper = nextLower, nextUpper
+		})
+	}
+	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 100))
+	router.Queue(pointer.Event{
+		Kind:      pointer.Move,
+		Source:    pointer.Mouse,
+		PointerID: 1,
+		Position:  f32.Pt(240, 10),
+	})
+	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(time.Millisecond)), image.Pt(300, 100))
+	if lower != 20 || upper != 80 || changes != 0 {
+		t.Fatalf("unpressed pointer movement changed range to %v-%v with %d callbacks, want 20-80 with 0 callbacks", lower, upper, changes)
 	}
 }
 
@@ -464,7 +479,7 @@ func TestVerticalSliderMapsTopToMaximum(t *testing.T) {
 		return New("intensity", value).Vertical().OnChange(func(next float64) { value = next })
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(20, 300))
-	pressSliderAt(router, 1, f32.Pt(10, 12))
+	pressSliderAt(router, 1, f32.Pt(10, 8))
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, int64(time.Millisecond)), image.Pt(20, 300))
 	if value != 100 {
 		t.Fatalf("vertical top value = %v, want 100", value)
@@ -485,12 +500,7 @@ func TestDisabledSliderIgnoresPointerInput(t *testing.T) {
 }
 
 func sliderTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
-}
-
-func sliderTestState(ctx *core.Context, key string) *sliderState {
-	value, _ := core.PeekState[sliderState](ctx, key, stateSlotSlider)
-	return value
+	return core.New(nil, new(theme.Light()), locale.LanguageAuto)
 }
 
 type sliderLayoutWidget interface {

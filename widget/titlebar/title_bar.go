@@ -2,6 +2,7 @@ package titlebar
 
 import (
 	"image"
+	"image/color"
 	"runtime"
 
 	"gioui.org/io/semantic"
@@ -14,7 +15,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -43,14 +43,14 @@ type titleBarState struct {
 // Widget lays out either client-side window decorations or an in-content
 // application header.
 type Widget struct {
-	override *theme.TitleBarOverride
+	style    style.Style
 	key      string
 	title    string
 	leading  core.Widget
 	menu     core.Widget
 	center   core.Widget
 	trailing core.Widget
-	// Keep the title widget alive across frames so its text Provider cache is
+	// Keep the title widget alive across frames so its text visual cache is
 	// reused instead of being rebuilt for every TitleBar layout.
 	titleWidget       *text.Widget
 	showMinimize      bool
@@ -142,16 +142,16 @@ func (w Widget) OnClose(fn func()) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
+	return w.layoutWithStyle(ctx, gtx)
 }
 
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.TitleBarOverride) layout.Dimensions {
+func (w Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	key := core.ClaimKey(ctx, core.KindTitleBar, w.key)
 	state := core.UseState[titleBarState](ctx, key, stateSlotTitleBar)
 	state.decorations.Maximized = ctx.WindowState().Mode == core.Maximized
 	w.update(ctx, gtx, state)
 
-	resolved := w.resolveStyle(ctx, gtx, key, !gtx.Enabled(), override)
+	resolved := w.resolveStyle(ctx, gtx, key, !gtx.Enabled())
 	return layoutui.Resolved(ctx, gtx, resolved.root, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		dims := w.layoutContent(ctx, gtx, key, state, resolved)
 		layoutTitleBarSeparator(ctx, gtx, dims.Size, resolved.separator)
@@ -310,7 +310,7 @@ func (w Widget) actionVisible(action system.Action) bool {
 	}
 }
 
-func (w Widget) layoutControls(ctx *core.Context, gtx layout.Context, key string, state *titleBarState, visual theme.TitleBarVisual) layout.Dimensions {
+func (w Widget) layoutControls(ctx *core.Context, gtx layout.Context, key string, state *titleBarState, visual titleBarVisual) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, len(titleBarActions))
 	for _, action := range titleBarActions {
 		if !w.actionVisible(action) {
@@ -324,7 +324,7 @@ func (w Widget) layoutControls(ctx *core.Context, gtx layout.Context, key string
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
-func (w Widget) layoutControl(ctx *core.Context, gtx layout.Context, key string, state *titleBarState, action system.Action, visual theme.TitleBarVisual) layout.Dimensions {
+func (w Widget) layoutControl(ctx *core.Context, gtx layout.Context, key string, state *titleBarState, action system.Action, visual titleBarVisual) layout.Dimensions {
 	clickable := state.decorations.Clickable(action)
 	closeAction := action == system.ActionClose
 	focusVisible := core.FocusVisible(ctx, clickable, gtx.Focused(clickable))
@@ -340,17 +340,20 @@ func (w Widget) layoutControl(ctx *core.Context, gtx layout.Context, key string,
 	if closeAction {
 		controlStyle = visual.CloseControlStyle
 	}
-	resolved := computed.ResolvePart(ctx, gtx, core.DerivedKey(ctx, key, "window-control:"+action.String()), style.PartItem, styleState, visual.Defaults, controlStyle, style.Style{}, visual.Override)
-	foreground, _ := visual.ForegroundColor(resolved)
+	resolved := computed.ResolvePart(ctx, gtx, core.DerivedKey(ctx, key, "window-control:"+action.String()), style.PartItem, styleState, visual.Defaults, controlStyle, style.Style{}, w.style)
+	var foreground color.NRGBA
+	if resolved.Text != nil {
+		foreground, _ = computed.Color(resolved.Text.Color)
+	}
 	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		size := gtx.Constraints.Min
 		return clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			semantic.Button.Add(gtx.Ops)
 			semantic.LabelOp(label).Add(gtx.Ops)
-			visual.Control(gtx, theme.TitleBarControlRenderRequest{
-				Size: size, Glyph: theme.TitleBarControlGlyph(glyph), Foreground: foreground,
+			titleBarRenderControl(gtx, titleBarControlRenderRequest{
+				Size: size, Glyph: titleBarControlGlyph(glyph), Foreground: foreground,
 				Focus: visual.Focus, FocusVisible: focusVisible,
-			})
+			}, visual.Metrics)
 			return layout.Dimensions{Size: size}
 		})
 	}))
@@ -363,11 +366,11 @@ type titleBarResolvedStyle struct {
 	center    style.ResolvedStyle
 	trailing  style.ResolvedStyle
 	separator style.ResolvedStyle
-	visual    theme.TitleBarVisual
+	visual    titleBarVisual
 }
 
-func (w Widget) resolveStyle(ctx *core.Context, gtx layout.Context, key string, disabled bool, override *theme.TitleBarOverride) titleBarResolvedStyle {
-	visual := w.visualWithCache(ctx, override)
+func (w Widget) resolveStyle(ctx *core.Context, gtx layout.Context, key string, disabled bool) titleBarResolvedStyle {
+	visual := w.visualWithCache(ctx)
 	state := style.State{Disabled: disabled}
 	root := computed.Resolve(
 		ctx,
@@ -377,15 +380,15 @@ func (w Widget) resolveStyle(ctx *core.Context, gtx layout.Context, key string, 
 		visual.Defaults,
 		style.Style{},
 		style.Style{},
-		visual.Override,
+		w.style,
 	)
 	return titleBarResolvedStyle{
 		root:      root,
-		leading:   computed.ResolvePart(ctx, gtx, key, style.PartPrefix, state, visual.Defaults, style.Style{}, style.Style{}, visual.Override),
-		title:     computed.ResolvePart(ctx, gtx, key, style.PartLabel, state, visual.Defaults, style.Style{}, style.Style{}, visual.Override),
-		center:    computed.ResolvePart(ctx, gtx, key, style.PartContent, state, visual.Defaults, style.Style{}, style.Style{}, visual.Override),
-		trailing:  computed.ResolvePart(ctx, gtx, key, style.PartSuffix, state, visual.Defaults, style.Style{}, style.Style{}, visual.Override),
-		separator: computed.ResolvePart(ctx, gtx, key, style.PartIndicator, state, visual.Defaults, style.Style{}, style.Style{}, visual.Override),
+		leading:   computed.ResolvePart(ctx, gtx, key, style.PartPrefix, state, visual.Defaults, style.Style{}, style.Style{}, w.style),
+		title:     computed.ResolvePart(ctx, gtx, key, style.PartLabel, state, visual.Defaults, style.Style{}, style.Style{}, w.style),
+		center:    computed.ResolvePart(ctx, gtx, key, style.PartContent, state, visual.Defaults, style.Style{}, style.Style{}, w.style),
+		trailing:  computed.ResolvePart(ctx, gtx, key, style.PartSuffix, state, visual.Defaults, style.Style{}, style.Style{}, w.style),
+		separator: computed.ResolvePart(ctx, gtx, key, style.PartIndicator, state, visual.Defaults, style.Style{}, style.Style{}, w.style),
 		visual:    visual,
 	}
 }
@@ -437,13 +440,10 @@ func controlLabel(ctx *core.Context, action system.Action, maximized bool) strin
 	}
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.TitleBarOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

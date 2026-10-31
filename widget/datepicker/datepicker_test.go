@@ -15,30 +15,28 @@ import (
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
 func newContext(_ any) *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	return core.New(nil, new(theme.Light()), locale.LanguageAuto)
 }
 
 func newContextWithThemeAndLanguage(_ any, value *theme.Theme, language locale.Language) *core.Context {
 	if value == nil {
-		value = testtheme.Behavior()
+		value = new(theme.Light())
 	}
 	return core.New(nil, value, language)
 }
 
 func DefaultTheme() theme.Theme {
-	return *testtheme.Behavior()
+	return theme.Light()
 }
 
-func datePickerMotionForTest() theme.DatePickerMotion {
-	activeTheme := testtheme.Behavior()
-	return datePickerVisualDeclarationForVariant(activeTheme, field.Primary).Motion
+func datePickerMotionForTest() datePickerMotionDefaults {
+	activeTheme := new(theme.Light())
+	return buildDatePickerDefaults(activeTheme, Primary).motion
 }
 
 func testComponentState[T any](ctx *core.Context, key, slot string) *T {
@@ -67,11 +65,11 @@ func TestDatePickerOptions(t *testing.T) {
 		Label("Date").
 		Description("Choose a date").
 		ErrorMessage("Invalid date").
-		Variant(field.Secondary).
+		Variant(Secondary).
 		Invalid(true).
 		Required(true).
 		Disabled(true).
-		FullWidth().
+		FillWidth().
 		Locale(Chinese()).
 		MinDate(minDate).
 		MaxDate(maxDate).
@@ -88,7 +86,7 @@ func TestDatePickerOptions(t *testing.T) {
 	if d.locale.WeekStart != time.Monday {
 		t.Fatal("locale was not set")
 	}
-	if d.variant != field.Secondary {
+	if d.variant != Secondary {
 		t.Fatal("variant was not set")
 	}
 	if d.label != "Date" || d.description == "" || d.errorMessage == "" || !d.invalid || !d.required || !d.disabled || !d.fullWidth {
@@ -338,7 +336,7 @@ func TestDatePickerBehaviorContract(t *testing.T) {
 		layoutDatePickerFrameAt(ctx, router, picker, testDate(2026, 7, 1))
 		state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
 		beforeTheme := core.ActiveTheme(ctx)
-		replacement := *testtheme.Behavior()
+		replacement := theme.Light()
 		core.ReplaceTheme(ctx, replacement)
 		layoutDatePickerFrameAt(ctx, router, picker, testDate(2026, 7, 1))
 		if core.ActiveTheme(ctx) == beforeTheme {
@@ -378,7 +376,7 @@ func TestDatePickerBehaviorContract(t *testing.T) {
 		return result
 	}
 
-	got := run(*testtheme.Behavior())
+	got := run(theme.Light())
 	if got.selected != "2026-07-10" || got.openAfterSelect {
 		t.Fatalf("selection result = %#v, want selected date and closed popup", got)
 	}
@@ -416,7 +414,7 @@ func TestDateRangePickerBehaviorContract(t *testing.T) {
 		layoutDateComponentFrame(ctx, router, picker(), now)
 		state := testComponentState[dateRangePickerState](ctx, "range-contract", stateSlotDateRangePicker)
 		beforeTheme := core.ActiveTheme(ctx)
-		replacement := *testtheme.Behavior()
+		replacement := theme.Light()
 		core.ReplaceTheme(ctx, replacement)
 		layoutDateComponentFrame(ctx, router, picker(), now)
 		if core.ActiveTheme(ctx) == beforeTheme {
@@ -453,7 +451,7 @@ func TestDateRangePickerBehaviorContract(t *testing.T) {
 		return result
 	}
 
-	got := run(*testtheme.Behavior())
+	got := run(theme.Light())
 	if got.start != "2026-07-10" || got.end != "2026-07-15" || got.changes != 1 || got.openAfterSelect || got.selectingEnd || got.openAfterEscape {
 		t.Fatalf("range selection result = %#v", got)
 	}
@@ -462,7 +460,7 @@ func TestDateRangePickerBehaviorContract(t *testing.T) {
 func TestDatePickerPointerTriggerFocusIsNotKeyboardVisible(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1)).FullWidth()
+	picker := New("date", testDate(2026, 7, 1)).FillWidth()
 	start := time.Unix(1, 0)
 	layoutDatePickerFrameAt(ctx, router, picker, start)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
@@ -498,8 +496,8 @@ func TestDatePickerEditableControlsFieldTrigger(t *testing.T) {
 		picker   Widget
 		wantOpen bool
 	}{
-		{name: "editable", picker: New("date", testDate(2026, 7, 1)).FullWidth()},
-		{name: "picker only", picker: New("date", testDate(2026, 7, 1)).Editable(false).FullWidth(), wantOpen: true},
+		{name: "editable", picker: New("date", testDate(2026, 7, 1)).FillWidth()},
+		{name: "picker only", picker: New("date", testDate(2026, 7, 1)).Editable(false).FillWidth(), wantOpen: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := newContext(nil)
@@ -524,6 +522,32 @@ func TestDatePickerEditableControlsFieldTrigger(t *testing.T) {
 				t.Fatalf("open = %v, want %v", state.open, test.wantOpen)
 			}
 		})
+	}
+}
+
+func TestDatePickerEditableFieldBlankAreaOpensCalendar(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	picker := New("date", testDate(2026, 7, 1)).FillWidth()
+	start := time.Unix(1, 0)
+	layoutDatePickerFrameAt(ctx, router, picker, start)
+
+	position := f32.Pt(220, 18)
+	router.Queue(pointer.Event{
+		Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1,
+		Buttons: pointer.ButtonPrimary, Position: position,
+	})
+	layoutDatePickerFrameAt(ctx, router, picker, start.Add(time.Millisecond))
+	router.Queue(pointer.Event{
+		Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1,
+		Position: position,
+	})
+	layoutDatePickerFrameAt(ctx, router, picker, start.Add(2*time.Millisecond))
+	layoutDatePickerFrameAt(ctx, router, picker, start.Add(3*time.Millisecond))
+
+	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
+	if !state.open {
+		t.Fatal("clicking the editable field blank area did not open the calendar")
 	}
 }
 
@@ -600,7 +624,7 @@ func TestDatePickerPanelPressKeepsFocusAndBlocksBackground(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := newContext(nil)
 			router := new(input.Router)
-			picker := New("date", testDate(2026, 7, 1)).FullWidth()
+			picker := New("date", testDate(2026, 7, 1)).FillWidth()
 			var background widget.Clickable
 			backgroundClicked := false
 			start := time.Unix(1, 0)
@@ -665,7 +689,7 @@ func TestDatePickerExitingPanelPaddingBlocksBackground(t *testing.T) {
 	router := new(input.Router)
 	changed := false
 	picker := New("date", testDate(2026, 7, 1)).
-		FullWidth().
+		FillWidth().
 		OnChange(func(time.Time) {
 			changed = true
 		})
@@ -859,8 +883,8 @@ func TestDatePickerOpenLayoutDoesNotTakeSpace(t *testing.T) {
 
 	dims := layoutDatePickerFrame(ctx, router, picker)
 
-	if dims.Size.Y != 36 {
-		t.Fatalf("open date picker height = %d, want 36", dims.Size.Y)
+	if dims.Size.Y != 32 {
+		t.Fatalf("open date picker height = %d, want 32", dims.Size.Y)
 	}
 }
 

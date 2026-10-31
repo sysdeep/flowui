@@ -18,7 +18,6 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	buttonui "github.com/qianniancn/flowui/widget/button"
@@ -26,7 +25,7 @@ import (
 )
 
 func newContext(_ any) *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func testComponentState[T any](ctx *core.Context, key, slot string) *T {
@@ -94,13 +93,11 @@ func TestTabsItemPartUsesEachItemsLocalState(t *testing.T) {
 			On(style.Hovered, style.Style{}.Background(style.SolidColor{Color: hoveredColor})).
 			On(style.Selected, style.Style{}.Background(style.SolidColor{Color: selectedColor})))
 
-	widget := Widget{key: "tabs"}
+	widget := Widget{key: "tabs", style: custom}
 	ctx := newContext(nil)
 	gtx := testLayoutContext()
-	visual := widget.visual(ctx)
-	visual.Override = custom
 	resolveBackground := func(itemKey string, state style.State) color.NRGBA {
-		resolved := widget.resolveItemStyle(ctx, gtx, itemKey, state, color.NRGBA{A: 0xff}, visual)
+		resolved := widget.resolveItemStyle(ctx, gtx, itemKey, state, color.NRGBA{A: 0xff})
 		brush, ok := computed.Brush(resolved.Paint.Background)
 		if !ok {
 			t.Fatalf("item %q background = %#v", itemKey, resolved.Paint)
@@ -151,7 +148,7 @@ func TestHorizontalGapMatchesIndicatorGeometry(t *testing.T) {
 	}
 	layoutTabsFrame(ctx, router, New("horizontal-gap", "daily", items).Fit(), time.Unix(1, 0), image.Pt(400, 100))
 	state := testComponentState[tabsState](ctx, "horizontal-gap", stateSlotTabs)
-	wantGap := testLayoutContext().Dp(core.ActiveTheme(ctx).Components.Tabs.TabGap)
+	wantGap := testLayoutContext().Dp(4)
 	if state.list.Gap != wantGap {
 		t.Fatalf("horizontal list gap = %d, want theme gap %d", state.list.Gap, wantGap)
 	}
@@ -187,8 +184,8 @@ func TestTabsOverflowIndicatorIncludesGapBeforeLastVisibleTab(t *testing.T) {
 	if selectedIndex < 0 {
 		t.Fatal("selected tab was not promoted into the visible strip")
 	}
-	tabHeight := gtx.Dp(tabsSizeStyleFor(core.ActiveTheme(ctx), widget.size).height)
-	wantGap := gtx.Dp(core.ActiveTheme(ctx).Components.Tabs.TabGap)
+	tabHeight := gtx.Dp(tabsTestSizeStyle(widget.size).height)
+	wantGap := gtx.Dp(4)
 	start := -state.list.Position.Offset
 	if selectedIndex >= state.list.Position.First {
 		for index := state.list.Position.First; index < selectedIndex; index++ {
@@ -413,6 +410,46 @@ func TestTabsManualActivationMovesFocusBeforeSelection(t *testing.T) {
 	layoutTabsFrame(ctx, router, widgetForFrame(), time.Unix(1, int64(3*time.Millisecond)), image.Pt(360, 180))
 	if selected != "security" {
 		t.Fatalf("manual activation selection = %q, want security", selected)
+	}
+}
+
+func TestTabsNavigationAxisAndReverseShortcut(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		orientation Orientation
+		ignored     key.Name
+	}{
+		{name: "horizontal ignores vertical", orientation: Horizontal, ignored: key.NameDownArrow},
+		{name: "vertical ignores horizontal", orientation: Vertical, ignored: key.NameRightArrow},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newContext(nil)
+			router := new(input.Router)
+			selected := "account"
+			view := func() Widget {
+				return New("axis-tabs", selected, tabsTestItems()).Orientation(tc.orientation).
+					OnChange(func(next string) { selected = next })
+			}
+			now := time.Unix(10, 0)
+			frame := func() {
+				layoutTabsFrame(ctx, router, view(), now, image.Pt(420, 240))
+				now = now.Add(time.Millisecond)
+			}
+			frame()
+			state := testComponentState[tabsState](ctx, "axis-tabs", stateSlotTabs)
+			router.Source().Execute(key.FocusCmd{Tag: &state.items["account"].clickable})
+			frame()
+			router.Queue(key.Event{Name: tc.ignored, State: key.Press})
+			frame()
+			if selected != "account" || !router.Source().Focused(&state.items["account"].clickable) {
+				t.Fatalf("cross-axis key changed selection/focus to %q", selected)
+			}
+			router.Queue(key.Event{Name: key.NameTab, Modifiers: key.ModShortcut | key.ModShift, State: key.Press})
+			frame()
+			if selected != "billing" || !router.Source().Focused(&state.items["billing"].clickable) {
+				t.Fatalf("reverse shortcut selection = %q, want billing with focus", selected)
+			}
+		})
 	}
 }
 
@@ -675,7 +712,7 @@ func TestTabsCustomContentUsesMeasuredWidth(t *testing.T) {
 	content := &tabsMeasurableProbe{}
 	widget := New("custom-content-width", "custom", []TabItem{{Key: "custom", Content: content}}).Fit()
 	dims := widget.Layout(ctx, gtx)
-	wantMin := 44 + 2*gtx.Dp(core.ActiveTheme(ctx).Components.Tabs.TabPaddingX)
+	wantMin := 44 + 2*gtx.Dp(12)
 	if dims.Size.X < wantMin {
 		t.Fatalf("custom content tabs width = %d, want at least %d", dims.Size.X, wantMin)
 	}
@@ -742,7 +779,7 @@ func TestFitTabsKeepCustomContentIntrinsic(t *testing.T) {
 func TestClosableTabsDoNotDoubleRightPadding(t *testing.T) {
 	ctx := newContext(nil)
 	gtx := testLayoutContext()
-	sizeStyle := tabsSizeStyleFor(core.ActiveTheme(ctx), Medium)
+	sizeStyle := tabsTestSizeStyle(Medium)
 	item := TabItem{Key: "file", Label: "file.go"}
 	plain := New("plain-width", "file", []TabItem{item}).Fit()
 	closable := New("closable-width", "file", []TabItem{{Key: item.Key, Label: item.Label, Closable: true}}).
@@ -751,7 +788,7 @@ func TestClosableTabsDoNotDoubleRightPadding(t *testing.T) {
 	plainWidth := plain.measureTabWidth(ctx, gtx, item, sizeStyle)
 	closableItem := closable.items[0]
 	closableWidth := closable.measureTabWidth(ctx, gtx, closableItem, sizeStyle)
-	closeSize, closeGap := closable.closeButtonMetrics(closable.visual(ctx))
+	closeSize, closeGap := closable.closeButtonMetrics(closable.defaultsWithCache(ctx))
 	closeSlot := gtx.Dp(closeSize) + gtx.Dp(closeGap)
 	wantWidth := plainWidth + max(closeSlot-gtx.Dp(sizeStyle.paddingX), 0)
 	if closableWidth != wantWidth {
@@ -1169,6 +1206,24 @@ func TestTabsInlineEditCommitsWithEnter(t *testing.T) {
 	}
 }
 
+func TestTabsInlineEditEscapeCancels(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	committed := false
+	value := New("edit-cancel", "account", []TabItem{{Key: "account", Label: "Account", Editable: true}}).
+		EditingKey("account").OnEdit(func(string, string) { committed = true })
+	start := time.Unix(1, 0)
+	layoutTabsFrame(ctx, router, value, start, image.Pt(320, 120))
+	layoutTabsFrame(ctx, router, value, start.Add(time.Millisecond), image.Pt(320, 120))
+	state := testComponentState[tabsState](ctx, "edit-cancel", stateSlotTabs)
+	state.items["account"].editor.SetText("Changed")
+	router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	layoutTabsFrame(ctx, router, value, start.Add(2*time.Millisecond), image.Pt(320, 120))
+	if committed || state.items["account"].editor.Text() != "Account" {
+		t.Fatalf("cancel committed=%v, text=%q", committed, state.items["account"].editor.Text())
+	}
+}
+
 func TestTabsInlineEditCommitsWhenFocusLeavesEditor(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
@@ -1211,7 +1266,7 @@ func TestVerticalOverflowMenuMeasuresCustomTriggerWidth(t *testing.T) {
 		OverflowTrigger(trigger)
 
 	overflow := widget.measureOverflow(ctx, gtx, "Overview")
-	padding := gtx.Dp(tabsSizeStyleFor(core.ActiveTheme(ctx), Medium).paddingX)
+	padding := gtx.Dp(tabsTestSizeStyle(Medium).paddingX)
 	if want := trigger.size.X + padding*2; overflow.moreSize.X < want {
 		t.Fatalf("vertical More width = %d, want at least %d", overflow.moreSize.X, want)
 	}
@@ -1231,7 +1286,7 @@ func TestTabsScrollButtonLabelsMatchOrientation(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 			if got := test.tabs.scrollButtonLabel(ctx, test.direction); got != test.want {
 				t.Fatalf("label = %q, want %q", got, test.want)
 			}
@@ -1240,7 +1295,7 @@ func TestTabsScrollButtonLabelsMatchOrientation(t *testing.T) {
 }
 
 func TestTabsScrollButtonLabelsUseWindowLanguage(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageChinese)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageChinese)
 	if got := (Widget{}).scrollButtonLabel(ctx, -1); got != "向左滚动标签页" {
 		t.Fatalf("Chinese horizontal label = %q", got)
 	}

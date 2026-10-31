@@ -37,24 +37,24 @@ type chartDataCache struct {
 	cache chart.DataCache[chartData]
 }
 
-func (c *chartDataCache) resolve(widget Widget, activeTheme *theme.Theme, visual theme.CandlestickVisual) chartData {
+func (c *chartDataCache) resolve(widget Widget, activeTheme *theme.Theme, defaults candlestickDefaults) chartData {
 	data, generation := c.cache.Resolve(widget.hasDataVersion, widget.dataVersion, activeTheme, unit.Metric{}, func() chartData {
-		return resolveChartData(widget, visual)
+		return resolveChartData(widget, defaults)
 	})
 	data.generation = generation
 	return data
 }
 
-func resolveChartData(widget Widget, visual theme.CandlestickVisual) chartData {
-	upColor := visual.Colors.Up
+func resolveChartData(widget Widget, defaults candlestickDefaults) chartData {
+	upColor := defaults.Colors.Up
 	if widget.hasUpColor {
 		upColor = widget.upColor
 	}
-	downColor := visual.Colors.Down
+	downColor := defaults.Colors.Down
 	if widget.hasDownColor {
 		downColor = widget.downColor
 	}
-	dojiColor := visual.Colors.Doji
+	dojiColor := defaults.Colors.Doji
 	hasDojiColor := dojiColor.A != 0
 	if widget.hasDojiColor {
 		dojiColor, hasDojiColor = widget.dojiColor, true

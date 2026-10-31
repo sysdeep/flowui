@@ -11,7 +11,7 @@ import (
 	giotext "gioui.org/text"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type textBenchmarkFrame struct {
@@ -23,7 +23,7 @@ type textBenchmarkFrame struct {
 
 func newTextBenchmarkFrame(maximum image.Point) *textBenchmarkFrame {
 	frame := &textBenchmarkFrame{
-		ctx: core.New(nil, testtheme.Behavior(), locale.LanguageEnglish),
+		ctx: core.New(nil, new(theme.Light()), locale.LanguageEnglish),
 	}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -88,7 +88,7 @@ func BenchmarkTextMeasureLongMultiline(b *testing.B) {
 
 func reportTextVisualCacheStats(b *testing.B, value Widget) {
 	b.Helper()
-	stats := value.visualCache.stats()
+	stats := value.visualCache.Stats()
 	for _, metric := range []struct {
 		name  string
 		value uint64

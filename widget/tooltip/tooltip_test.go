@@ -14,9 +14,9 @@ import (
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/internal/overlayarrow"
 )
 
 const (
@@ -26,72 +26,12 @@ const (
 )
 
 func TestTooltipBorderUsesThemeColor(t *testing.T) {
-	themeValue := testtheme.Behavior()
-	visual := tooltipVisualWithCache(core.New(nil, themeValue, locale.LanguageAuto), nil, nil)
+	themeValue := new(theme.Light())
+	visual := tooltipVisualWithCache(core.New(nil, themeValue, locale.LanguageAuto), nil)
 	resolved := visual.Defaults.Resolve(style.State{})
 	colors := visual.PanelColor(resolved)
-	if colors.Border != themeValue.Palette.Border {
-		t.Fatalf("border = %v, want %v", colors.Border, themeValue.Palette.Border)
-	}
-}
-
-func TestTooltipShowAndCloseDelays(t *testing.T) {
-	start := time.Unix(1, 0)
-	state := new(tooltipState)
-	state.updateActive(testContextAt(start), true, false, 1500*time.Millisecond, 500*time.Millisecond)
-	if state.open || state.showAt != start.Add(1500*time.Millisecond) {
-		t.Fatalf("initial show state = open %v at %v", state.open, state.showAt)
-	}
-
-	state.updateActive(testContextAt(start.Add(1499*time.Millisecond)), true, false, 1500*time.Millisecond, 500*time.Millisecond)
-	if state.open {
-		t.Fatal("tooltip opened before the show delay")
-	}
-	state.updateActive(testContextAt(start.Add(1500*time.Millisecond)), true, false, 1500*time.Millisecond, 500*time.Millisecond)
-	if !state.open {
-		t.Fatal("tooltip did not open when the show delay elapsed")
-	}
-
-	leave := start.Add(2 * time.Second)
-	state.updateActive(testContextAt(leave), false, false, 1500*time.Millisecond, 500*time.Millisecond)
-	if !state.open || state.hideAt != leave.Add(500*time.Millisecond) {
-		t.Fatalf("close state = open %v at %v", state.open, state.hideAt)
-	}
-	state.updateActive(testContextAt(leave.Add(500*time.Millisecond)), false, false, 1500*time.Millisecond, 500*time.Millisecond)
-	if state.open {
-		t.Fatal("tooltip stayed open after the close delay")
-	}
-}
-
-func TestTooltipLeaveCancelsPendingShow(t *testing.T) {
-	start := time.Unix(1, 0)
-	state := new(tooltipState)
-	state.updateActive(testContextAt(start), true, false, time.Second, time.Second)
-	state.updateActive(testContextAt(start.Add(100*time.Millisecond)), false, false, time.Second, time.Second)
-	if !state.showAt.IsZero() || state.open {
-		t.Fatalf("pending show was not cancelled: open %v at %v", state.open, state.showAt)
-	}
-}
-
-func TestTooltipReenterCancelsPendingClose(t *testing.T) {
-	start := time.Unix(1, 0)
-	state := &tooltipState{active: true, open: true}
-	state.updateActive(testContextAt(start), false, false, 0, time.Second)
-	state.updateActive(testContextAt(start.Add(100*time.Millisecond)), true, false, 0, time.Second)
-	if !state.hideAt.IsZero() || !state.open {
-		t.Fatalf("re-enter state = open %v hideAt %v", state.open, state.hideAt)
-	}
-}
-
-func TestTooltipPeerCloseSkipsCloseDelay(t *testing.T) {
-	state := &tooltipState{
-		active: true,
-		open:   true,
-		hideAt: time.Unix(2, 0),
-	}
-	state.closeForPeer()
-	if state.open || !state.showAt.IsZero() || !state.hideAt.IsZero() {
-		t.Fatalf("peer close did not close immediately: %+v", state)
+	if colors.Border != themeValue.Colors.Border {
+		t.Fatalf("border = %v, want %v", colors.Border, themeValue.Colors.Border)
 	}
 }
 
@@ -144,18 +84,10 @@ func TestTooltipCoordinatorUsesLongerCloseDelay(t *testing.T) {
 	}
 }
 
-func TestTooltipDisabledClosesImmediately(t *testing.T) {
-	state := &tooltipState{hovered: true, active: true, open: true}
-	state.updateActive(testContextAt(time.Unix(1, 0)), true, true, time.Second, time.Second)
-	if state.open || state.active || state.hovered || !state.showAt.IsZero() || !state.hideAt.IsZero() {
-		t.Fatalf("disabled state was not cleared: %+v", state)
-	}
-}
-
 func TestTooltipOffsetUsesArrowDefault(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	gtx := testContextAt(time.Time{})
-	visual := tooltipVisualWithCache(ctx, nil, nil)
+	visual := tooltipVisualWithCache(ctx, nil)
 	if got := New("plain", nil, "").Content(nil).popup(1, false).offsetPx(gtx, visual); got != 3 {
 		t.Fatalf("plain offset = %d, want 3", got)
 	}
@@ -168,9 +100,9 @@ func TestTooltipOffsetUsesArrowDefault(t *testing.T) {
 }
 
 func TestTooltipPositionAndFlip(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	gtx := testContextAt(time.Time{})
-	visual := tooltipVisualWithCache(ctx, nil, nil)
+	visual := tooltipVisualWithCache(ctx, nil)
 	trigger := image.Rect(100, 50, 140, 70)
 	panel := image.Pt(80, 40)
 	bounds := image.Pt(300, 200)
@@ -189,13 +121,13 @@ func TestTooltipPositionAndFlip(t *testing.T) {
 func TestTooltipArrowTracksTriggerForAlignedAndShiftedPanels(t *testing.T) {
 	trigger := image.Rect(100, 50, 140, 70)
 	panel := image.Pt(100, 30)
-	if got := core.ArrowAnchor(trigger, image.Pt(100, 10), panel, core.PopoverTopStart, 0, 12); got != 20 {
+	if got := overlayarrow.ArrowAnchor(trigger, image.Pt(100, 10), panel, core.PopoverTopStart, 0, 12); got != 20 {
 		t.Fatalf("top start arrow = %v, want 20", got)
 	}
-	if got := core.ArrowAnchor(trigger, image.Pt(40, 10), panel, core.PopoverTopEnd, 0, 12); got != 80 {
+	if got := overlayarrow.ArrowAnchor(trigger, image.Pt(40, 10), panel, core.PopoverTopEnd, 0, 12); got != 80 {
 		t.Fatalf("top end arrow = %v, want 80", got)
 	}
-	if got := core.ArrowAnchor(trigger, image.Pt(0, 10), panel, core.PopoverTop, 12, 12); got != 82 {
+	if got := overlayarrow.ArrowAnchor(trigger, image.Pt(0, 10), panel, core.PopoverTop, 12, 12); got != 82 {
 		t.Fatalf("overflow-shifted arrow = %v, want clamped 82", got)
 	}
 }
@@ -208,14 +140,14 @@ func TestTooltipTransformOriginUsesTriggerAnchor(t *testing.T) {
 	}
 }
 
-func TestTooltipPanelHonorsThemePadding(t *testing.T) {
-	themeValue := *testtheme.Behavior()
-	themeValue.Components.Tooltip.Padding = 10
-	themeValue.Components.Tooltip.Radius = 6
+func TestTooltipPanelHonorsInstancePadding(t *testing.T) {
+	themeValue := theme.Light()
 	ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 	gtx := testContextAt(time.Time{})
-	visual := tooltipVisualWithCache(ctx, nil, nil)
-	dims := New("help", nil, "").Content(fixedWidget{size: image.Pt(30, 10)}).popup(1, false).layoutPanel(ctx, gtx, visual)
+	visual := tooltipVisualWithCache(ctx, nil)
+	popup := New("help", nil, "").Content(fixedWidget{size: image.Pt(30, 10)}).
+		Style(style.New().Padding(10).Radius(6)).popup(1, false)
+	dims := popup.layoutPanel(ctx, gtx, visual)
 	if dims.Size != image.Pt(50, 30) {
 		t.Fatalf("panel size = %v, want (50,30)", dims.Size)
 	}
@@ -223,7 +155,7 @@ func TestTooltipPanelHonorsThemePadding(t *testing.T) {
 
 func TestTooltipTextAndCustomContentLayoutWhenOpened(t *testing.T) {
 	for _, custom := range []bool{false, true} {
-		ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+		ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 		router := new(input.Router)
 		value := New("help", fixedWidget{size: image.Pt(40, 24)}, "Save all pending changes").Delay(0)
 		laidOut := false
@@ -242,14 +174,14 @@ func TestTooltipTextAndCustomContentLayoutWhenOpened(t *testing.T) {
 		layoutTooltipFrame(ctx, router, value, start.Add(time.Millisecond))
 		layoutTooltipFrame(ctx, router, value, start.Add(time.Second))
 		state, ok := core.PeekState[tooltipState](ctx, "help", stateSlotTooltip)
-		if !ok || !state.open {
+		if !ok || !state.Open {
 			t.Fatal("tooltip did not open on hover")
 		}
 		if custom && !laidOut {
 			t.Fatal("open tooltip did not lay out custom content")
 		}
 		gtx := testContextAt(start.Add(time.Second))
-		visual := tooltipVisualWithCache(ctx, nil, nil)
+		visual := tooltipVisualWithCache(ctx, nil)
 		dims := value.popup(1, false).layoutPanel(ctx, gtx, visual)
 		empty := New("empty", nil, "").Content(nil).popup(1, false).layoutPanel(ctx, gtx, visual)
 		if dims.Size.X <= empty.Size.X || dims.Size.Y <= empty.Size.Y {
@@ -258,16 +190,14 @@ func TestTooltipTextAndCustomContentLayoutWhenOpened(t *testing.T) {
 	}
 }
 
-func TestPopupPanelUsesSharedTooltipTheme(t *testing.T) {
-	themeValue := *testtheme.Behavior()
-	themeValue.Components.Tooltip.Padding = 10
-	themeValue.Components.Tooltip.MaxWidth = 72
+func TestPopupPanelUsesInstanceStyle(t *testing.T) {
+	themeValue := theme.Light()
 	ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 	gtx := testContextAt(time.Time{})
 	content := new(constraintProbe)
-	popup := NewPopup(content)
+	popup := NewPopup(content).Style(style.New().Padding(10).MaxWidth(72))
 	panelGtx := gtx
-	visual := tooltipVisualWithCache(ctx, nil, nil)
+	visual := tooltipVisualWithCache(ctx, nil)
 	panelGtx.Constraints = popup.panelConstraints(gtx, gtx.Constraints.Max, visual)
 
 	dims := popup.layoutPanel(ctx, panelGtx, visual)
@@ -350,9 +280,9 @@ func TestPopupTransitionRespectsDisabledMotion(t *testing.T) {
 }
 
 func TestPopupCanDisableTransformMotion(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	gtx := testContextAt(time.Unix(3, 0))
-	visual := tooltipVisualWithCache(ctx, nil, nil)
+	visual := tooltipVisualWithCache(ctx, nil)
 	popup := NewPopup(nil).TransformMotion(false).Progress(.5)
 	if popup.transformMotionEnabled() {
 		t.Fatal("popup transform motion remained enabled")
@@ -367,7 +297,7 @@ func TestPopupCanDisableTransformMotion(t *testing.T) {
 }
 
 func TestPopupWithoutAnchorOrContentHasNoLayoutSize(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	gtx := testContextAt(time.Time{})
 	if got := NewPopup(fixedWidget{size: image.Pt(20, 10)}).Layout(ctx, gtx, image.Rectangle{}).Size; got != (image.Point{}) {
 		t.Fatalf("empty anchor size = %v, want zero", got)
@@ -378,7 +308,7 @@ func TestPopupWithoutAnchorOrContentHasNoLayoutSize(t *testing.T) {
 }
 
 func TestHoverAreaDoesNotBlockChildClick(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
 	child := new(clickProbe)
 	value := New("help", child, "Helpful text").Delay(0)
@@ -395,7 +325,7 @@ func TestHoverAreaDoesNotBlockChildClick(t *testing.T) {
 }
 
 func TestHoverEventStartsShowDelay(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
 	value := New("help", fixedWidget{size: image.Pt(40, 24)}, "Helpful text")
 	start := time.Unix(1, 0)
@@ -404,13 +334,21 @@ func TestHoverEventStartsShowDelay(t *testing.T) {
 	router.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(10, 10)})
 	layoutTooltipFrame(ctx, router, value, start.Add(time.Millisecond))
 	state, _ := core.PeekState[tooltipState](ctx, "help", stateSlotTooltip)
-	if state == nil || !state.hovered || state.showAt != start.Add(time.Millisecond+1500*time.Millisecond) {
+	if state == nil || !state.Hovered || state.Open {
 		t.Fatalf("hover state = %+v", state)
+	}
+	layoutTooltipFrame(ctx, router, value, start.Add(1500*time.Millisecond))
+	if state.Open {
+		t.Fatal("hover tooltip opened before its deadline")
+	}
+	layoutTooltipFrame(ctx, router, value, start.Add(1501*time.Millisecond))
+	if !state.Open {
+		t.Fatal("hover tooltip did not open at its deadline")
 	}
 }
 
 func TestFocusTriggerStartsShowDelay(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
 	value := New("help", fixedWidget{size: image.Pt(40, 24)}, "Helpful text").Trigger(Focus)
 	start := time.Unix(1, 0)
@@ -422,13 +360,17 @@ func TestFocusTriggerStartsShowDelay(t *testing.T) {
 
 	router.Source().Execute(key.FocusCmd{Tag: state})
 	layoutTooltipFrame(ctx, router, value, start.Add(time.Millisecond))
-	if !state.focused || state.showAt != start.Add(time.Millisecond+1500*time.Millisecond) {
+	if !state.Focused || state.Open {
 		t.Fatalf("focus state = %+v", state)
+	}
+	layoutTooltipFrame(ctx, router, value, start.Add(1501*time.Millisecond))
+	if !state.Open {
+		t.Fatal("focused tooltip did not open at its deadline")
 	}
 }
 
 func TestRapidTooltipSwitchClosesPeerAndUsesWarmup(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
 	start := time.Unix(1, 0)
 	layoutTooltipPairFrame(ctx, router, start, false)
@@ -437,16 +379,16 @@ func TestRapidTooltipSwitchClosesPeerAndUsesWarmup(t *testing.T) {
 	layoutTooltipPairFrame(ctx, router, start.Add(time.Millisecond), false)
 	first, _ := core.PeekState[tooltipState](ctx, "first", stateSlotTooltip)
 	second, _ := core.PeekState[tooltipState](ctx, "second", stateSlotTooltip)
-	if first == nil || second == nil || !first.open || second.open {
+	if first == nil || second == nil || !first.Open || second.Open {
 		t.Fatalf("first hover states = first %+v second %+v", first, second)
 	}
 
 	router.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(70, 10)})
 	layoutTooltipPairFrame(ctx, router, start.Add(2*time.Millisecond), false)
-	if first.open || !first.hideAt.IsZero() {
+	if first.Open {
 		t.Fatalf("first tooltip retained close delay: %+v", first)
 	}
-	if !second.open || !second.showAt.IsZero() {
+	if !second.Open {
 		t.Fatalf("second tooltip did not use warmup: %+v", second)
 	}
 
@@ -456,13 +398,21 @@ func TestRapidTooltipSwitchClosesPeerAndUsesWarmup(t *testing.T) {
 	layoutTooltipPairFrame(ctx, router, start.Add(604*time.Millisecond), false)
 	router.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(70, 10)})
 	layoutTooltipPairFrame(ctx, router, start.Add(700*time.Millisecond), false)
-	if second.open || second.showAt != start.Add(2200*time.Millisecond) {
+	if second.Open || !second.Active {
 		t.Fatalf("cold tooltip did not restore show delay: %+v", second)
+	}
+	layoutTooltipPairFrame(ctx, router, start.Add(2199*time.Millisecond), false)
+	if second.Open {
+		t.Fatal("cold tooltip opened before the restored delay")
+	}
+	layoutTooltipPairFrame(ctx, router, start.Add(2200*time.Millisecond), false)
+	if !second.Open {
+		t.Fatal("cold tooltip did not open after the restored delay")
 	}
 }
 
 func TestRapidTooltipSwitchIsIndependentOfLayoutOrder(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
 	start := time.Unix(1, 0)
 	layoutTooltipPairFrame(ctx, router, start, true)
@@ -473,7 +423,7 @@ func TestRapidTooltipSwitchIsIndependentOfLayoutOrder(t *testing.T) {
 
 	router.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(70, 10)})
 	layoutTooltipPairFrame(ctx, router, start.Add(2*time.Millisecond), true)
-	if first.open || !second.open {
+	if first.Open || !second.Open {
 		t.Fatalf("reverse layout switch = first %+v second %+v", first, second)
 	}
 }
@@ -548,7 +498,7 @@ func (w fixedWidget) Layout(*core.Context, layout.Context) layout.Dimensions {
 // by twice the outset. When the host is the trigger, it moves out from under the
 // pointer, the pointer leaves, the panel exits, and the two states oscillate.
 func TestPopupOverlayStaysOutOfTheHostLayout(t *testing.T) {
-	themeValue := *testtheme.Behavior()
+	themeValue := theme.Light()
 	ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 	gtx := testContextAt(time.Unix(1, 0))
 	core.BeginFrameWithViewport(ctx, gtx.Constraints.Max)

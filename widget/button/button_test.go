@@ -19,15 +19,15 @@ import (
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
 const stateSlotClickable = "clickable"
 
 func newContext(_ any) *core.Context {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	return core.New(nil, &activeTheme, locale.LanguageAuto)
 }
 
@@ -52,15 +52,13 @@ func resolvedScaleX(value buttonStyle) float32 {
 	return *value.root.Trans.ScaleX
 }
 
-// TestButtonStyledWrapperAddsChrome pins the provider-boundary styling path:
-// a caller adds instance chrome through Styled while Button remains behavior-only.
-func TestButtonStyledWrapperAddsChrome(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+func TestButtonInstanceStyleAddsBorder(t *testing.T) {
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 
 	defaultStyle := New("").Content(nil).staticStyle(ctx, style.State{})
 	fluentStyle := (New("").Content(nil)).Style(style.Style{}.
-		BorderColor(style.Solid(activeTheme.Palette.Border)).
+		BorderColor(style.Solid(activeTheme.Colors.Border)).
 		BorderWidth(1)).staticStyle(ctx, style.State{})
 	if defaultStyle.root.Paint == nil || defaultStyle.root.Paint.Border != nil {
 		t.Fatal("default button unexpectedly has external style border")
@@ -112,7 +110,7 @@ func TestButtonDisabled(t *testing.T) {
 func TestWidgetCascadesScopeBeforeInstance(t *testing.T) {
 	ctx := newContext(nil)
 	scope := style.Style{}.
-		PaddingX(12).
+		Padding(0, 12).
 		Background(style.RGB(0xaaaaaa)).
 		TextColor(style.RGB(0x123456))
 
@@ -120,22 +118,22 @@ func TestWidgetCascadesScopeBeforeInstance(t *testing.T) {
 	defer restore()
 	instanceBackground := color.NRGBA{R: 0x11, G: 0x22, B: 0x33, A: 0xff}
 	button := (New("Styled")).Style(style.Style{}.
-		PaddingX(20).
+		Padding(0, 20).
 		Background(solid(instanceBackground)).
 		On(style.Loading, style.Style{}.Opacity(0.25)))
 
 	resolved := button.staticStyle(ctx, style.State{Loading: true})
-	if inset := buttonInset(resolved.root); inset.Left != 20 || inset.Right != 20 {
-		t.Fatalf("instance padding = %+v, want horizontal 20", inset)
+	if padding := resolved.root.Box.Padding; padding == nil || padding.Left != 20 || padding.Right != 20 {
+		t.Fatalf("instance padding = %+v, want horizontal 20", padding)
 	}
 	if got := resolvedBackground(resolved); got != instanceBackground {
 		t.Fatalf("instance background = %#v, want %#v", got, instanceBackground)
 	}
-	foreground, _ := resolved.visual.ForegroundColor(resolved.content)
+	foreground := buttonForeground(resolved.content)
 	if foreground != (color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}) {
 		t.Fatalf("scoped foreground = %#v", foreground)
 	}
-	if opacity := buttonOpacity(resolved.root); opacity != 0.25 {
+	if opacity := *resolved.root.Paint.Opacity; opacity != 0.25 {
 		t.Fatalf("loading opacity = %v, want 0.25", opacity)
 	}
 }
@@ -151,27 +149,27 @@ func TestWidgetPartsOverrideContentAndIndicator(t *testing.T) {
 		Part(style.PartIndicator, style.Style{}.TextColor(solid(indicatorColor)))
 
 	label := (New("Label")).Style(declaration).staticStyle(ctx, style.State{})
-	labelForeground, _ := label.visual.ForegroundColor(label.content)
-	labelIndicator, _ := label.visual.ForegroundColor(label.indicatorPart)
+	labelForeground := buttonForeground(label.content)
+	labelIndicator := buttonForeground(label.indicatorPart)
 	if labelForeground != labelColor || label.content.Text == nil || label.content.Text.FontSize == nil || *label.content.Text.FontSize != 18 || labelIndicator != indicatorColor {
 		t.Fatalf("label button parts = fg %#v size %v indicator %#v", labelForeground, label.content.Text, labelIndicator)
 	}
 	icon := (New("Icon").IconOnly()).Style(declaration).staticStyle(ctx, style.State{})
-	iconForeground, _ := icon.visual.ForegroundColor(icon.content)
+	iconForeground := buttonForeground(icon.content)
 	if iconForeground != iconColor {
 		t.Fatalf("icon part = %#v, want %#v", iconForeground, iconColor)
 	}
 }
 
 func TestLoadingUsesResolvedIndicatorColor(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	indicatorColor := color.NRGBA{R: 0xee, G: 0x11, B: 0x77, A: 0xff}
 	behavior := New("Loading").Loading(true)
 	b := (behavior).Style(style.Style{}.Part(style.PartIndicator, style.Style{}.TextColor(solid(indicatorColor))))
 
 	resolved := b.staticStyle(ctx, style.State{Loading: true})
-	gotIndicator, _ := resolved.visual.ForegroundColor(resolved.indicatorPart)
+	gotIndicator := buttonForeground(resolved.indicatorPart)
 	if gotIndicator != indicatorColor {
 		t.Fatalf("resolved indicator = %#v, want %#v", gotIndicator, indicatorColor)
 	}
@@ -206,21 +204,6 @@ func TestLoadingUsesResolvedIndicatorColor(t *testing.T) {
 		}
 	}
 	t.Fatalf("loading indicator did not render resolved color %#v", indicatorColor)
-}
-
-func TestRippleUsesResolvedBackgroundColor(t *testing.T) {
-	ctx := newContext(nil)
-	waveColorValue := color.NRGBA{R: 0x12, G: 0x9a, B: 0x70, A: 0xff}
-	b := (New("Ripple")).Style(style.Style{}.Background(solid(waveColorValue)))
-
-	resolved := b.staticStyle(ctx, style.State{})
-	if resolved.visual.RippleColor == nil {
-		t.Fatal("button provider returned no ripple color resolver")
-	}
-	got, ok := resolved.visual.RippleColor(resolved.root)
-	if !ok || got != waveColorValue {
-		t.Fatalf("ripple color = %#v, enabled %v; want %#v", got, ok, waveColorValue)
-	}
 }
 
 func TestWidgetCanOverrideHeight(t *testing.T) {
@@ -284,23 +267,50 @@ func TestButtonTextAndCustomContentKeepAccessibleLabel(t *testing.T) {
 	}
 }
 
-func TestButtonFullWidth(t *testing.T) {
-	dims := New("Save").FullWidth().Layout(newContext(nil), testLayoutContext())
+func TestButtonFillWidth(t *testing.T) {
+	dims := New("Save").FillWidth().Layout(newContext(nil), testLayoutContext())
 
 	if dims.Size.X != 300 {
 		t.Fatalf("button width = %d, want 300", dims.Size.X)
 	}
 }
 
-func TestButtonFullWidthIconOnly(t *testing.T) {
-	dims := New("S").FullWidth().IconOnly().Layout(newContext(nil), testLayoutContext())
+func TestButtonWidth(t *testing.T) {
+	gtx := testLayoutContext()
+	for _, test := range []struct {
+		name  string
+		value Widget
+		want  int
+	}{
+		{name: "fixed", value: New("Save").Width(120), want: 120},
+		{name: "fixed overrides fill", value: New("Save").FillWidth().Width(120), want: 120},
+		{name: "viewport clamps fixed width", value: New("Save").Width(400), want: gtx.Constraints.Max.X},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dims := test.value.Layout(newContext(nil), gtx)
+			if dims.Size.X != test.want {
+				t.Fatalf("button width = %d, want %d", dims.Size.X, test.want)
+			}
+		})
+	}
+}
+
+func TestButtonPrimarySelectsPrimaryVariant(t *testing.T) {
+	button := New("Continue").Primary()
+	if !button.variantSet || button.variant != Primary {
+		t.Fatalf("primary button variant = %v, set %v", button.variant, button.variantSet)
+	}
+}
+
+func TestButtonFillWidthIconOnly(t *testing.T) {
+	dims := New("S").FillWidth().IconOnly().Layout(newContext(nil), testLayoutContext())
 
 	if dims.Size.X != 300 {
 		t.Fatalf("button width = %d, want 300", dims.Size.X)
 	}
 }
 
-func TestLoadingKeepsIntrinsicWidth(t *testing.T) {
+func TestLoadingAccommodatesSpinner(t *testing.T) {
 	for _, scale := range []float32{1, 1.25, 1.5, 2} {
 		for _, size := range []Size{Small, Medium, Large} {
 			normalGtx := testLayoutContext()
@@ -314,8 +324,8 @@ func TestLoadingKeepsIntrinsicWidth(t *testing.T) {
 				Size(size).
 				Loading(true).
 				Layout(newContext(nil), loadingGtx)
-			if loading.Size != normal.Size {
-				t.Fatalf("scale %.2f size %d loading dimensions = %v, want %v", scale, size, loading.Size, normal.Size)
+			if loading.Size.X <= 0 || loading.Size.Y != normal.Size.Y {
+				t.Fatalf("scale %.2f size %d loading dimensions = %v, want nonzero width and same height as %v", scale, size, loading.Size, normal.Size)
 			}
 		}
 	}
@@ -389,17 +399,17 @@ func TestLoadingBlocksClick(t *testing.T) {
 func TestButtonScaleTransitionUsesPressAndReleaseDurations(t *testing.T) {
 	start := time.Unix(1, 0)
 	gtx := testLayoutContext()
-	theme := *testtheme.Behavior()
+	theme := theme.Light()
 	ctx := core.New(nil, &theme, locale.LanguageAuto)
-	button := New("Scale")
-	visual := button.declarationsForOverride(&theme, nil, nil).visual
-	pressedVisual := visual.Size.Resolve(style.State{Pressed: true})
+	button := New("Scale").Style(style.New().On(style.Pressed, style.New().Scale(.97)))
+	visual := button.declarations(&theme, nil)
+	pressedVisual := button.style.Resolve(style.State{Pressed: true})
 	if pressedVisual.Trans == nil || pressedVisual.Trans.ScaleX == nil {
-		t.Fatal("provider size layer has no pressed scale")
+		t.Fatal("visual size layer has no pressed scale")
 	}
 	target := *pressedVisual.Trans.ScaleX
-	pressDuration := ruleTweenDuration(t, visual.Size, style.PropTransform)
-	releaseDuration := transitionDuration(t, visual.Defaults, style.PropTransform)
+	pressDuration := transitionDuration(t, visual.defaults, style.PropTransform)
+	releaseDuration := transitionDuration(t, visual.defaults, style.PropTransform)
 
 	gtx.Now = start
 	button.resolveStyle(ctx, gtx, "scale", style.State{})
@@ -429,8 +439,8 @@ func TestButtonBackgroundTransition(t *testing.T) {
 		Background(solid(from)).
 		On(style.Hovered, style.Style{}.Background(solid(to))))
 	ctx := newContext(nil)
-	activeTheme := *testtheme.Behavior()
-	span := transitionDuration(t, New("").Content(nil).declarationsForOverride(&activeTheme, nil, nil).visual.Defaults, style.PropBackgroundColor)
+	activeTheme := theme.Light()
+	span := transitionDuration(t, New("").Content(nil).declarations(&activeTheme, nil).defaults, style.PropBackgroundColor)
 
 	gtx := testLayoutContext()
 	gtx.Now = start
@@ -452,6 +462,25 @@ func TestButtonBackgroundTransition(t *testing.T) {
 	gtx.Now = start.Add(span)
 	if got := resolvedBackground(button.resolveStyle(ctx, gtx, "transition", style.State{Hovered: true})); got != to {
 		t.Fatalf("transition end = %v, want %v", got, to)
+	}
+}
+
+func TestButtonMeasurementPreservesEnabledAppearance(t *testing.T) {
+	ctx := newContext(nil)
+	gtx := testLayoutContext()
+	gtx.Now = time.Unix(1, 0)
+	value := New("Save").Key("measured-button")
+	want := resolvedBackground(value.staticStyle(ctx, style.State{}))
+	for range 3 {
+		measured := core.MeasureWidget(ctx, gtx, value)
+		dims, resolved := value.layoutState(ctx, gtx, core.FullKey(ctx, value.key), style.State{}, nil)
+		if measured != dims {
+			t.Fatalf("measured dimensions = %v, rendered = %v", measured, dims)
+		}
+		if got := resolvedBackground(resolved); got != want {
+			t.Fatalf("measurement changed enabled background to %v, want %v", got, want)
+		}
+		gtx.Now = gtx.Now.Add(time.Second)
 	}
 }
 
@@ -523,7 +552,7 @@ func TestLoadingButtonRespectsDisabledMotion(t *testing.T) {
 		Ops:         &ops,
 		Now:         time.Unix(1, 0),
 	}
-	themeValue := *testtheme.Behavior()
+	themeValue := theme.Light()
 	themeValue.Motion.Enabled = false
 	ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 
@@ -601,17 +630,6 @@ func transitionDuration(t *testing.T, declaration style.Style, property style.Pr
 	return 0
 }
 
-func ruleTweenDuration(t *testing.T, declaration style.Style, property style.PropertyID) time.Duration {
-	t.Helper()
-	for _, rule := range declaration.RuleTable() {
-		if rule.Tween != nil && rule.Tween.Property == property {
-			return rule.Tween.Duration
-		}
-	}
-	t.Fatalf("missing %v rule tween", property)
-	return 0
-}
-
 func layoutButtonFrame(ctx *core.Context, router *input.Router) {
 	var ops op.Ops
 	gtx := layout.Context{
@@ -642,18 +660,18 @@ func TestBooleanAndStaticConfigMethods(t *testing.T) {
 	button := New("Save").
 		Disabled(true).
 		Disabled(false).
-		FullWidth().
+		FillWidth().
 		IconOnly()
 
 	if button.disabled {
 		t.Fatal("Disabled(false) should clear the disabled state")
 	}
 	if !button.fullWidth || !button.iconOnly {
-		t.Fatal("FullWidth and IconOnly should enable their respective flags")
+		t.Fatal("FillWidth and IconOnly should enable their respective flags")
 	}
 }
 
-func TestButtonStyleComposesAtProviderBoundary(t *testing.T) {
+func TestButtonStyleComposesAtVisualBoundary(t *testing.T) {
 	value := New("Save").Style(style.New().Width(120))
 	// The declaration lives on the widget, so later chain calls keep it.
 	value = value.OnClick(func() {}).Disabled(false)

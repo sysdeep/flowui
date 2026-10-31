@@ -12,7 +12,8 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/uitest"
 )
 
@@ -23,7 +24,7 @@ import (
 // tooltip, restored the layout, and repeated. The hover below must therefore
 // keep both the chart size and the tooltip steady.
 func TestLineChartTooltipKeepsScrollItemStable(t *testing.T) {
-	activeTheme := base.Light()
+	activeTheme := theme.Light()
 	h := uitest.NewWithConfig(uitest.Config{Size: image.Pt(640, 420), Theme: &activeTheme})
 	chart := New("chart", []Series{
 		Values("visits", "Visits", []float64{28, 42, 36, 58, 64, 52, 78}),

@@ -5,19 +5,17 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/menu"
 )
 
 const stateSlotInputGroup = "input-group"
 
 // GroupWidget combines an Input or TextArea with optional prefix and suffix content
-// inside one field shell. The look comes from the active theme.
+// inside one field shell with the built-in appearance.
 type GroupWidget struct {
-	override           *theme.InputOverride
+	style              style.Style
 	input              Widget
 	textArea           TextAreaWidget
 	multiline          bool
@@ -30,6 +28,7 @@ type GroupWidget struct {
 	disabled           bool
 	invalid            bool
 	fullWidth          bool
+	width              *unit.Dp
 }
 
 func Group(input Widget) GroupWidget {
@@ -39,6 +38,7 @@ func Group(input Widget) GroupWidget {
 		disabled:  input.disabled,
 		invalid:   input.invalid,
 		fullWidth: input.fullWidth,
+		width:     input.width,
 	}
 }
 
@@ -50,6 +50,7 @@ func GroupTextArea(textArea TextAreaWidget) GroupWidget {
 		disabled:  textArea.disabled,
 		invalid:   textArea.invalid,
 		fullWidth: textArea.fullWidth,
+		width:     textArea.width,
 	}
 }
 
@@ -66,8 +67,8 @@ func (g GroupWidget) Suffix(suffix core.Widget) GroupWidget {
 }
 
 // PrefixAction adds a compact interactive control before the editor. The
-// active InputAction provider supplies its slot padding; use StyledGroup with
-// a PartPrefix declaration when an instance needs a different visual inset.
+// default appearance supplies its slot padding; use Style with a PartPrefix
+// declaration to change the inset for this group.
 func (g GroupWidget) PrefixAction(action core.Widget) GroupWidget {
 	g.prefix = action
 	g.prefixAction = true
@@ -75,8 +76,8 @@ func (g GroupWidget) PrefixAction(action core.Widget) GroupWidget {
 }
 
 // SuffixAction adds a compact interactive control after the editor. The
-// active InputAction provider supplies its slot padding; use StyledGroup with
-// a PartSuffix declaration when an instance needs a different visual inset.
+// default appearance supplies its slot padding; use Style with a PartSuffix
+// declaration to change the inset for this group.
 func (g GroupWidget) SuffixAction(action core.Widget) GroupWidget {
 	g.suffix = action
 	g.suffixAction = true
@@ -105,17 +106,20 @@ func (g GroupWidget) Invalid(invalid bool) GroupWidget {
 	return g
 }
 
-func (g GroupWidget) FullWidth() GroupWidget {
+func (g GroupWidget) FillWidth() GroupWidget {
 	g.fullWidth = true
 	return g
 }
 
-func (g GroupWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return g.layoutWithOverride(ctx, gtx, g.override)
+// Width sets a fixed width in dp. It overrides FillWidth when both are set.
+func (g GroupWidget) Width(dp int) GroupWidget {
+	width := unit.Dp(max(dp, 0))
+	g.width = &width
+	return g
 }
 
-func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instanceOverride *theme.InputOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+func (g GroupWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	applyFixedWidth(&gtx, g.width)
 	var key string
 	var editor *widget.Editor
 	var enabled bool
@@ -135,7 +139,6 @@ func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, i
 		customMenu, hasCustomMenu = g.textArea.contextMenu, g.textArea.hasContextMenu
 		menuDisabled = !g.textArea.hasContextMenu && g.textArea.defaultContextMenuDisabled
 	} else {
-		// Create temporary input state for disclosure
 		fullKey := core.FullKey(ctx, g.input.key)
 		inputState := inputStateFor(ctx, fullKey)
 		inputState.bind(g.input)
@@ -153,7 +156,7 @@ func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, i
 	if !g.focusOnActionPress && (g.prefixAction || g.suffixAction) {
 		shouldFocus = state.shouldFocusPress
 	}
-	state.State.UpdateWithFocus(ctx, gtx, disabled, editor, shouldFocus)
+	state.FieldInteraction.UpdateWithFocus(ctx, gtx, disabled, editor, shouldFocus)
 
 	focused := gtx.Focused(editor)
 	focusVisible := core.FocusVisible(ctx, editor, focused)
@@ -162,34 +165,34 @@ func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, i
 		Disabled: disabled, ReadOnly: editor.ReadOnly, Invalid: g.invalid,
 	}
 	activeTheme := core.ActiveTheme(ctx)
-	var actionVisual theme.InputActionVisual
+	var actionDefaults groupActionDefaults
 	if g.prefixAction || g.suffixAction {
-		actionVisual = inputGroupActionVisualCached(ctx, key, theme.InputActionRequest{})
+		actionDefaults = groupActionDefaultsFor(ctx, key)
 	}
-	visual := state.visualDeclarations(g, activeTheme, 0, instanceOverride)
-	resolved := resolveInputGroupStyle(ctx, gtx, key, styleState, visual.Defaults, visual.Override)
-	editorStyle := visual.EditorStyle(resolved.content, resolved.placeholder, resolved.selection)
+	defaults := state.defaults(g, activeTheme, 0)
+	resolved := resolveInputGroupStyle(ctx, gtx, key, styleState, defaults, g.style)
+	_, lineHeight := textMetrics(resolved.content)
 	if g.multiline {
-		minHeight := inputGroupTextAreaHeight(gtx, resolved.content, editorStyle.LineHeight, g.textArea.resolvedRows())
+		minHeight := inputGroupTextAreaHeight(gtx, resolved.content, lineHeight, g.textArea.resolvedRows())
 		if minHeight > 0 {
-			visual = state.visualDeclarations(g, activeTheme, minHeight, instanceOverride)
-			resolved = resolveInputGroupStyle(ctx, gtx, key, styleState, visual.Defaults, visual.Override)
-			editorStyle = visual.EditorStyle(resolved.content, resolved.placeholder, resolved.selection)
+			defaults = state.defaults(g, activeTheme, minHeight)
+			resolved = resolveInputGroupStyle(ctx, gtx, key, styleState, defaults, g.style)
+			_, lineHeight = textMetrics(resolved.content)
 		}
 	}
-	resolved.editor = editorStyle
+	resolved.lineHeight = lineHeight
 	var editorLayout layout.Widget
 	if g.multiline {
-		editorLayout = g.textArea.editorLayoutWithStyle(ctx, key, enabled, editor, editorStyle)
+		editorLayout = g.textArea.editorLayoutWithStyle(ctx, key, enabled, editor, activeTheme, resolved.content, resolved.placeholder, resolved.selection)
 	} else {
-		editorLayout = g.input.editorLayoutWithStyle(ctx, key, enabled, editor, editorStyle)
+		editorLayout = g.input.editorLayoutWithStyle(ctx, key, enabled, editor, activeTheme, resolved.content, resolved.placeholder, resolved.selection)
 	}
 	if g.focusOnActionPress {
 		g.prefix = inputGroupActionWithFocus(g.prefix, editor)
 		g.suffix = inputGroupActionWithFocus(g.suffix, editor)
 	}
 	frame := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return g.layoutFrame(ctx, gtx, state, resolved, enabled, editorLayout, actionVisual)
+		return g.layoutFrame(ctx, gtx, state, resolved, enabled, editorLayout, actionDefaults)
 	})
 	if !enabled || menuDisabled {
 		return frame(ctx, gtx)
@@ -198,54 +201,10 @@ func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, i
 	return EditContextMenu(ctx, gtx, key, frame, editor, snapshot, customMenu, hasCustomMenu, queueEdit)
 }
 
-var inputGroupStyleParts = [...]style.Part{
-	style.PartRoot,
-	style.PartContent,
-	style.PartPrefix,
-	style.PartSuffix,
-	style.PartIndicator,
-	style.PartPlaceholder,
-	style.PartSelection,
-}
-
-func resolveInputGroupStyle(ctx *core.Context, gtx layout.Context, key string, state style.State, defaults, custom style.Style) inputGroupResolvedStyle {
-	var resolved [len(inputGroupStyleParts)]style.ResolvedStyle
-	computed.ResolvePartsInto(ctx, gtx, key, state, inputGroupStyleParts[:], resolved[:], defaults, style.Style{}, style.Style{}, custom)
-	return inputGroupResolvedStyle{
-		root:        resolved[0],
-		content:     resolved[1],
-		prefix:      resolved[2],
-		suffix:      resolved[3],
-		divider:     resolved[4],
-		placeholder: resolved[5],
-		selection:   resolved[6],
-	}
-}
-
-func inputGroupTextAreaHeight(gtx layout.Context, resolved style.ResolvedStyle, lineHeight unit.Sp, rows int) unit.Dp {
-	if rows <= 0 || lineHeight <= 0 {
-		return 0
-	}
-	height := gtx.Sp(lineHeight) * rows
-	if resolved.Box != nil {
-		if resolved.Box.Padding != nil {
-			padding := resolved.Box.Padding
-			height += gtx.Dp(padding.Top + padding.Bottom)
-		}
-		if resolved.Box.MinHeight != nil {
-			height = max(height, gtx.Dp(*resolved.Box.MinHeight))
-		}
-	}
-	return gtx.Metric.PxToDp(height)
-}
-
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w GroupWidget) Style(values ...style.Style) GroupWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.InputOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (g GroupWidget) Style(values ...style.Style) GroupWidget {
+	g.style = style.Join(g.style, style.Join(values...))
+	return g
 }

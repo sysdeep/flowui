@@ -9,11 +9,10 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
-func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, visual theme.BarChartVisual) {
+func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, visual barChartDefaults) {
 	if geometry.plot.Empty() {
 		return
 	}
@@ -40,7 +39,7 @@ func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry ch
 	}
 }
 
-func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, visual theme.BarChartVisual) {
+func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, visual barChartDefaults) {
 	if geometry.plot.Empty() {
 		return
 	}

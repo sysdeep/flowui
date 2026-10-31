@@ -16,7 +16,6 @@ import (
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
@@ -204,15 +203,8 @@ func TestGanttBaselineAndMarkerConfiguration(t *testing.T) {
 	}
 }
 
-func ganttVisual() theme.GanttVisual {
-	active := testtheme.Behavior()
-	provider, err := theme.ComponentProvider(active)
-	if err != nil {
-		panic(err)
-	}
-	visual := provider.Gantt(active, theme.GanttRequest{})
-	theme.ValidateGanttVisual(visual)
-	return visual
+func ganttVisual() ganttDefaults {
+	return buildGantt(new(theme.Light()))
 }
 
 func TestGanttRejectsInvalidConfiguration(t *testing.T) {
@@ -477,7 +469,7 @@ func TestGanttDependencyRoutePointsArrowTowardOverlappingTarget(t *testing.T) {
 }
 
 func TestGanttDoubleClickResetsWindowWithoutTaskClickCallback(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	requested := false
 	widget := New("chart", []Task{NewTask("task", "Task", ganttDate(1), ganttDate(8))}).
@@ -502,7 +494,7 @@ func TestGanttVirtualizesRowsAndScrollsVisibleWindow(t *testing.T) {
 		start := ganttDate(1).AddDate(0, 0, index)
 		tasks[index] = NewTask(fmt.Sprintf("task-%d", index), fmt.Sprintf("Task %d", index), start, start.Add(12*time.Hour))
 	}
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	widget := New("chart", tasks).Animation(false)
 	layoutGanttFrame(ctx, router, widget, time.Unix(3, 0))
@@ -550,7 +542,7 @@ func TestGanttTimeWindowWheelKeepsPriorityOverRowScroll(t *testing.T) {
 		tasks[index] = NewTask(fmt.Sprintf("task-%d", index), fmt.Sprintf("Task %d", index), start, start.Add(12*time.Hour))
 	}
 	windowChanges := 0
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	widget := New("chart", tasks).Animation(false).OnTimeWindowChange(func(time.Time, time.Time) { windowChanges++ })
 	layoutGanttFrame(ctx, router, widget, time.Unix(4, 0))

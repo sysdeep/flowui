@@ -10,7 +10,7 @@ import (
 )
 
 var customButtonStyle = style.New().Height(46).
-	PaddingX(22).
+	Padding(0, 22).
 	Radius(3).
 	Background(style.RGB(0x171717)).
 	TextColor(style.RGB(0xf4ff80)).

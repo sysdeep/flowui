@@ -10,7 +10,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
 )
 
@@ -23,7 +23,7 @@ type alertDialogBenchmarkFrame struct {
 }
 
 func newAlertDialogBenchmarkFrame(maximum image.Point) *alertDialogBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &alertDialogBenchmarkFrame{
 		ctx:   core.New(nil, active, locale.LanguageEnglish),
 		value: New("Delete project?", "This action cannot be undone. Review the project details before continuing.").Key("delete-project").Open(true).Footer(button.New("Delete")),
@@ -48,7 +48,7 @@ func (frame *alertDialogBenchmarkFrame) layout() {
 }
 
 func (frame *alertDialogBenchmarkFrame) cacheStats() (hits, misses, themeInvalidations, keyInvalidations uint64) {
-	stats := frame.value.visualCache.stats()
+	stats := frame.value.visualCache.Stats()
 	return stats.Hits, stats.Misses, stats.ThemeInvalidations, stats.KeyInvalidations
 }
 
@@ -87,8 +87,8 @@ func BenchmarkAlertDialogVisualCacheMiss(b *testing.B) {
 	frame := newAlertDialogBenchmarkFrame(image.Pt(480, 360))
 	frame.layout()
 	baselineHits, baselineMisses, baselineThemeInvalidations, baselineKeyInvalidations := frame.cacheStats()
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()

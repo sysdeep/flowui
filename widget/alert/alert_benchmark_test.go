@@ -11,7 +11,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
 )
@@ -25,7 +25,7 @@ type alertBenchmarkFrame struct {
 }
 
 func newAlertBenchmarkFrame(maximum image.Point) *alertBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &alertBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -80,7 +80,7 @@ func (frame *alertBenchmarkFrame) layoutTree() layout.Dimensions {
 
 func (frame *alertBenchmarkFrame) cacheStats() (hits, misses, themeInvalidations, keyInvalidations uint64) {
 	for index := range frame.values {
-		stats := frame.values[index].visualCache.stats()
+		stats := frame.values[index].visualCache.Stats()
 		hits += stats.Hits
 		misses += stats.Misses
 		themeInvalidations += stats.ThemeInvalidations
@@ -147,8 +147,8 @@ func BenchmarkAlertComponentTreeVisualCacheMiss(b *testing.B) {
 	frame := newAlertComponentTreeFrame(64)
 	frame.layoutTree()
 	baselineHits, baselineMisses, baselineThemeInvalidations, baselineKeyInvalidations := frame.cacheStats()
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()

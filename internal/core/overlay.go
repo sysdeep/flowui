@@ -3,7 +3,9 @@ package core
 import (
 	"fmt"
 	"image"
+	"maps"
 	"math"
+	"slices"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
@@ -307,6 +309,8 @@ func LayoutOverlays(ctx *Context, gtx layout.Context) {
 	hasTop := false
 	hasVisible := false
 	var topRequest *overlayRequest
+	var topAutoCounts map[string]int
+	var topAutoTokens map[autoTokenScope]string
 	eventOwnerPresent := false
 	for {
 		request := host.nextResolvable(viewport)
@@ -318,6 +322,12 @@ func LayoutOverlays(ctx *Context, gtx layout.Context) {
 		if interactive {
 			eventOwnerPresent = true
 		}
+		var autoCounts map[string]int
+		var autoTokens map[autoTokenScope]string
+		if !request.Passive && !interactive && (!host.hasEventTop || !eventOwnerPresent) {
+			autoCounts = maps.Clone(ctx.keys.autoCounts)
+			autoTokens = maps.Clone(ctx.keys.autoTokens)
+		}
 		host.layoutRequest(ctx, rootGtx, request, interactive)
 		if !request.dismissed {
 			hasVisible = true
@@ -325,6 +335,7 @@ func LayoutOverlays(ctx *Context, gtx layout.Context) {
 		if !request.Passive && !request.dismissed {
 			top = request.identity
 			topRequest = request
+			topAutoCounts, topAutoTokens = autoCounts, autoTokens
 			hasTop = true
 		}
 	}
@@ -337,9 +348,13 @@ func LayoutOverlays(ctx *Context, gtx layout.Context) {
 		policyGtx := rootGtx
 		policyGtx.Ops = new(op.Ops)
 		host.policyPass = true
+		// Reconstructing children must resolve the same positions as paint did.
+		paintCounts, paintTokens := ctx.keys.autoCounts, ctx.keys.autoTokens
+		ctx.keys.autoCounts, ctx.keys.autoTokens = topAutoCounts, topAutoTokens
 		ctx.keys.SetAllowReuse(true)
 		func() {
 			defer func() {
+				ctx.keys.autoCounts, ctx.keys.autoTokens = paintCounts, paintTokens
 				ctx.keys.SetAllowReuse(false)
 				host.policyPass = false
 			}()
@@ -561,8 +576,8 @@ func resolveOverlayTransform(host *overlayHost, index int) (f32.Affine2D, []imag
 	transform := f32.AffineId()
 	opacity := float32(1)
 	clips := make([]image.Rectangle, 0, 2)
-	for i := len(chain) - 1; i >= 0; i-- {
-		node := host.transforms[chain[i]]
+	for _, c := range slices.Backward(chain) {
+		node := host.transforms[c]
 		if node.hasClip {
 			clips = append(clips, transformRectangle(transform, node.clip))
 		}

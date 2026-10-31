@@ -12,7 +12,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -24,12 +23,7 @@ type avatarStyle struct {
 }
 
 func avatarStyleFor(activeTheme *theme.Theme, c Color, v Variant, s Size) avatarStyle {
-	provider, err := theme.ComponentProvider(activeTheme)
-	if err != nil {
-		panic(err)
-	}
-	visual := provider.Avatar(activeTheme, theme.AvatarRequest{Color: c, Variant: v, Size: s})
-	theme.ValidateAvatarVisual(visual)
+	visual := buildAvatarVisual(activeTheme, c, v, s)
 	variant := style.Cascade(style.State{}, visual.Variant)
 	size := style.Cascade(style.State{}, visual.Size)
 	result := avatarStyle{}
@@ -52,7 +46,7 @@ func avatarStyleFor(activeTheme *theme.Theme, c Color, v Variant, s Size) avatar
 	if size.Text != nil && size.Text.FontSize != nil {
 		result.textSize = *size.Text.FontSize
 	}
-	part := style.CascadePart(style.State{}, style.PartIcon, visual.Defaults, visual.Variant, visual.Size, visual.Override)
+	part := style.CascadePart(style.State{}, style.PartIcon, visual.Defaults, visual.Variant, visual.Size)
 	if part.Box != nil && part.Box.Width != nil {
 		result.iconSize = *part.Box.Width
 	}
@@ -63,20 +57,6 @@ type avatarProbe struct {
 	layouts    int
 	foreground color.NRGBA
 	background color.NRGBA
-}
-
-type avatarIconRendererProvider struct {
-	theme.ComponentVisualProvider
-	calls *int
-}
-
-func (p avatarIconRendererProvider) Avatar(active *theme.Theme, request theme.AvatarRequest) theme.AvatarVisual {
-	visual := p.ComponentVisualProvider.Avatar(active, request)
-	visual.IconRenderer = func(gtx layout.Context, _ color.NRGBA) layout.Dimensions {
-		(*p.calls)++
-		return layout.Dimensions{Size: gtx.Constraints.Min}
-	}
-	return visual
 }
 
 func (p *avatarProbe) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -105,30 +85,12 @@ func TestAvatarSizesStaySquare(t *testing.T) {
 
 func TestAvatarCustomFallbackReceivesSemanticColors(t *testing.T) {
 	probe := new(avatarProbe)
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	New("").Fallback(probe).Color(ColorSuccess).Variant(VariantSoft).Layout(ctx, avatarLayoutContext(image.Pt(100, 100)))
 	style := avatarStyleFor(&activeTheme, ColorSuccess, VariantSoft, SizeMedium)
 	if probe.layouts != 1 || probe.foreground != style.foreground || probe.background != style.background {
 		t.Fatalf("fallback context = layouts %d foreground %v background %v", probe.layouts, probe.foreground, probe.background)
-	}
-}
-
-func TestAvatarDefaultFallbackUsesProviderIconRenderer(t *testing.T) {
-	calls := 0
-	active := testtheme.Behavior()
-	active.VisualProvider = avatarIconRendererProvider{
-		ComponentVisualProvider: testtheme.BehaviorProvider(),
-		calls:                   &calls,
-	}
-	ctx := core.New(nil, active, locale.LanguageEnglish)
-
-	dims := New("").Layout(ctx, avatarLayoutContext(image.Pt(40, 40)))
-	if dims.Size != image.Pt(40, 40) {
-		t.Fatalf("provider-rendered Avatar size = %v", dims.Size)
-	}
-	if calls != 1 {
-		t.Fatalf("provider icon renderer calls = %d, want 1", calls)
 	}
 }
 
@@ -153,16 +115,16 @@ func TestAvatarExposesAccessibleLabel(t *testing.T) {
 }
 
 func TestAvatarSoftColorsUseSemanticPalette(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	tests := []struct {
 		color Color
 		bg    color.NRGBA
 		fg    color.NRGBA
 	}{
-		{ColorAccent, activeTheme.Palette.AccentSoft, activeTheme.Palette.AccentSoftForeground},
-		{ColorSuccess, activeTheme.Palette.SuccessSoft, activeTheme.Palette.SuccessSoftForeground},
-		{ColorWarning, activeTheme.Palette.WarningSoft, activeTheme.Palette.WarningSoftForeground},
-		{ColorDanger, activeTheme.Palette.DangerSoft, activeTheme.Palette.DangerSoftForeground},
+		{ColorAccent, activeTheme.Colors.Tones[theme.TonePrimary].Soft, activeTheme.Colors.Tones[theme.TonePrimary].OnSoft},
+		{ColorSuccess, activeTheme.Colors.Tones[theme.ToneSuccess].Soft, activeTheme.Colors.Tones[theme.ToneSuccess].OnSoft},
+		{ColorWarning, activeTheme.Colors.Tones[theme.ToneWarning].Soft, activeTheme.Colors.Tones[theme.ToneWarning].OnSoft},
+		{ColorDanger, activeTheme.Colors.Tones[theme.ToneDanger].Soft, activeTheme.Colors.Tones[theme.ToneDanger].OnSoft},
 	}
 	for _, test := range tests {
 		style := avatarStyleFor(&activeTheme, test.color, VariantSoft, SizeMedium)
@@ -172,8 +134,33 @@ func TestAvatarSoftColorsUseSemanticPalette(t *testing.T) {
 	}
 }
 
+func TestAvatarStyleResolvesAsLastLayer(t *testing.T) {
+	probe := new(avatarProbe)
+	background := color.NRGBA{R: 0x11, G: 0x22, B: 0x33, A: 0xff}
+	foreground := color.NRGBA{R: 0xaa, G: 0xbb, B: 0xcc, A: 0xff}
+	New("").Fallback(probe).Color(ColorAccent).Style(
+		style.New().Background(style.Solid(background)).TextColor(style.Solid(foreground)),
+	).Layout(avatarTestContext(), avatarLayoutContext(image.Pt(100, 100)))
+	if probe.background != background || probe.foreground != foreground {
+		t.Fatalf("instance style = background %v foreground %v", probe.background, probe.foreground)
+	}
+}
+
+func TestAvatarStyleStaysOutsideDefaultsCache(t *testing.T) {
+	ctx := avatarTestContext()
+	value := New("AB").Style(style.New().Background(style.Solid(color.NRGBA{R: 1, A: 0xff})))
+	value.visualWithCache(ctx)
+	if stats := value.visualCache.Stats(); stats.Misses != 1 {
+		t.Fatalf("styled first resolve stats = %+v", stats)
+	}
+	value.visualWithCache(ctx)
+	if stats := value.visualCache.Stats(); stats.Hits != 1 || stats.Misses != 1 {
+		t.Fatalf("styled second resolve stats = %+v", stats)
+	}
+}
+
 func avatarTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func avatarLayoutContext(maximum image.Point) layout.Context {

@@ -11,7 +11,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type radioBenchmarkFrame struct {
@@ -22,7 +22,7 @@ type radioBenchmarkFrame struct {
 }
 
 func newRadioBenchmarkFrame(maximum image.Point) *radioBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &radioBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -81,14 +81,14 @@ func BenchmarkRadioGroupComponentTreeSteadyState(b *testing.B) {
 }
 
 func BenchmarkRadioGroupVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	var cache VisualCache
-	cache.Resolve(active, RadioPrimary)
+	active := new(theme.Light())
+	var cache radioDefaultsCache
+	resolveRadioDefaults(&cache, active, RadioPrimary)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = cache.Resolve(active, RadioPrimary)
+		_ = resolveRadioDefaults(&cache, active, RadioPrimary)
 	}
 	b.StopTimer()
 	stats := cache.Stats()
@@ -99,15 +99,15 @@ func BenchmarkRadioGroupVisualCacheHit(b *testing.B) {
 }
 
 func BenchmarkRadioGroupVisualCacheMiss(b *testing.B) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	b.ReportAllocs()
 	for index := 0; b.Loop(); index++ {
-		var cache VisualCache
+		var cache radioDefaultsCache
 		variant := RadioPrimary
 		if index&1 != 0 {
 			variant = RadioSecondary
 		}
-		_ = cache.Resolve(active, variant)
+		_ = resolveRadioDefaults(&cache, active, variant)
 	}
 	b.StopTimer()
 	b.ReportMetric(0, "radiogroup-visual-cache-hits/op")

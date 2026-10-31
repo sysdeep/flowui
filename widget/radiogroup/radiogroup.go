@@ -5,7 +5,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type RadioItem struct {
@@ -17,7 +16,6 @@ type RadioItem struct {
 }
 
 type Widget struct {
-	override           *theme.RadioGroupOverride
 	key                string
 	selectedKey        string
 	hasSelectedKey     bool
@@ -29,20 +27,14 @@ type Widget struct {
 	disabled           bool
 	invalid            bool
 	horizontal         bool
+	style              style.Style
 }
-
-type Variant = theme.RadioGroupVariant
-
-const (
-	RadioPrimary   = theme.RadioPrimary
-	RadioSecondary = theme.RadioSecondary
-)
 
 // New creates a radio group. It starts uncontrolled with nothing selected;
 // SelectedKey sets the controlled value and DefaultSelectedKey the initial one.
 func New(items []RadioItem) Widget {
 	return Widget{
-		key:   core.AutoKey(),
+		key:   core.AutoKey("radio-group"),
 		items: items,
 	}
 }
@@ -91,11 +83,10 @@ func (r Widget) Horizontal() Widget {
 }
 
 func (r Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return r.layoutWithOverride(ctx, gtx, r.override)
+	return r.layoutWithStyle(ctx, gtx)
 }
 
-func (r Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.RadioGroupOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+func (r Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	state := radioGroupStateFor(ctx, r.key)
 	state.beginFrame()
 	defer state.endFrame()
@@ -108,18 +99,18 @@ func (r Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	disabled := r.disabled || !gtx.Enabled()
 	if disabled {
 		gtx = gtx.Disabled()
-	} else if key, ok := state.updateKeys(gtx, r.items, selectedKey); ok {
+	}
+	state.updateKeys(ctx, gtx, r.items, selectedKey, func(key string) {
 		if key != selectedKey {
 			selectedKey = state.requestSelectedKey(r, key)
 		}
-		core.RequestFocus(ctx, &state.item(key).clickable)
-	}
+	})
 
-	visual := state.visual(ctx, r.variant, override)
+	defaults := state.defaults(ctx, r.variant)
 	children := make([]layout.Widget, 0, len(r.items))
 	for _, item := range r.items {
 		children = append(children, func(gtx layout.Context) layout.Dimensions {
-			return r.layoutItem(ctx, gtx, state, item, selectedKey, visual)
+			return r.layoutItem(ctx, gtx, state, item, selectedKey, defaults)
 		})
 	}
 
@@ -141,18 +132,15 @@ func (r Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		Selected:     r.selectedKey != "",
 		Checked:      r.selectedKey != "",
 		Invalid:      r.invalid,
-	}, visual.Override, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return layoutui.Items(ctx, gtx, r.horizontal, gtx.Dp(visual.Metrics.HorizontalGap), gtx.Dp(visual.Metrics.VerticalGap), children)
+	}, r.style, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return layoutui.Items(ctx, gtx, r.horizontal, gtx.Dp(defaults.Metrics.HorizontalGap), gtx.Dp(defaults.Metrics.VerticalGap), children)
 	}))
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.RadioGroupOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the built-in radio appearance. The
+// declaration is resolved as the last cascade layer at layout time, so Style
+// can sit anywhere in the chain.
+func (r Widget) Style(values ...style.Style) Widget {
+	r.style = style.Join(r.style, style.Join(values...))
+	return r
 }

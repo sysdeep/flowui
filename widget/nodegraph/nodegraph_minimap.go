@@ -6,7 +6,6 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/layout"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type minimapGeometry struct {
@@ -17,14 +16,14 @@ type minimapGeometry struct {
 }
 
 // nodeGraphMinimapScratch owns frame-local request buffers for one widget.
-// Provider renderers consume these slices synchronously during the call.
+// Drawing consumes these slices synchronously during the call.
 type nodeGraphMinimapScratch struct {
-	nodes      []theme.NodeGraphMinimapNode
-	edges      []theme.NodeGraphMinimapEdge
+	nodes      []nodeGraphMinimapNode
+	edges      []nodeGraphMinimapEdge
 	edgePoints [][]f32.Point
 }
 
-func resolveMinimapGeometry(graph resolvedGraph, size image.Point, metrics theme.NodeGraphMetrics, pixelsPerDP float32) (minimapGeometry, bool) {
+func resolveMinimapGeometry(graph resolvedGraph, size image.Point, metrics nodeGraphMetrics, pixelsPerDP float32) (minimapGeometry, bool) {
 	if len(graph.nodes) == 0 {
 		return minimapGeometry{}, false
 	}
@@ -51,7 +50,7 @@ func (m minimapGeometry) worldPoint(position f32.Point) Point {
 	return Point{X: m.bounds.min.X + (position.X-float32(m.inner.Min.X))/m.scale, Y: m.bounds.min.Y + (position.Y-float32(m.inner.Min.Y))/m.scale}
 }
 
-func minimapWorldAt(graph resolvedGraph, position f32.Point, size image.Point, metrics theme.NodeGraphMetrics, pixelsPerDP float32) (Point, bool) {
+func minimapWorldAt(graph resolvedGraph, position f32.Point, size image.Point, metrics nodeGraphMetrics, pixelsPerDP float32) (Point, bool) {
 	geometry, ok := resolveMinimapGeometry(graph, size, metrics, pixelsPerDP)
 	if !ok || !position.Round().In(geometry.inner) {
 		return Point{}, false
@@ -59,7 +58,7 @@ func minimapWorldAt(graph resolvedGraph, position f32.Point, size image.Point, m
 	return geometry.worldPoint(position), true
 }
 
-func minimapViewportScreen(graph resolvedGraph, viewport Viewport, size image.Point, metrics theme.NodeGraphMetrics, pixelsPerDP float32) image.Rectangle {
+func minimapViewportScreen(graph resolvedGraph, viewport Viewport, size image.Point, metrics nodeGraphMetrics, pixelsPerDP float32) image.Rectangle {
 	geometry, ok := resolveMinimapGeometry(graph, size, metrics, pixelsPerDP)
 	if !ok {
 		return image.Rectangle{}
@@ -71,7 +70,7 @@ func minimapViewportScreen(graph resolvedGraph, viewport Viewport, size image.Po
 	return image.Rect(int(math.Round(float64(first.X))), int(math.Round(float64(first.Y))), int(math.Round(float64(last.X))), int(math.Round(float64(last.Y))))
 }
 
-func drawNodeMinimap(gtx layout.Context, graph resolvedGraph, viewport Viewport, selected map[string]bool, visual theme.NodeGraphVisual, enabled bool, scratch *nodeGraphMinimapScratch) {
+func drawNodeMinimap(gtx layout.Context, graph resolvedGraph, viewport Viewport, selected map[string]bool, visual nodeGraphDefaults, enabled bool, scratch *nodeGraphMinimapScratch) {
 	if !enabled || len(graph.nodes) == 0 {
 		return
 	}
@@ -79,13 +78,13 @@ func drawNodeMinimap(gtx layout.Context, graph resolvedGraph, viewport Viewport,
 		scratch = &nodeGraphMinimapScratch{}
 	}
 	canvas := gtx.Constraints.Max
-	geometry, ok := resolveMinimapGeometry(graph, canvas, visual.Metrics, graphPixelsPerDP(gtx))
+	geometry, ok := resolveMinimapGeometry(graph, canvas, visual.metrics, graphPixelsPerDP(gtx))
 	if !ok {
 		return
 	}
 	rect := geometry.rect
 	if cap(scratch.nodes) < len(graph.nodes) {
-		scratch.nodes = make([]theme.NodeGraphMinimapNode, 0, len(graph.nodes))
+		scratch.nodes = make([]nodeGraphMinimapNode, 0, len(graph.nodes))
 	}
 	nodes := scratch.nodes[:0]
 	for _, node := range graph.nodes {
@@ -95,10 +94,10 @@ func drawNodeMinimap(gtx layout.Context, graph resolvedGraph, viewport Viewport,
 		if nodeRect.Empty() {
 			nodeRect.Max = nodeRect.Min.Add(image.Pt(2, 2))
 		}
-		nodes = append(nodes, theme.NodeGraphMinimapNode{Rect: nodeRect, Selected: selected[node.node.ID]})
+		nodes = append(nodes, nodeGraphMinimapNode{Rect: nodeRect, Selected: selected[node.node.ID]})
 	}
 	if cap(scratch.edges) < len(graph.edges) {
-		scratch.edges = make([]theme.NodeGraphMinimapEdge, 0, len(graph.edges))
+		scratch.edges = make([]nodeGraphMinimapEdge, 0, len(graph.edges))
 	}
 	if cap(scratch.edgePoints) < len(graph.edges) {
 		scratch.edgePoints = make([][]f32.Point, len(graph.edges))
@@ -107,7 +106,7 @@ func drawNodeMinimap(gtx layout.Context, graph resolvedGraph, viewport Viewport,
 	for _, edge := range graph.edges {
 		colorValue := edge.edge.Color
 		if colorValue.A == 0 {
-			colorValue = visual.Colors.EdgeColor
+			colorValue = visual.colors.EdgeColor
 		}
 		edgeIndex := len(edges)
 		points := scratch.edgePoints[edgeIndex][:0]
@@ -120,19 +119,19 @@ func drawNodeMinimap(gtx layout.Context, graph resolvedGraph, viewport Viewport,
 		// Keep world and mapped points in the same reusable buffer: only mapped
 		// points escape to the renderer request.
 		scratch.edgePoints[edgeIndex] = mapped
-		edges = append(edges, theme.NodeGraphMinimapEdge{Points: mapped, Color: colorValue})
+		edges = append(edges, nodeGraphMinimapEdge{Points: mapped, Color: colorValue})
 	}
 	scratch.nodes = nodes
 	scratch.edges = edges
-	viewportRect := minimapViewportScreen(graph, viewport, canvas, visual.Metrics, graphPixelsPerDP(gtx))
-	visual.Minimap(gtx, theme.NodeGraphMinimapRequest{
-		Rect: rect, Inner: geometry.inner, Nodes: nodes, Edges: edges, Viewport: viewportRect,
-		Radius:        max(gtx.Dp(visual.Metrics.MinimapRadius), 1),
-		BorderWidth:   max(gtx.Dp(visual.Metrics.MinimapBorderWidth), 1),
-		EdgeWidth:     max(float32(gtx.Dp(visual.Metrics.MinimapEdgeWidth)), .7),
-		ViewportWidth: max(float32(gtx.Dp(visual.Metrics.MinimapViewportWidth)), 1),
-		Background:    visual.Colors.NodeBackground, Border: visual.Colors.CanvasBorder,
-		Selected: visual.Colors.SelectedNodeBorder,
+	viewportRect := minimapViewportScreen(graph, viewport, canvas, visual.metrics, graphPixelsPerDP(gtx))
+	drawNodeGraphMinimap(gtx, nodeGraphMinimap{
+		Rect: rect, Nodes: nodes, Edges: edges, Viewport: viewportRect,
+		Radius:        max(gtx.Dp(visual.metrics.MinimapRadius), 1),
+		BorderWidth:   max(gtx.Dp(visual.metrics.MinimapBorderWidth), 1),
+		EdgeWidth:     max(float32(gtx.Dp(visual.metrics.MinimapEdgeWidth)), .7),
+		ViewportWidth: max(float32(gtx.Dp(visual.metrics.MinimapViewportWidth)), 1),
+		Background:    visual.colors.NodeBackground, Border: visual.colors.CanvasBorder,
+		Selected: visual.colors.SelectedNodeBorder,
 	})
 }
 

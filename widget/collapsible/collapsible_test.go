@@ -14,12 +14,12 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
 func newCollapsibleContext() *core.Context {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	return core.New(nil, &activeTheme, locale.LanguageAuto)
 }
 

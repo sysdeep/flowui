@@ -6,7 +6,8 @@ import (
 	lucide "github.com/qianniancn/flowui-icons-lucide"
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/icon"
 	"github.com/qianniancn/flowui/widget/text"
@@ -54,5 +55,5 @@ func section(title string, content ui.Widget) ui.Widget {
 }
 
 func main() {
-	ui.Run(ui.NewProgram(Model{}, Update, View), window.Title("FlowUI TimeLine"), window.Size(980, 860), window.Theme(base.Light()))
+	ui.Run(ui.NewProgram(Model{}, Update, View), window.Title("FlowUI TimeLine"), window.Size(980, 860), window.Theme(theme.Light()))
 }

@@ -6,12 +6,13 @@ import (
 	"runtime"
 
 	"gioui.org/font"
+	"gioui.org/font/opentype"
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
+	"github.com/qianniancn/flowui/widget/divider"
 	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/window"
@@ -72,7 +73,7 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 					}).
 					Variant(button.Primary),
 			).AlignMiddle(),
-			layout.Divider(),
+			divider.New(),
 			text.New("Weight samples").Size(18).Weight(font.Bold),
 			layout.Grid(3,
 				weightCard("Regular", font.Normal, "中文文本示例：常规字重。"),
@@ -119,7 +120,7 @@ func sizeCard(label string, size float32) ui.Widget {
 }
 
 func systemTheme() theme.Theme {
-	result := base.Light()
+	result := theme.Light()
 	if runtime.GOOS == "windows" {
 		// Keep Windows UI text consistent with the system Chinese interface.
 		result.Typography.Typeface = "Microsoft YaHei, Segoe UI, sans-serif"
@@ -130,25 +131,25 @@ func systemTheme() theme.Theme {
 
 func main() {
 	// Parse the bundled Regular face once and share it with the custom theme.
-	regularFaces, err := style.ParseFontCollection(regularFont)
+	regularFaces, err := opentype.ParseCollection(regularFont)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse regular font: %v", err))
 	}
 
 	/*
-		mediumFaces, err := style.ParseFontCollection(mediumFont)
+		mediumFaces, err := opentype.ParseCollection(mediumFont)
 		if err != nil {
 			panic(fmt.Sprintf("failed to parse medium font: %v", err))
 		}
 
-		boldFaces, err := style.ParseFontCollection(boldFont)
+		boldFaces, err := opentype.ParseCollection(boldFont)
 		if err != nil {
 			panic(fmt.Sprintf("failed to parse bold font: %v", err))
 		}
 	*/
 
 	systemFontTheme := systemTheme()
-	customTheme := base.Light()
+	customTheme := theme.Light()
 
 	// Configure the subset font collection and keep the sample deterministic.
 	customTheme.Fonts.Collection = regularFaces

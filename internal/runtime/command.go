@@ -3,7 +3,9 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"time"
 )
@@ -53,6 +55,36 @@ type Cmd[Msg any] func(context.Context, Send[Msg]) error
 
 type latestCommandKey struct{}
 type latestDispatchKey struct{}
+type commandOrderKey struct{}
+
+type commandPreparationKey struct{}
+
+// Only framework wrappers participate in preparation; application commands must
+// never execute on the dispatch goroutine. Store code addresses, not closures,
+// so this registry does not retain individual commands or their captures.
+var preparableCommands sync.Map
+
+func preparableCmd[Msg any](prepare func(context.Context) Cmd[Msg]) Cmd[Msg] {
+	cmd := Cmd[Msg](func(ctx context.Context, send Send[Msg]) error {
+		if result, ok := ctx.Value(commandPreparationKey{}).(*Cmd[Msg]); ok {
+			*result = prepare(context.WithValue(ctx, commandPreparationKey{}, nil))
+			return nil
+		}
+		run := prepare(ctx)
+		return run(ctx, send)
+	})
+	preparableCommands.Store(reflect.ValueOf(cmd).Pointer(), struct{}{})
+	return cmd
+}
+
+func prepareCmd[Msg any](ctx context.Context, cmd Cmd[Msg]) Cmd[Msg] {
+	if _, ok := preparableCommands.Load(reflect.ValueOf(cmd).Pointer()); !ok {
+		return cmd
+	}
+	var prepared Cmd[Msg]
+	_ = cmd(context.WithValue(ctx, commandPreparationKey{}, &prepared), nil)
+	return prepared
+}
 
 type latestCommandToken struct {
 	key        string
@@ -62,11 +94,21 @@ type latestCommandToken struct {
 type latestCommandState struct {
 	generation uint64
 	cancel     context.CancelFunc
+	order      []uint64
 }
 
 type latestCommandManager struct {
-	mu     sync.Mutex
-	states map[string]latestCommandState
+	mu       sync.Mutex
+	states   map[string]latestCommandState
+	sequence uint64
+}
+
+func (m *latestCommandManager) orderedContext(ctx context.Context) context.Context {
+	m.mu.Lock()
+	m.sequence++
+	order := []uint64{m.sequence}
+	m.mu.Unlock()
+	return context.WithValue(ctx, commandOrderKey{}, order)
 }
 
 func newLatestCommandManager() *latestCommandManager {
@@ -78,9 +120,16 @@ func withLatestCommandManager(ctx context.Context, manager *latestCommandManager
 }
 
 func (m *latestCommandManager) start(ctx context.Context, key string) (context.Context, latestCommandToken, bool) {
+	order, _ := ctx.Value(commandOrderKey{}).([]uint64)
+	if order == nil {
+		order = m.orderedContext(ctx).Value(commandOrderKey{}).([]uint64)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	current := m.states[key]
+	if slices.Compare(order, current.order) < 0 {
+		return nil, latestCommandToken{}, false
+	}
 	if current.cancel != nil {
 		current.cancel()
 	}
@@ -91,7 +140,7 @@ func (m *latestCommandManager) start(ctx context.Context, key string) (context.C
 		generation = 1
 	}
 	child, cancel := context.WithCancel(ctx)
-	m.states[key] = latestCommandState{generation: generation, cancel: cancel}
+	m.states[key] = latestCommandState{generation: generation, cancel: cancel, order: order}
 	return child, latestCommandToken{key: key, generation: generation}, true
 }
 
@@ -118,28 +167,11 @@ func (m *latestCommandManager) finish(token latestCommandToken) {
 	}
 }
 
-func (m *latestCommandManager) cancel(key string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	current := m.states[key]
-	if current.cancel != nil {
-		current.cancel()
-	}
-	// Keep a tombstone generation so in-flight sends from older tokens are
-	// rejected, but do not retain a cancel func.
-	current.generation++
-	if current.generation == 0 {
-		current.generation = 1
-	}
-	current.cancel = nil
-	m.states[key] = current
-}
-
 // LatestCmd cancels an older command with the same key and drops messages sent
 // by an older generation. Outside a FlowUI runtime it behaves like cmd.
 //
-// A generation is assigned when the returned command starts in a runtime, so
-// the same Cmd value may safely be reused across Update calls.
+// Runtime dispatch order determines which execution is newer, independent of
+// goroutine scheduling. The same Cmd value may be reused across Update calls.
 func LatestCmd[Msg any](key string, cmd Cmd[Msg]) Cmd[Msg] {
 	if key == "" {
 		panic("flowui: empty latest command key")
@@ -147,50 +179,55 @@ func LatestCmd[Msg any](key string, cmd Cmd[Msg]) Cmd[Msg] {
 	if cmd == nil {
 		return nil
 	}
-	return func(ctx context.Context, send Send[Msg]) error {
+	return preparableCmd(func(ctx context.Context) Cmd[Msg] {
 		manager, _ := ctx.Value(latestCommandKey{}).(*latestCommandManager)
 		if manager == nil {
-			return cmd(ctx, send)
+			return cmd
 		}
 		child, token, ok := manager.start(ctx, key)
 		if !ok {
-			return nil
+			return func(context.Context, Send[Msg]) error { return nil }
 		}
-		defer manager.finish(token)
-		dispatch, _ := ctx.Value(latestDispatchKey{}).(func(latestCommandToken, Msg))
-		err := cmd(child, func(msg Msg) {
-			if !manager.accepts(token) || child.Err() != nil {
-				return
+		run := prepareCmd(child, cmd)
+		return func(_ context.Context, send Send[Msg]) error {
+			defer manager.finish(token)
+			dispatch, _ := ctx.Value(latestDispatchKey{}).(func(latestCommandToken, Msg))
+			err := run(child, func(msg Msg) {
+				if !manager.accepts(token) || child.Err() != nil {
+					return
+				}
+				if dispatch != nil {
+					dispatch(token, msg)
+					return
+				}
+				send(msg)
+			})
+			if child.Err() != nil {
+				return nil
 			}
-			if dispatch != nil {
-				dispatch(token, msg)
-				return
-			}
-			send(msg)
-		})
-		if child.Err() != nil {
-			return nil
+			return err
 		}
-		return err
-	}
+	})
 }
 
 // CancelLatestCmd cancels the active command with key and invalidates its
 // queued messages.
 //
-// The cancellation generation is assigned when the returned command runs, so
-// the same cancellation command may safely be reused.
+// Cancellation follows runtime dispatch order, like LatestCmd.
 func CancelLatestCmd[Msg any](key string) Cmd[Msg] {
 	if key == "" {
 		panic("flowui: empty latest command key")
 	}
-	return func(ctx context.Context, _ Send[Msg]) error {
+	return preparableCmd(func(ctx context.Context) Cmd[Msg] {
 		manager, _ := ctx.Value(latestCommandKey{}).(*latestCommandManager)
 		if manager != nil {
-			manager.cancel(key)
+			_, token, ok := manager.start(ctx, key)
+			if ok {
+				manager.finish(token)
+			}
 		}
-		return nil
-	}
+		return func(context.Context, Send[Msg]) error { return nil }
+	})
 }
 
 // Batch combines commands so Update can start several independent effects at
@@ -211,41 +248,60 @@ func Batch[Msg any](cmds ...Cmd[Msg]) Cmd[Msg] {
 	case 1:
 		return active[0]
 	}
-	return func(ctx context.Context, send Send[Msg]) error {
-		var (
-			wg       sync.WaitGroup
-			mu       sync.Mutex
-			firstErr error
-			panicked any
-		)
-		for _, cmd := range active {
-			wg.Go(func() {
-				defer func() {
-					if recovered := recover(); recovered != nil {
-						mu.Lock()
-						if panicked == nil {
-							panicked = recovered
+	return preparableCmd(func(ctx context.Context) Cmd[Msg] {
+		if ctx.Value(commandOrderKey{}) == nil {
+			if manager, ok := ctx.Value(latestCommandKey{}).(*latestCommandManager); ok {
+				ctx = manager.orderedContext(ctx)
+			}
+		}
+		type execution struct {
+			ctx context.Context
+			cmd Cmd[Msg]
+		}
+		executions := make([]execution, len(active))
+		for index, cmd := range active {
+			child := ctx
+			if order, ok := ctx.Value(commandOrderKey{}).([]uint64); ok {
+				child = context.WithValue(ctx, commandOrderKey{}, append(slices.Clone(order), uint64(index)))
+			}
+			executions[index] = execution{child, prepareCmd(child, cmd)}
+		}
+		return func(_ context.Context, send Send[Msg]) error {
+			var (
+				wg       sync.WaitGroup
+				mu       sync.Mutex
+				firstErr error
+				panicked any
+			)
+			for _, execution := range executions {
+				wg.Go(func() {
+					defer func() {
+						if recovered := recover(); recovered != nil {
+							mu.Lock()
+							if panicked == nil {
+								panicked = recovered
+							}
+							mu.Unlock()
 						}
-						mu.Unlock()
+					}()
+					err := execution.cmd(execution.ctx, send)
+					if err == nil || ctx.Err() != nil {
+						return
 					}
-				}()
-				err := cmd(ctx, send)
-				if err == nil || ctx.Err() != nil {
-					return
-				}
-				mu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
-				mu.Unlock()
-			})
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = err
+					}
+					mu.Unlock()
+				})
+			}
+			wg.Wait()
+			if panicked != nil {
+				panic(panicked)
+			}
+			return firstErr
 		}
-		wg.Wait()
-		if panicked != nil {
-			panic(panicked)
-		}
-		return firstErr
-	}
+	})
 }
 
 // ErrEffectShutdownTimeout reports asynchronous work that did not stop within
@@ -258,8 +314,33 @@ type effectGroup struct {
 
 func StartCmd[Msg any](group *effectGroup, ctx context.Context, cmd Cmd[Msg], send func(Msg), report func(error)) {
 	if cmd != nil {
+		if manager, ok := ctx.Value(latestCommandKey{}).(*latestCommandManager); ok {
+			ctx = manager.orderedContext(ctx)
+		}
+		cmd = prepareCmd(ctx, cmd)
 		startEffect(group, ctx, EffectCommand, "", cmd, send, report, nil)
 	}
+}
+
+// MapCmd preserves latest-result validation when adapting message types.
+func MapCmd[ChildMsg any, ParentMsg any](cmd Cmd[ChildMsg], mapMsg func(ChildMsg) ParentMsg) Cmd[ParentMsg] {
+	if cmd == nil {
+		return nil
+	}
+	if mapMsg == nil {
+		panic("flowui: nil command mapper")
+	}
+	return preparableCmd(func(ctx context.Context) Cmd[ParentMsg] {
+		if dispatch, ok := ctx.Value(latestDispatchKey{}).(func(latestCommandToken, ParentMsg)); ok {
+			ctx = context.WithValue(ctx, latestDispatchKey{}, func(token latestCommandToken, msg ChildMsg) {
+				dispatch(token, mapMsg(msg))
+			})
+		}
+		run := prepareCmd(ctx, cmd)
+		return func(_ context.Context, send Send[ParentMsg]) error {
+			return run(ctx, func(msg ChildMsg) { send(mapMsg(msg)) })
+		}
+	})
 }
 
 func startEffect[Msg any](

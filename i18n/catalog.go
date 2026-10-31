@@ -114,6 +114,7 @@ func normalizeLanguage(value Language) (Language, bool) {
 
 var builtInCatalog = Catalog{entries: map[Language]map[Key]string{
 	LanguageEnglish: {
+		CodeCopy: "Copy code", CodeCopySource: "Copy code (%s)", CodeCopied: "Copied",
 		ActionCut: "Cut", ActionCopy: "Copy", ActionPaste: "Paste", ActionSelectAll: "Select All", ActionClose: "Close",
 		DatePickerChooseDate: "Choose date", DatePickerChooseDateRange: "Choose date range",
 		DateFieldYear: "Year", DateFieldMonth: "Month", DateFieldDay: "Day",
@@ -155,7 +156,7 @@ var builtInCatalog = Catalog{entries: map[Language]map[Key]string{
 		GanttTimeMonthYear: "%[1]s %04[2]d", GanttTimeYear: "%04d",
 		ProgressDefault: "Progress", ProgressInProgress: "%s in progress", ProgressValue: "%s %s",
 		MeterDefault: "Meter", SliderDefault: "Slider", SliderValue: "%s %s",
-		SliderMinimum: "%s minimum %s", SliderMaximum: "%s maximum %s", ToolbarDefault: "Toolbar",
+		SliderMinimum: "%s minimum %s", SliderMaximum: "%s maximum %s", ToolbarDefault: "Toolbar", ToolbarMore: "More",
 		WorkbenchNextTab: "Next Tab", WorkbenchPreviousTab: "Previous Tab", WorkbenchCloseTab: "Close Tab",
 		WorkbenchToggleSidebar: "Toggle Sidebar", WorkbenchTogglePanel: "Toggle Bottom Panel", WorkbenchToggleStatus: "Toggle Status Bar",
 		ShortcutLeft: "Left", ShortcutRight: "Right", ShortcutUp: "Up", ShortcutDown: "Down",
@@ -173,6 +174,7 @@ var builtInCatalog = Catalog{entries: map[Language]map[Key]string{
 		CalendarWeekdayThursday: "Thu", CalendarWeekdayFriday: "Fri", CalendarWeekdaySaturday: "Sat",
 	},
 	LanguageChinese: {
+		CodeCopy: "复制代码", CodeCopySource: "复制代码（%s）", CodeCopied: "已复制",
 		ActionCut: "剪切", ActionCopy: "复制", ActionPaste: "粘贴", ActionSelectAll: "全选", ActionClose: "关闭",
 		DatePickerChooseDate: "选择日期", DatePickerChooseDateRange: "选择日期范围",
 		DateFieldYear: "年", DateFieldMonth: "月", DateFieldDay: "日",
@@ -214,7 +216,7 @@ var builtInCatalog = Catalog{entries: map[Language]map[Key]string{
 		GanttTimeMonthYear: "%04[2]d年%[1]s", GanttTimeYear: "%04d",
 		ProgressDefault: "进度", ProgressInProgress: "%s 进行中", ProgressValue: "%s %s",
 		MeterDefault: "仪表", SliderDefault: "滑块", SliderValue: "%s %s",
-		SliderMinimum: "%s 最小值 %s", SliderMaximum: "%s 最大值 %s", ToolbarDefault: "工具栏",
+		SliderMinimum: "%s 最小值 %s", SliderMaximum: "%s 最大值 %s", ToolbarDefault: "工具栏", ToolbarMore: "更多",
 		WorkbenchNextTab: "下一个标签页", WorkbenchPreviousTab: "上一个标签页", WorkbenchCloseTab: "关闭标签页",
 		WorkbenchToggleSidebar: "切换侧边栏", WorkbenchTogglePanel: "切换底部面板", WorkbenchToggleStatus: "切换状态栏",
 		ShortcutLeft: "左", ShortcutRight: "右", ShortcutUp: "上", ShortcutDown: "下",

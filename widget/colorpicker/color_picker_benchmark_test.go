@@ -12,8 +12,6 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
-	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -27,7 +25,7 @@ type colorPickerBenchmarkFrame struct {
 }
 
 func newColorPickerBenchmarkFrame() *colorPickerBenchmarkFrame {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	frame := &colorPickerBenchmarkFrame{
 		ctx:      core.New(nil, &active, locale.LanguageEnglish),
 		now:      time.Unix(1, 0),
@@ -82,7 +80,7 @@ type colorPickerBenchmarkStats struct {
 	cacheCount         uint64
 }
 
-func (stats *colorPickerBenchmarkStats) add(value computed.ProviderCacheStats) {
+func (stats *colorPickerBenchmarkStats) add(value computed.VisualCacheStats) {
 	stats.hits += value.Hits
 	stats.misses += value.Misses
 	stats.themeInvalidations += value.ThemeInvalidations
@@ -92,33 +90,28 @@ func (stats *colorPickerBenchmarkStats) add(value computed.ProviderCacheStats) {
 
 func colorPickerBenchmarkVisualStats(ctx *core.Context) colorPickerBenchmarkStats {
 	var stats colorPickerBenchmarkStats
-	add := func(value *colorPickerVisualCache) {
-		if value != nil {
-			stats.add(value.stats())
-		}
-	}
 	if state, ok := core.PeekState[colorPickerState](ctx, "benchmark", stateSlotColorPicker); ok {
-		add(&state.visualCache)
+		stats.add(state.defaultsCache.stats())
 	}
 	if state, ok := core.PeekState[colorAreaState](ctx, "benchmark/area", stateSlotColorArea); ok {
-		add(&state.visualCache)
+		stats.add(state.defaultsCache.stats())
 	}
 	if state, ok := core.PeekState[colorSliderState](ctx, "benchmark/hue", stateSlotColorSlider); ok {
-		add(&state.visualCache)
+		stats.add(state.defaultsCache.stats())
 	}
 	if state, ok := core.PeekState[colorSliderState](ctx, "benchmark/alpha", stateSlotColorSlider); ok {
-		add(&state.visualCache)
+		stats.add(state.defaultsCache.stats())
 	}
 	if state, ok := core.PeekState[colorFieldState](ctx, "benchmark/field", stateSlotColorField); ok {
-		add(&state.visualCache)
+		stats.add(state.defaultsCache.stats())
 	}
 	if state, ok := core.PeekState[colorSwatchPickerState](ctx, "benchmark/presets", stateSlotColorSwatchPicker); ok {
-		add(&state.visualCache)
+		stats.add(state.defaultsCache.stats())
 	}
 	if state, ok := core.PeekState[colorSwatchPickerState](ctx, "benchmark/history", stateSlotColorSwatchPicker); ok {
-		add(&state.visualCache)
+		stats.add(state.defaultsCache.stats())
 	}
-	if state, ok := core.PeekState[colorPickerVisualCache](ctx, standaloneColorPickerVisualKey, standaloneColorPickerVisualSlot); ok {
+	if state, ok := core.PeekState[colorSwatchDefaultsCache](ctx, standaloneColorSwatchDefaultsKey, standaloneColorSwatchDefaultsSlot); ok {
 		stats.add(state.stats())
 	}
 	return stats
@@ -126,10 +119,10 @@ func colorPickerBenchmarkVisualStats(ctx *core.Context) colorPickerBenchmarkStat
 
 func reportColorPickerBenchmarkStats(b *testing.B, after, before colorPickerBenchmarkStats) {
 	divisor := float64(b.N)
-	b.ReportMetric(float64(after.hits-before.hits)/divisor, "colorpicker-visual-cache-hits/op")
-	b.ReportMetric(float64(after.misses-before.misses)/divisor, "colorpicker-visual-cache-misses/op")
-	b.ReportMetric(float64(after.themeInvalidations-before.themeInvalidations)/divisor, "colorpicker-visual-cache-theme-invalidations/op")
-	b.ReportMetric(float64(after.keyInvalidations-before.keyInvalidations)/divisor, "colorpicker-visual-cache-key-invalidations/op")
+	b.ReportMetric(float64(after.hits-before.hits)/divisor, "colorpicker-defaults-cache-hits/op")
+	b.ReportMetric(float64(after.misses-before.misses)/divisor, "colorpicker-defaults-cache-misses/op")
+	b.ReportMetric(float64(after.themeInvalidations-before.themeInvalidations)/divisor, "colorpicker-defaults-cache-theme-invalidations/op")
+	b.ReportMetric(float64(after.keyInvalidations-before.keyInvalidations)/divisor, "colorpicker-defaults-cache-key-invalidations/op")
 }
 
 func BenchmarkColorPickerComponentTreeSteadyState(b *testing.B) {
@@ -144,7 +137,7 @@ func BenchmarkColorPickerComponentTreeSteadyState(b *testing.B) {
 	}
 }
 
-func BenchmarkColorPickerComponentTreeVisualCacheHit(b *testing.B) {
+func BenchmarkColorPickerComponentTreeDefaultsCacheHit(b *testing.B) {
 	frame := newColorPickerBenchmarkFrame()
 	value := benchmarkColorPickerValue()
 	frame.openPicker(value)
@@ -159,13 +152,13 @@ func BenchmarkColorPickerComponentTreeVisualCacheHit(b *testing.B) {
 	reportColorPickerBenchmarkStats(b, colorPickerBenchmarkVisualStats(frame.ctx), before)
 }
 
-func BenchmarkColorPickerComponentTreeVisualCacheThemeInvalidation(b *testing.B) {
+func BenchmarkColorPickerComponentTreeDefaultsCacheThemeInvalidation(b *testing.B) {
 	frame := newColorPickerBenchmarkFrame()
 	value := benchmarkColorPickerValue()
 	frame.openPicker(value)
 	before := colorPickerBenchmarkVisualStats(frame.ctx)
-	first := *testtheme.Behavior()
-	second := *testtheme.Behavior()
+	first := theme.Light()
+	second := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -181,16 +174,20 @@ func BenchmarkColorPickerComponentTreeVisualCacheThemeInvalidation(b *testing.B)
 	reportColorPickerBenchmarkStats(b, colorPickerBenchmarkVisualStats(frame.ctx), before)
 }
 
-func BenchmarkColorPickerVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	var cache colorPickerVisualCache
-	cache.resolve(active, theme.ColorPickerRequest{})
+func BenchmarkColorPickerDefaultsCacheHit(b *testing.B) {
+	active := new(theme.Light())
+	var cache colorPickerDefaultsCache
+	cache.resolve(active, func() colorPickerDefaults {
+		return buildColorPickerDefaults(active)
+	})
 	before := cache.stats()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		cache.resolve(active, theme.ColorPickerRequest{})
+		cache.resolve(active, func() colorPickerDefaults {
+			return buildColorPickerDefaults(active)
+		})
 	}
 	b.StopTimer()
 	after := cache.stats()
@@ -199,30 +196,14 @@ func BenchmarkColorPickerVisualCacheHit(b *testing.B) {
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "colorpicker-cache-theme-invalidations/op")
 }
 
-func BenchmarkColorPickerVisualCacheMiss(b *testing.B) {
-	active := testtheme.Behavior()
+func BenchmarkColorPickerDefaultsCacheMiss(b *testing.B) {
+	active := new(theme.Light())
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		var cache colorPickerVisualCache
-		cache.resolve(active, theme.ColorPickerRequest{})
+		var cache colorPickerDefaultsCache
+		cache.resolve(active, func() colorPickerDefaults {
+			return buildColorPickerDefaults(active)
+		})
 	}
-}
-
-func BenchmarkColorPickerVisualCacheOverrideBypass(b *testing.B) {
-	active := testtheme.Behavior()
-	declaration := style.Style{}.Padding(1)
-	request := theme.ColorPickerRequest{Override: &theme.ColorPickerOverride{Declaration: declaration}}
-	var cache colorPickerVisualCache
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		cache.resolve(active, request)
-	}
-	b.StopTimer()
-	stats := cache.stats()
-	b.ReportMetric(float64(stats.Hits)/float64(b.N), "colorpicker-cache-hits/op")
-	b.ReportMetric(float64(stats.Misses)/float64(b.N), "colorpicker-cache-misses/op")
-	b.ReportMetric(float64(b.N), "colorpicker-cache-override-bypasses/op")
 }

@@ -13,7 +13,7 @@ import (
 )
 
 func BenchmarkTweenValue(b *testing.B) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	var ops op.Ops
 	startTime := time.Now()
@@ -92,7 +92,7 @@ func BenchmarkTweenValue(b *testing.B) {
 }
 
 func BenchmarkTweenSpring(b *testing.B) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	var ops op.Ops
 	startTime := time.Now()

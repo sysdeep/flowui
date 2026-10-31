@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	goruntime "runtime"
 	"sync"
 	"testing"
 	"time"
@@ -252,6 +253,99 @@ func TestLatestCmdCanBeReusedAcrossExecutions(t *testing.T) {
 	}
 }
 
+func TestLatestCmdUsesDispatchOrderDespiteDelayedExecution(t *testing.T) {
+	for _, name := range []string{"latest", "cancel", "batch", "mapped"} {
+		t.Run(name, func(t *testing.T) {
+			ctx := withLatestCommandManager(context.Background(), newLatestCommandManager())
+			release := make(chan struct{})
+			sent := make(chan int, 4)
+			var effects effectGroup
+			old := LatestCmd("search", func(_ context.Context, send Send[int]) error {
+				send(1)
+				return nil
+			})
+			if name == "cancel" {
+				old = CancelLatestCmd[int]("search")
+			}
+			if name == "batch" {
+				old = Batch(old, func(context.Context, Send[int]) error { return nil })
+			}
+			if name == "mapped" {
+				old = MapCmd(old, func(value int) int { return value })
+			}
+			StartCmd(&effects, ctx, func(ctx context.Context, send Send[int]) error {
+				<-release
+				return old(ctx, send)
+			}, func(value int) { sent <- value }, nil)
+			newDone := make(chan struct{})
+			StartCmd(&effects, ctx, LatestCmd("search", func(_ context.Context, send Send[int]) error {
+				send(2)
+				close(newDone)
+				return nil
+			}), func(value int) { sent <- value }, nil)
+			receiveRuntimeTestValue(t, newDone)
+			close(release)
+			if !effects.waitFor(time.Second) {
+				t.Fatal("commands did not finish")
+			}
+			if got := receiveRuntimeTestValue(t, sent); got != 2 {
+				t.Fatalf("result = %d, want newer result 2", got)
+			}
+			if len(sent) != 0 {
+				t.Fatal("older command sent a result after the newer command finished")
+			}
+		})
+	}
+}
+
+func TestMapCmdPreservesQueuedLatestValidation(t *testing.T) {
+	manager := newLatestCommandManager()
+	ctx := withLatestCommandManager(context.Background(), manager)
+	var tokens []latestCommandToken
+	var values []string
+	ctx = context.WithValue(ctx, latestDispatchKey{}, func(token latestCommandToken, value string) {
+		tokens = append(tokens, token)
+		values = append(values, value)
+	})
+	cmd := MapCmd(LatestCmd("search", func(_ context.Context, send Send[int]) error {
+		send(7)
+		return nil
+	}), func(value int) string { return fmt.Sprint(value) })
+	for range 2 {
+		if err := cmd(ctx, func(string) { t.Fatal("mapped latest result bypassed validation") }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(tokens) != 2 || values[1] != "7" || manager.accepts(tokens[0]) || !manager.accepts(tokens[1]) {
+		t.Fatalf("mapped results did not retain generation: tokens=%v values=%v", tokens, values)
+	}
+}
+
+func TestBatchLatestCommandsFollowSliceOrder(t *testing.T) {
+	ctx := withLatestCommandManager(context.Background(), newLatestCommandManager())
+	release := make(chan struct{})
+	sent := make(chan int, 2)
+	older := LatestCmd("search", func(_ context.Context, send Send[int]) error {
+		send(1)
+		return nil
+	})
+	newer := LatestCmd("search", func(_ context.Context, send Send[int]) error {
+		send(2)
+		close(release)
+		return nil
+	})
+	batch := Batch(func(ctx context.Context, send Send[int]) error {
+		<-release
+		return older(ctx, send)
+	}, Batch(newer, func(context.Context, Send[int]) error { return nil }))
+	if err := batch(ctx, func(value int) { sent <- value }); err != nil {
+		t.Fatal(err)
+	}
+	if got := receiveRuntimeTestValue(t, sent); got != 2 || len(sent) != 0 {
+		t.Fatalf("batch result=%d, additional messages=%d", got, len(sent))
+	}
+}
+
 func TestLatestCmdFinishCancelsChildContext(t *testing.T) {
 	parent := &afterFuncTestContext{Context: context.Background(), done: make(chan struct{})}
 	manager := newLatestCommandManager()
@@ -331,6 +425,82 @@ func TestCancelLatestCmdStopsActiveGeneration(t *testing.T) {
 	}
 }
 
+func TestLatestCmdInvalidatesQueuedResultsAtDispatch(t *testing.T) {
+	for _, action := range []string{"cancel", "replace"} {
+		for _, wrapper := range []string{"direct", "batch", "mapped", "nested"} {
+			t.Run(action+"/"+wrapper, func(t *testing.T) {
+				previous := goruntime.GOMAXPROCS(1)
+				defer goruntime.GOMAXPROCS(previous)
+				core := newLoopCore(0, func(model *int, msg int) Cmd[int] {
+					if msg != 1 {
+						*model += msg
+						return nil
+					}
+					cmd := CancelLatestCmd[int]("search")
+					if action == "replace" {
+						cmd = LatestCmd("search", func(context.Context, Send[int]) error { return nil })
+					}
+					if wrapper == "batch" || wrapper == "nested" {
+						cmd = Batch(cmd, func(context.Context, Send[int]) error { return nil })
+					}
+					if wrapper == "mapped" || wrapper == "nested" {
+						cmd = MapCmd(cmd, func(value int) int { return value })
+					}
+					return cmd
+				})
+				ctx := withLatestCommandManager(context.Background(), core.latest)
+				ctx = context.WithValue(ctx, latestDispatchKey{}, func(token latestCommandToken, value int) {
+					core.sendLatest(token, value)
+				})
+				core.send(1)
+				for _, item := range []struct {
+					key   string
+					value int
+				}{{"search", 99}, {"other", 7}} {
+					cmd := LatestCmd(item.key, func(_ context.Context, send Send[int]) error {
+						send(item.value)
+						return nil
+					})
+					if err := cmd(ctx, core.send); err != nil {
+						t.Fatal(err)
+					}
+				}
+				var effects effectGroup
+				_, _, err := core.updateMessages(&effects, ctx, core.send, nil, nil)
+				if !effects.waitFor(time.Second) {
+					t.Fatal("commands did not finish")
+				}
+				if err != nil || core.model != 7 {
+					t.Fatalf("model=%d err=%v; want only unrelated result 7", core.model, err)
+				}
+			})
+		}
+	}
+}
+
+func TestStartCmdPreparationLeavesApplicationWorkAsynchronous(t *testing.T) {
+	ctx := withLatestCommandManager(context.Background(), newLatestCommandManager())
+	release := make(chan struct{})
+	sent := make(chan int, 1)
+	work := MapCmd(Batch(
+		LatestCmd("search", func(_ context.Context, send Send[string]) error {
+			<-release
+			send("result")
+			return nil
+		}),
+		func(context.Context, Send[string]) error { return nil },
+	), func(value string) int { return len(value) })
+	var effects effectGroup
+	StartCmd(&effects, ctx, work, func(value int) { sent <- value }, nil)
+	close(release)
+	if !effects.waitFor(time.Second) {
+		t.Fatal("application command did not finish")
+	}
+	if got := receiveRuntimeTestValue(t, sent); got != 6 {
+		t.Fatalf("mapped result=%d, want 6", got)
+	}
+}
+
 func TestEffectGroupWaitIsBounded(t *testing.T) {
 	release := make(chan struct{})
 	var effects effectGroup
@@ -356,5 +526,25 @@ func receiveRuntimeTestValue[T any](t *testing.T, values <-chan T) T {
 		t.Fatal("timed out waiting for runtime event")
 		var zero T
 		return zero
+	}
+}
+
+func TestStartCmdSendsMessage(t *testing.T) {
+	done := make(chan int, 1)
+	var effects effectGroup
+	StartCmd(&effects, context.Background(), func(_ context.Context, send Send[int]) error {
+		send(7)
+		return nil
+	}, func(msg int) {
+		done <- msg
+	}, nil)
+
+	select {
+	case got := <-done:
+		if got != 7 {
+			t.Fatalf("message = %d, want 7", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for command")
 	}
 }

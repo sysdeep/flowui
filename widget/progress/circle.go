@@ -19,7 +19,7 @@ import (
 )
 
 type CircleWidget struct {
-	override      *theme.ProgressOverride
+	style         style.Style
 	key           string
 	value         float64
 	minValue      float64
@@ -28,28 +28,10 @@ type CircleWidget struct {
 	valueText     string
 	hasValueText  bool
 	indeterminate bool
-	color         CircleColor
-	size          CircleSize
+	color         BarColor
+	size          BarSize
 	disabled      bool
 }
-
-type CircleColor = BarColor
-
-const (
-	CircleAccent  CircleColor = BarAccent
-	CircleDefault CircleColor = BarDefault
-	CircleSuccess CircleColor = BarSuccess
-	CircleWarning CircleColor = BarWarning
-	CircleDanger  CircleColor = BarDanger
-)
-
-type CircleSize = BarSize
-
-const (
-	CircleMedium CircleSize = BarMedium
-	CircleSmall  CircleSize = BarSmall
-	CircleLarge  CircleSize = BarLarge
-)
 
 const stateSlotProgressCircle = "progress-circle"
 
@@ -79,12 +61,12 @@ func (p CircleWidget) Indeterminate() CircleWidget {
 	return p
 }
 
-func (p CircleWidget) Color(circleColor CircleColor) CircleWidget {
+func (p CircleWidget) Color(circleColor BarColor) CircleWidget {
 	p.color = circleColor
 	return p
 }
 
-func (p CircleWidget) Size(size CircleSize) CircleWidget {
+func (p CircleWidget) Size(size BarSize) CircleWidget {
 	p.size = size
 	return p
 }
@@ -95,15 +77,10 @@ func (p CircleWidget) Disabled(disabled bool) CircleWidget {
 }
 
 func (p CircleWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return p.layoutWithOverride(ctx, gtx, p.override)
-}
-
-func (p CircleWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ProgressOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	key := core.ClaimKey(ctx, core.KindProgressCircle, p.key)
 	progressState := progressCircleStateFor(ctx, key)
-	resolved := p.resolveStyle(ctx, gtx, key, &progressState.circleStyleCache, override)
-	progress := progressState.progress(gtx, p.ratio(), p.indeterminate, resolved.metrics.ValueDuration, resolved.motion)
+	resolved := p.resolveStyle(ctx, gtx, key, &progressState.circleStyleCache)
+	progress := progressState.progress(gtx, p.ratio(), p.indeterminate, resolved.defaults.valueDuration, resolved.defaults.motion)
 	return layoutui.Resolved(ctx, gtx, resolved.root, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		diameter := max(min(gtx.Constraints.Max.X, gtx.Constraints.Max.Y), 1)
 		size := gtx.Constraints.Constrain(image.Pt(diameter, diameter))
@@ -112,17 +89,18 @@ func (p CircleWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, 
 			offset := op.Offset(image.Pt((size.X-iconSize)/2, (size.Y-iconSize)/2)).Push(gtx.Ops)
 			period := time.Duration(0)
 			if !p.disabled {
-				period = theme.ResolveMotionDuration(resolved.motion, resolved.metrics.SpinDuration)
+				period = theme.ResolveMotionDuration(resolved.defaults.motion, resolved.defaults.spinDuration)
 			}
-			resolved.renderer(gtx, theme.ProgressCircleRenderRequest{
-				Size:          gtx.Metric.PxToDp(iconSize),
-				StrokeRatio:   resolved.metrics.StrokeRatio,
-				Track:         resolved.track,
-				Fill:          resolved.fill,
-				Progress:      progress,
-				Indeterminate: p.indeterminate,
-				Period:        period,
-			})
+			progressDrawProgressCircle(
+				gtx,
+				iconSize,
+				resolved.defaults.strokeRatio,
+				resolved.track,
+				resolved.fill,
+				progress,
+				p.indeterminate,
+				period,
+			)
 			if p.indeterminate && period > 0 {
 				gtx.Execute(op.InvalidateCmd{})
 			}
@@ -167,49 +145,48 @@ type progressCircleResolvedStyle struct {
 	root     style.ResolvedStyle
 	track    color.NRGBA
 	fill     color.NRGBA
-	renderer theme.ProgressCircleRenderer
-	metrics  theme.ProgressCircleMetrics
-	motion   theme.MotionTheme
-	override style.Style
+	defaults progressCircleDefaults
 }
 
-func (p CircleWidget) resolveStyle(ctx *core.Context, gtx layout.Context, key string, cache *progressCircleVisualCache, override *theme.ProgressOverride) progressCircleResolvedStyle {
+func (p CircleWidget) resolveStyle(ctx *core.Context, gtx layout.Context, key string, cache *progressCircleStyleCache) progressCircleResolvedStyle {
+	active := core.ActiveTheme(ctx)
+	declarations := cache.Resolve(active, progressStyleKey{color: p.color, size: p.size}, func() progressCircleDefaults {
+		return p.defaultStyles(active)
+	})
 	state := style.State{Disabled: p.disabled}
-	activeTheme := core.ActiveTheme(ctx)
-	requestKey := progressDeclarationKey{color: p.color, size: p.size}
-	var visual theme.ProgressCircleVisual
-	if override == nil {
-		visual = cache.resolve(activeTheme, requestKey)
-	} else {
-		visual = resolveProgressCircleProvider(activeTheme, requestKey, override)
-	}
 	parts := [...]style.Part{style.PartRoot, style.PartTrack, style.PartFill}
 	var resolved [len(parts)]style.ResolvedStyle
-	computed.ResolvePartsInto(ctx, gtx, key, state, parts[:], resolved[:], visual.Defaults, style.Style{}, style.Style{}, visual.Override)
-	if visual.Color == nil {
-		panic(theme.ErrIncompleteVisualProvider)
-	}
-	track, ok := visual.Color(resolved[1])
+	computed.ResolvePartsInto(
+		ctx,
+		gtx,
+		key,
+		state,
+		parts[:],
+		resolved[:],
+		declarations.defaults,
+		declarations.variant,
+		declarations.size,
+		p.style,
+	)
+	track, ok := progressColor(resolved[1])
 	if !ok {
-		panic(theme.ErrIncompleteVisualProvider)
+		panic("flowui/progress.Circle: unresolved track color")
 	}
-	fill, ok := visual.Color(resolved[2])
+	fill, ok := progressColor(resolved[2])
 	if !ok {
-		panic(theme.ErrIncompleteVisualProvider)
+		panic("flowui/progress.Circle: unresolved fill color")
 	}
 	return progressCircleResolvedStyle{
-		root: resolved[0], track: track, fill: fill, renderer: visual.Renderer,
-		metrics: visual.Metrics, motion: visual.Motion, override: visual.Override,
+		root:     resolved[0],
+		track:    track,
+		fill:     fill,
+		defaults: declarations,
 	}
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w CircleWidget) Style(values ...style.Style) CircleWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ProgressOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

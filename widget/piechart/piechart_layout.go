@@ -18,7 +18,6 @@ import (
 	"gioui.org/widget/material"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 	"github.com/qianniancn/flowui/widget/tooltip"
 )
@@ -58,7 +57,7 @@ type recordedBlock struct {
 	dims layout.Dimensions
 }
 
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.PieChartVisual) layout.Dimensions {
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual pieChartDefaults) layout.Dimensions {
 	state := chartStateFor(ctx, w.key)
 	state.beginLegendFrame()
 	defer state.endLegendFrame()
@@ -90,7 +89,7 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.PieCh
 	return layout.Dimensions{Size: size}
 }
 
-func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, visual theme.PieChartVisual, enabled, activated bool, size image.Point) {
+func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, visual pieChartDefaults, enabled, activated bool, size image.Point) {
 	if size.X <= 0 || size.Y <= 0 {
 		return
 	}
@@ -268,7 +267,7 @@ func (w Widget) handleLegendClicks(gtx layout.Context, state *chartState, data c
 	return activated
 }
 
-func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, visual theme.PieChartVisual, maxWidth int, enabled bool) recordedBlock {
+func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, visual pieChartDefaults, maxWidth int, enabled bool) recordedBlock {
 	if maxWidth <= 0 || len(data.legend) == 0 {
 		return recordedBlock{}
 	}
@@ -326,7 +325,7 @@ func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chart
 	return recordedBlock{call: macro.Stop(), dims: layout.Dimensions{Size: image.Pt(usedWidth, y+rowHeight)}}
 }
 
-func (w Widget) drawEmptyText(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.PieChartMetrics) {
+func (w Widget) drawEmptyText(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics pieChartMetrics) {
 	value := w.emptyText
 	if !w.hasEmptyText {
 		value = ctx.Text(i18n.ChartNoData)
@@ -339,7 +338,7 @@ func (w Widget) drawEmptyText(ctx *core.Context, gtx layout.Context, geometry ch
 	placeText(gtx, label, position)
 }
 
-func (w Widget) drawTooltip(ctx *core.Context, slice resolvedSlice, visual theme.PieChartVisual, anchor image.Rectangle, progress float32, exiting bool) {
+func (w Widget) drawTooltip(ctx *core.Context, slice resolvedSlice, visual pieChartDefaults, anchor image.Rectangle, progress float32, exiting bool) {
 	content := w.tooltipWidget(slice, visual)
 	if content == nil {
 		return
@@ -353,7 +352,7 @@ func (w Widget) drawTooltip(ctx *core.Context, slice resolvedSlice, visual theme
 		Overlay(ctx, core.FullKey(ctx, "tooltip:"+w.key), anchor)
 }
 
-func (w Widget) tooltipWidget(slice resolvedSlice, visual theme.PieChartVisual) core.Widget {
+func (w Widget) tooltipWidget(slice resolvedSlice, visual pieChartDefaults) core.Widget {
 	selection := w.publicSelection(slice)
 	if w.tooltipContent != nil {
 		return w.tooltipContent(selection)
@@ -411,7 +410,7 @@ func placeBlock(gtx layout.Context, value recordedBlock, position image.Point) {
 	offset.Pop()
 }
 
-func pieChartStyle(visual theme.PieChartVisual, enabled bool) chartStyle {
+func pieChartStyle(visual pieChartDefaults, enabled bool) chartStyle {
 	opacity := float32(1)
 	if !enabled {
 		opacity = visual.DisabledOpacity

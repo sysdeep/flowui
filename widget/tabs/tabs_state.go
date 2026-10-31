@@ -6,15 +6,15 @@ import (
 	"math"
 	"time"
 
-	"gioui.org/io/event"
-	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/animation"
+	"github.com/qianniancn/flowui/widget/internal/binding"
 	"github.com/qianniancn/flowui/internal/core"
+	"github.com/qianniancn/flowui/widget/internal/navigation"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/disclosure"
+	"github.com/qianniancn/flowui/widget/base"
 )
 
 const (
@@ -26,12 +26,12 @@ type tabsState struct {
 	items            map[string]*tabsItemState
 	frameItems       map[string]struct{}
 	itemKeys         map[string]struct{}
-	keyFilters       []event.Filter
+	navigation       base.CollectionNavigation
 	previous         widget.Clickable
 	next             widget.Clickable
 	add              widget.Clickable
 	indicator        tabsIndicatorState
-	disclosure       disclosure.Binding[string]
+	valueBinding     binding.Binding[string]
 	selectedKey      string
 	selectionSet     bool
 	selectionPending bool
@@ -49,9 +49,9 @@ type tabsState struct {
 	panelOpacity     animation.FloatTransition
 }
 
-// tabsDisclosureCfg builds a disclosure.Config from the widget's selected-key fields.
-func tabsDisclosureCfg(widget Widget) disclosure.Config[string] {
-	return disclosure.Config[string]{
+// tabsBindingConfig builds a binding.Config from the widget's selected-key fields.
+func tabsBindingConfig(widget Widget) binding.Config[string] {
+	return binding.Config[string]{
 		Controlled: widget.hasSelectedKey,
 		Value:      widget.selectedKey,
 		HasDefault: widget.hasDefaultSelected,
@@ -61,16 +61,16 @@ func tabsDisclosureCfg(widget Widget) disclosure.Config[string] {
 }
 
 func (s *tabsState) currentSelectedKey(widget Widget) string {
-	s.selectedKey = s.disclosure.Current(tabsDisclosureCfg(widget))
+	s.selectedKey = s.valueBinding.Current(tabsBindingConfig(widget))
 	return s.selectedKey
 }
 
 func (s *tabsState) bind(widget Widget) {
-	s.disclosure.Bind(tabsDisclosureCfg(widget))
+	s.valueBinding.Bind(tabsBindingConfig(widget))
 }
 
 func (s *tabsState) requestSelectedKey(widget Widget, key string) string {
-	s.selectedKey, _ = s.disclosure.Request(tabsDisclosureCfg(widget), key)
+	s.selectedKey, _ = s.valueBinding.Request(tabsBindingConfig(widget), key)
 	return s.selectedKey
 }
 
@@ -106,7 +106,7 @@ func (s *tabsState) checkItems(items []TabItem) {
 
 // normalizeSelection keeps the effective selection usable when a controlled
 // value points at a removed or disabled item. The requested fallback is still
-// sent through the disclosure binding so controlled callers can update their
+// sent through the valueBinding binding so controlled callers can update their
 // model; the fallback is used optimistically for the current core.
 func (s *tabsState) normalizeSelection(widget Widget, selectedKey string) string {
 	index := tabsIndexByKey(widget.items, selectedKey)
@@ -204,103 +204,41 @@ func (s *tabsState) selectionFullyVisible(index int) bool {
 }
 
 func (s *tabsState) updateKeys(gtx layout.Context, items []TabItem, selectedKey string, orientation Orientation, activation ActivationMode) (string, string, bool) {
-	s.keyFilters = s.keyFilters[:0]
-	for _, item := range items {
-		if item.Disabled {
-			continue
-		}
-		itemState := s.item(item.Key)
-		tag := &itemState.clickable
-		names := []key.Name{key.NameHome, key.NameEnd}
-		if orientation == Vertical {
-			names = append([]key.Name{key.NameDownArrow, key.NameUpArrow}, names...)
-		} else {
-			names = append([]key.Name{key.NameRightArrow, key.NameLeftArrow}, names...)
-		}
-		if activation == ActivationManual {
-			names = append(names, key.NameReturn, key.NameEnter, key.NameSpace)
-		}
-		s.keyFilters = append(s.keyFilters, itemState.keyFilters.Resolve(tag, names...)...)
-		// Workbench-style tab strips conventionally support Ctrl/Cmd+Tab and
-		// Ctrl/Cmd+PageUp/PageDown in addition to the roving arrow keys.
-		s.keyFilters = append(s.keyFilters,
-			key.Filter{Focus: tag, Name: key.NamePageUp, Required: key.ModShortcut},
-			key.Filter{Focus: tag, Name: key.NamePageDown, Required: key.ModShortcut},
-			key.Filter{Focus: tag, Name: key.NameTab, Required: key.ModShortcut},
-		)
+	axis := base.CollectionHorizontal
+	if orientation == Vertical {
+		axis = base.CollectionVertical
 	}
-	if len(s.keyFilters) == 0 {
-		return "", "", false
+	selectionKey, focusKey := "", ""
+	s.navigation.Update(
+		gtx,
+		base.Collection{
+			Count:    len(items),
+			Key:      func(i int) string { return items[i].Key },
+			Disabled: func(i int) bool { return items[i].Disabled },
+			Clickables: func(yield func(int, *widget.Clickable) bool) {
+				for i, item := range items {
+					if !item.Disabled && !yield(i, &s.item(item.Key).clickable) {
+						return
+					}
+				}
+			},
+		},
+		tabsIndexByKey(items, selectedKey),
+		base.CollectionPolicy{
+			Wrap: true, Axis: axis, Shortcuts: true,
+			SelectOnFocus: activation == ActivationAutomatic,
+			Activate:      activation == ActivationManual, ActivateOnPress: true,
+		},
+		func(key string) { focusKey = key },
+		func(key string) { selectionKey = key },
+	)
+	if focusKey != "" {
+		s.ensureVisible(tabsIndexByKey(items, focusKey))
 	}
-
-	current := s.focusedIndex(gtx, items)
-	if current < 0 {
-		current = tabsIndexByKey(items, selectedKey)
-	}
-	selectionTarget := -1
-	focusTarget := -1
-	for {
-		e, ok := gtx.Event(s.keyFilters...)
-		if !ok {
-			break
-		}
-		event, ok := e.(key.Event)
-		if !ok || event.State != key.Press {
-			continue
-		}
-		switch event.Name {
-		case key.NameRightArrow, key.NameDownArrow:
-			current, _ = tabsMoveIndex(items, current, 1)
-			focusTarget = current
-		case key.NameLeftArrow, key.NameUpArrow:
-			current, _ = tabsMoveIndex(items, current, -1)
-			focusTarget = current
-		case key.NamePageDown, key.NameTab:
-			current, _ = tabsMoveIndex(items, current, 1)
-			focusTarget = current
-		case key.NamePageUp:
-			current, _ = tabsMoveIndex(items, current, -1)
-			focusTarget = current
-		case key.NameHome:
-			current, _ = tabsFirstEnabled(items)
-			focusTarget = current
-		case key.NameEnd:
-			current, _ = tabsLastEnabled(items)
-			focusTarget = current
-		case key.NameReturn, key.NameEnter, key.NameSpace:
-			if activation == ActivationManual {
-				selectionTarget = current
-				focusTarget = current
-			}
-		}
-		if activation == ActivationAutomatic && focusTarget >= 0 {
-			selectionTarget = focusTarget
-		}
-	}
-	if focusTarget >= 0 {
-		s.ensureVisible(focusTarget)
-	}
-	selectionKey := ""
-	if selectionTarget >= 0 && items[selectionTarget].Key != selectedKey {
-		selectionKey = items[selectionTarget].Key
-	}
-	focusKey := ""
-	if focusTarget >= 0 {
-		focusKey = items[focusTarget].Key
+	if selectionKey == selectedKey {
+		selectionKey = ""
 	}
 	return selectionKey, focusKey, selectionKey != "" || focusKey != ""
-}
-
-func (s *tabsState) focusedIndex(gtx layout.Context, items []TabItem) int {
-	for index, item := range items {
-		if item.Disabled {
-			continue
-		}
-		if gtx.Focused(&s.item(item.Key).clickable) {
-			return index
-		}
-	}
-	return -1
 }
 
 func (s *tabsState) ensureVisible(index int) {
@@ -351,7 +289,6 @@ type tabsItemState struct {
 	editFocused bool
 	interaction animation.FocusAnimation
 	selection   animation.FloatTransition
-	keyFilters  core.KeyFilterCache
 }
 
 func tabsStateFor(ctx *core.Context, key string) *tabsState {
@@ -462,42 +399,10 @@ func tabsIndexByKey(items []TabItem, key string) int {
 	return -1
 }
 
-func tabsMoveIndex(items []TabItem, current, delta int) (int, bool) {
-	if len(items) == 0 {
-		return -1, false
-	}
-	if current < 0 || current >= len(items) {
-		if delta < 0 {
-			return tabsLastEnabled(items)
-		}
-		return tabsFirstEnabled(items)
-	}
-	index := current
-	for range len(items) {
-		index = (index + delta + len(items)) % len(items)
-		if !items[index].Disabled {
-			return index, true
-		}
-	}
-	return -1, false
-}
-
 func tabsFirstEnabled(items []TabItem) (int, bool) {
-	for index, item := range items {
-		if !item.Disabled {
-			return index, true
-		}
-	}
-	return -1, false
-}
-
-func tabsLastEnabled(items []TabItem) (int, bool) {
-	for index := len(items) - 1; index >= 0; index-- {
-		if !items[index].Disabled {
-			return index, true
-		}
-	}
-	return -1, false
+	return navigation.First(navigation.List{
+		Count: len(items), Disabled: func(i int) bool { return items[i].Disabled },
+	})
 }
 
 // tabsCloseFallback prefers the next enabled item and then the previous one.

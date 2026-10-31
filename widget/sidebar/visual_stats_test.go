@@ -2,9 +2,9 @@ package sidebar
 
 import "github.com/qianniancn/flowui/internal/computed"
 
-func (c *sidebarVisualCache) stats() computed.ProviderCacheStats {
+func (c *sidebarDefaultsCache) stats() computed.VisualCacheStats {
 	if c == nil {
-		return computed.ProviderCacheStats{}
+		return computed.VisualCacheStats{}
 	}
 	return c.cache.Stats()
 }

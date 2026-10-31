@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"github.com/qianniancn/flowui/internal/computed"
 	"image"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type menuBenchmarkFrame struct {
@@ -22,7 +23,7 @@ type menuBenchmarkFrame struct {
 }
 
 func newMenuBenchmarkFrame() *menuBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	items := []Item{
 		{Key: "new", Label: "New document", Shortcut: "Ctrl+N"},
 		{Key: "open", Label: "Open document", Shortcut: "Ctrl+O"},
@@ -61,12 +62,12 @@ func (frame *menuBenchmarkFrame) layout() {
 	frame.router.Frame(&frame.ops)
 }
 
-func (frame *menuBenchmarkFrame) visualCacheStats() MenuVisualCacheStats {
+func (frame *menuBenchmarkFrame) visualCacheStats() computed.VisualCacheStats {
 	state, ok := core.PeekState[contextMenuState](frame.ctx, "benchmark-context", stateSlotContextMenu)
 	if !ok || state == nil {
-		return MenuVisualCacheStats{}
+		return computed.VisualCacheStats{}
 	}
-	return state.visualCache.stats()
+	return state.visualCache.Stats()
 }
 
 // BenchmarkMenuComponentTreeSteadyState covers trigger, popup panel, item

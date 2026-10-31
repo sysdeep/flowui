@@ -1,12 +1,11 @@
 package menubar
 
 import (
-	"github.com/qianniancn/flowui/style"
 	"unicode"
 
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/widget/menu"
 	"github.com/qianniancn/flowui/widget/navigation"
 )
@@ -111,7 +110,6 @@ func (i Item) Width(dp int) Item {
 }
 
 type Widget struct {
-	override          *theme.MenubarOverride
 	key               string
 	items             []Item
 	orientation       Orientation
@@ -125,6 +123,7 @@ type Widget struct {
 	defaultOpenKey    string
 	hasDefaultOpenKey bool
 	onOpenChange      func(string)
+	style             style.Style
 }
 
 func New(key string, items []Item) Widget {
@@ -181,11 +180,7 @@ func (m Widget) OnOpenChange(fn func(string)) Widget {
 }
 
 func (m Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return m.layoutWithOverride(ctx, gtx, m.override)
-}
-
-func (m Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.MenubarOverride) layout.Dimensions {
-	return m.layout(ctx, gtx, override)
+	return m.layout(ctx, gtx)
 }
 
 func (m Widget) itemDisabled(item Item) bool {
@@ -235,11 +230,6 @@ func (m Widget) firstEnabled() int {
 	return index
 }
 
-func (m Widget) lastEnabled() int {
-	index, _ := navigation.Last(m.navList())
-	return index
-}
-
 func (m Widget) moveIndex(current, delta int) int {
 	if len(m.items) == 0 || delta == 0 {
 		return current
@@ -252,19 +242,10 @@ func (m Widget) moveIndex(current, delta int) int {
 	return next
 }
 
-func (m Widget) typeaheadIndex(current int, query string) int {
-	if index, ok := navigation.Match(m.navList(), current, query); ok {
-		return index
-	}
-	return -1
-}
-
-// Style merges instance declarations into the widget.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.MenubarOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (m Widget) Style(values ...style.Style) Widget {
+	m.style = style.Join(m.style, style.Join(values...))
+	return m
 }

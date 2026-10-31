@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -169,8 +169,8 @@ func TestLineChartStackAnimationAndSelectionPreserveRawValues(t *testing.T) {
 		Values("first", "First", []float64{10}).Stack("total"),
 		Values("second", "Second", []float64{5}).Stack("total"),
 	}).Categories([]string{"A"})
-	activeTheme := *testtheme.Behavior()
-	target := resolveChartDataWithVisual(widget, lineChartTestVisual(&activeTheme), testDp)
+	activeTheme := theme.Light()
+	target := resolveChartDataWithDefaults(widget, lineChartTestDefaults(&activeTheme), testDp)
 	from := lineBaselineData(target, 0)
 	midpoint := interpolateLineData(from, target, 0.5, 0)
 	if midpoint.series[1].points[0].Y != 7.5 || midpoint.series[1].points[0].stackBase != 5 {
@@ -203,8 +203,8 @@ func resolveStackedLineData(series []Series, categories bool) chartData {
 	if categories {
 		widget = widget.Categories([]string{"A", "B", "C"})
 	}
-	activeTheme := *testtheme.Behavior()
-	return resolveChartDataWithVisual(widget, lineChartTestVisual(&activeTheme), testDp)
+	activeTheme := theme.Light()
+	return resolveChartDataWithDefaults(widget, lineChartTestDefaults(&activeTheme), testDp)
 }
 
 func assertLinePointValues(t *testing.T, points []resolvedPoint, want []float64) {

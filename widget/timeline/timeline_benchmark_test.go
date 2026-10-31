@@ -8,9 +8,9 @@ import (
 	"gioui.org/io/input"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -23,7 +23,7 @@ type timelineBenchmarkFrame struct {
 }
 
 func newTimelineBenchmarkFrame(maximum image.Point) *timelineBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &timelineBenchmarkFrame{
 		ctx: core.New(nil, active, locale.LanguageEnglish),
 	}
@@ -98,31 +98,25 @@ func timelineBenchmarkTree() timelineBenchmarkTreeWidget {
 	return timelineBenchmarkTreeWidget{values: values}
 }
 
-func reportTimelineVisualStats(b *testing.B, after, before TimelineVisualCacheStats) {
+func reportTimelineVisualStats(b *testing.B, after, before computed.VisualCacheStats) {
 	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "timeline-visual-cache-hits/op")
 	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "timeline-visual-cache-misses/op")
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "timeline-visual-cache-theme-invalidations/op")
 	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "timeline-visual-cache-key-invalidations/op")
 }
 
-func BenchmarkTimelineProviderVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
+func BenchmarkTimelineDefaultVisualCacheHit(b *testing.B) {
+	active := new(theme.Light())
 	cache := timelineVisualCache{}
-	cache.cache.Resolve(active, struct{}{}, func() theme.TimelineVisual {
-		provider, err := theme.ComponentProvider(active)
-		if err != nil {
-			b.Fatal(err)
-		}
-		visual := provider.Timeline(active, theme.TimelineRequest{})
-		theme.ValidateTimelineVisual(visual)
-		return visual
+	cache.cache.Resolve(active, struct{}{}, func() timelineVisual {
+		return buildTimeline(active)
 	})
 	before := cache.Stats()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		cache.cache.Resolve(active, struct{}{}, func() theme.TimelineVisual {
+		cache.cache.Resolve(active, struct{}{}, func() timelineVisual {
 			b.Helper()
 			panic("timeline visual cache miss")
 		})
@@ -170,8 +164,8 @@ func BenchmarkTimelineComponentTreeVisualCacheHit(b *testing.B) {
 	reportTimelineVisualStats(b, timelineTreeVisualStats(value), before)
 }
 
-func timelineTreeVisualStats(value timelineBenchmarkTreeWidget) TimelineVisualCacheStats {
-	var total TimelineVisualCacheStats
+func timelineTreeVisualStats(value timelineBenchmarkTreeWidget) computed.VisualCacheStats {
+	var total computed.VisualCacheStats
 	for _, item := range value.values {
 		stats := item.visualCache.Stats()
 		total.Hits += stats.Hits
@@ -186,8 +180,8 @@ func BenchmarkTimelineComponentTreeVisualCacheMiss(b *testing.B) {
 	frame := newTimelineBenchmarkFrame(image.Pt(720, 24000))
 	value := timelineBenchmarkTree()
 	frame.layout(value)
-	first := *testtheme.Behavior()
-	second := *testtheme.Behavior()
+	first := theme.Light()
+	second := theme.Light()
 	before := timelineTreeVisualStats(value)
 
 	b.ReportAllocs()
@@ -207,7 +201,7 @@ func BenchmarkTimelineComponentTreeVisualCacheMiss(b *testing.B) {
 func BenchmarkTimelineStyledOverrideBypass(b *testing.B) {
 	frame := newTimelineBenchmarkFrame(image.Pt(640, 360))
 	value := timelineBenchmarkValue()
-	styled := (value).Style(style.Style{}.PaddingX(2))
+	styled := (value).Style(style.Style{}.Padding(2))
 	frame.layout(styled)
 
 	b.ReportAllocs()

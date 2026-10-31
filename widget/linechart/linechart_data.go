@@ -57,15 +57,15 @@ type chartDataCache struct {
 	cache chart.DataCache[chartData]
 }
 
-func (c *chartDataCache) resolveWithVisual(widget Widget, active *theme.Theme, visual theme.LineChartVisual, metric unit.Metric) chartData {
+func (c *chartDataCache) resolveWithDefaults(widget Widget, active *theme.Theme, defaults lineChartDefaults, metric unit.Metric) chartData {
 	data, generation := c.cache.Resolve(widget.hasDataVersion, widget.dataVersion, active, metric, func() chartData {
-		return resolveChartDataWithVisual(widget, visual, metric.Dp)
+		return resolveChartDataWithDefaults(widget, defaults, metric.Dp)
 	})
 	data.generation = generation
 	return data
 }
 
-func resolveChartDataWithVisual(widget Widget, visual theme.LineChartVisual, dp func(unit.Dp) int) chartData {
+func resolveChartDataWithDefaults(widget Widget, defaults lineChartDefaults, dp func(unit.Dp) int) chartData {
 	seen := make(map[string]struct{}, len(widget.series))
 	data := chartData{}
 	xSeen := make(map[uint64]struct{})
@@ -83,9 +83,9 @@ func resolveChartDataWithVisual(widget Widget, visual theme.LineChartVisual, dp 
 		}
 		lineColor := source.color
 		if !source.hasColor {
-			lineColor = visual.Colors.SeriesColor(index)
+			lineColor = defaults.Colors.SeriesColor(index)
 		}
-		width := float32(dp(visual.Metrics.LineWidth))
+		width := float32(dp(defaults.Metrics.LineWidth))
 		if source.width > 0 {
 			width = float32(dp(source.width))
 		}
@@ -113,7 +113,7 @@ func resolveChartDataWithVisual(widget Widget, visual theme.LineChartVisual, dp 
 		}
 		if source.area && !source.hasAreaColor {
 			resolved.areaColor = lineColor
-			resolved.areaColor.A = uint8(float32(resolved.areaColor.A) * visual.AreaOpacity)
+			resolved.areaColor.A = uint8(float32(resolved.areaColor.A) * defaults.AreaOpacity)
 		}
 		data.legend = append(data.legend, resolved)
 		if source.hidden {

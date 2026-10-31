@@ -1,6 +1,7 @@
 package popover
 
 import (
+	"github.com/qianniancn/flowui/internal/computed"
 	"image"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -22,7 +23,7 @@ type popoverBenchmarkFrame struct {
 }
 
 func newPopoverBenchmarkFrame(maximum image.Point) *popoverBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &popoverBenchmarkFrame{
 		ctx: core.New(nil, active, locale.LanguageEnglish),
 	}
@@ -45,15 +46,15 @@ func (frame *popoverBenchmarkFrame) layout(value Widget) {
 	frame.router.Frame(&frame.ops)
 }
 
-func (frame *popoverBenchmarkFrame) visualCacheStats() PopoverVisualCacheStats {
+func (frame *popoverBenchmarkFrame) visualCacheStats() computed.VisualCacheStats {
 	state, ok := core.PeekState[popoverState](frame.ctx, "help", stateSlotPopover)
 	if !ok || state == nil {
-		return PopoverVisualCacheStats{}
+		return computed.VisualCacheStats{}
 	}
-	return state.visualCache.stats()
+	return state.visualCache.Stats()
 }
 
-func reportPopoverCacheStats(b *testing.B, stats PopoverVisualCacheStats) {
+func reportPopoverCacheStats(b *testing.B, stats computed.VisualCacheStats) {
 	if b.N == 0 {
 		return
 	}
@@ -63,8 +64,8 @@ func reportPopoverCacheStats(b *testing.B, stats PopoverVisualCacheStats) {
 	b.ReportMetric(float64(stats.KeyInvalidations)/float64(b.N), "popover-visual-cache-key-invalidations/op")
 }
 
-func popoverCacheStatsDelta(after, before PopoverVisualCacheStats) PopoverVisualCacheStats {
-	return PopoverVisualCacheStats{
+func popoverCacheStatsDelta(after, before computed.VisualCacheStats) computed.VisualCacheStats {
+	return computed.VisualCacheStats{
 		Hits:               after.Hits - before.Hits,
 		Misses:             after.Misses - before.Misses,
 		ThemeInvalidations: after.ThemeInvalidations - before.ThemeInvalidations,
@@ -73,7 +74,7 @@ func popoverCacheStatsDelta(after, before PopoverVisualCacheStats) PopoverVisual
 }
 
 // BenchmarkPopoverLayoutSteadyState measures a settled popover overlay with a
-// heading and text body using the neutral behavior provider.
+// heading and text body using the built-in component appearance.
 func BenchmarkPopoverLayoutSteadyState(b *testing.B) {
 	frame := newPopoverBenchmarkFrame(image.Pt(480, 360))
 	value := New(Spacer(120, 32), text.New("Review the current workspace settings before applying changes.")).Key("help").Open(true).
@@ -94,14 +95,14 @@ func BenchmarkPopoverLayoutSteadyState(b *testing.B) {
 	reportPopoverCacheStats(b, popoverCacheStatsDelta(frame.visualCacheStats(), baseline))
 }
 
-// BenchmarkPopoverVisualCacheMiss measures the provider path when the active
+// BenchmarkPopoverVisualCacheMiss measures the recipe path when the active
 // theme changes on every frame, separately exposing invalidation cost.
 func BenchmarkPopoverVisualCacheMiss(b *testing.B) {
 	frame := newPopoverBenchmarkFrame(image.Pt(480, 360))
 	value := New(Spacer(120, 32), text.New("Body")).Key("help").Open(true)
 	frame.layout(value)
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 	baseline := frame.visualCacheStats()
 
 	b.ReportAllocs()

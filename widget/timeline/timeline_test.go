@@ -8,7 +8,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 func TestNewCopiesItems(t *testing.T) {
@@ -22,7 +21,7 @@ func TestNewCopiesItems(t *testing.T) {
 
 func TestMarkerColors(t *testing.T) {
 	custom := color.NRGBA{R: 1, G: 2, B: 3, A: 0xff}
-	colors := theme.TimelineColors{
+	colors := timelineColors{
 		Primary:  color.NRGBA{R: 4, A: 0xff},
 		Error:    color.NRGBA{G: 5, A: 0xff},
 		Success:  color.NRGBA{B: 6, A: 0xff},
@@ -49,7 +48,7 @@ func TestMarkerColors(t *testing.T) {
 
 func TestMarkerColorPrecedence(t *testing.T) {
 	custom := color.NRGBA{R: 1, G: 2, B: 3, A: 0xff}
-	colors := theme.TimelineColors{
+	colors := timelineColors{
 		Primary:  color.NRGBA{R: 4, A: 0xff},
 		Error:    color.NRGBA{G: 5, A: 0xff},
 		Success:  color.NRGBA{B: 6, A: 0xff},

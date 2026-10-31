@@ -280,7 +280,7 @@ func TestKeysAnonymousClaimsCountPerScope(t *testing.T) {
 	if scoped == first || scoped == second {
 		t.Fatalf("scoped anonymous key %q collided with %q/%q", scoped, first, second)
 	}
-	if !strings.Contains(scoped, "card/auto:") {
+	if !strings.Contains(scoped, "card%2Froot/clickable:anonymous:") {
 		t.Fatalf("scoped anonymous key = %q, want the scope in its identity", scoped)
 	}
 }

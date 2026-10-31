@@ -5,13 +5,14 @@ import (
 	"image"
 
 	"gioui.org/layout"
+	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 )
 
 // Widget renders an overlay dialog controlled by application state.
 type Widget struct {
-	override                *theme.ModalOverride
+	style                   style.Style
 	key                     string
 	open                    bool
 	hasOpen                 bool
@@ -79,6 +80,28 @@ const (
 	BackdropTransparent
 )
 
+// ModalSize and ModalBackdrop are neutral size and backdrop values for hosts
+// that keep their own presets independent of widget/modal. Their order mirrors
+// Size and BackdropVariant.
+type ModalSize uint8
+
+const (
+	ModalSizeMedium ModalSize = iota
+	ModalSizeXSmall
+	ModalSizeSmall
+	ModalSizeLarge
+	ModalSizeCover
+	ModalSizeFull
+)
+
+type ModalBackdrop uint8
+
+const (
+	ModalBackdropOpaque ModalBackdrop = iota
+	ModalBackdropBlur
+	ModalBackdropTransparent
+)
+
 // Scroll selects whether the body or the dialog surface owns scrolling.
 type Scroll int
 
@@ -111,14 +134,11 @@ const (
 	AnimationPop
 )
 
-// New creates a modal dialog. When open is true, it starts in controlled
-// mode with the modal open. When open is false, it starts in uncontrolled mode
-// with the modal closed (use DefaultOpen(true) for uncontrolled mode starting open).
 // New creates a modal dialog. It starts uncontrolled and closed; Open sets the
 // controlled value and DefaultOpen the uncontrolled starting value.
 func New(title string, body core.Widget) Widget {
 	return Widget{
-		key:   core.AutoKey(),
+		key:   core.AutoKey("modal"),
 		title: title,
 		body:  body,
 	}
@@ -233,10 +253,10 @@ func (m Widget) CloseButton(show bool) Widget {
 }
 
 func (m Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return m.layoutWithOverride(ctx, gtx, m.override)
+	return m.layoutWithStyle(ctx, gtx)
 }
 
-func (m Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ModalOverride) layout.Dimensions {
+func (m Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	fullKey := core.FullKey(ctx, m.key)
 	naturallyDisabled := core.OverlayNaturallyDisabled(gtx)
 
@@ -263,7 +283,7 @@ func (m Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	state := modalStateFor(ctx, m.key)
 	state.bind(m)
 	open := state.isOpen(m)
-	visual := m.visualWithCache(ctx, override, &state.visualCache)
+	defaults := m.defaultsWithCache(ctx, &state.visualCache)
 
 	if !open && !state.visible() {
 		if m.hasOpen || !m.hasDefaultOpen || !m.defaultOpen {
@@ -272,10 +292,7 @@ func (m Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		return layout.Dimensions{}
 	}
 
-	progress := state.progressFor(gtx, open, visual.Metrics.AnimationDuration, visual.Motion)
-	if open && naturallyDisabled {
-		state.focusPending = true
-	}
+	progress := state.progressFor(gtx, open, defaults.metrics.AnimationDuration, defaults.motion)
 	if !open && progress <= 0 {
 		if m.hasOpen || !m.hasDefaultOpen || !m.defaultOpen {
 			deleteModalState(ctx, fullKey)
@@ -285,7 +302,7 @@ func (m Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	var tail func(layout.Context)
 	if !naturallyDisabled {
 		tail = func(gtx layout.Context) {
-			m.layoutFocusEnd(gtx, state)
+			state.dialog.LayoutEnd(gtx)
 		}
 	}
 	core.RegisterOverlay(ctx, core.OverlayRequest{
@@ -293,78 +310,23 @@ func (m Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		Layer:    core.OverlayLayerModal,
 		Disabled: naturallyDisabled,
 		Layout: func(gtx layout.Context, _ image.Rectangle, interactive bool) layout.Dimensions {
-			if interactive && gtx.Enabled() {
-				if open {
-					m.handleCloseEvents(ctx, gtx, state)
-				} else {
-					m.handleExitSurfaceEvents(ctx, gtx, state)
-				}
+			var close *widget.Clickable
+			if m.showCloseButton() {
+				close = &state.close
 			}
-			return m.layoutOverlay(ctx, gtx, state, progress, open && gtx.Enabled(), visual)
+			if state.dialog.Update(ctx, gtx, base.DialogPolicy{
+				Open: open, Interactive: interactive, Close: close,
+				DismissOutside: m.isDismissable(), DismissEscape: !m.keyboardDismissDisabled,
+			}) {
+				m.requestClose(state)
+			}
+			return m.layoutOverlay(ctx, gtx, state, progress, open && gtx.Enabled(), defaults)
 		},
 		Tail: tail,
 	})
-	if open && !naturallyDisabled {
-		core.AfterOverlays(ctx, func() {
-			becameTopmost := core.OverlayFocusScopeBecameTopmost(ctx, core.OverlayLayerModal, fullKey)
-			if core.OverlayFocusScopeTopmost(ctx, core.OverlayLayerModal, fullKey) && (state.focusPending || becameTopmost) {
-				core.RequestFocus(ctx, state.initialFocusTag())
-				state.focusPending = false
-			}
-		})
-	} else if !naturallyDisabled {
-		core.AfterOverlays(ctx, func() {
-			if core.OverlayFocusScopeTopmost(ctx, core.OverlayLayerModal, fullKey) {
-				core.RequestFocus(ctx, state.initialFocusTag())
-			}
-		})
-	}
+	state.dialog.ManageFocus(ctx, fullKey, open, !naturallyDisabled)
 
 	return layout.Dimensions{}
-}
-
-func (m Widget) handleExitSurfaceEvents(ctx *core.Context, gtx layout.Context, state *modalState) {
-	for state.dialog.Clicked(gtx) {
-	}
-	pressed := state.dialog.TakePressed()
-	for i := range state.dismiss {
-		for state.dismiss[i].Clicked(gtx) {
-		}
-		pressed = state.dismiss[i].TakePressed() || pressed
-	}
-	if pressed {
-		core.RequestFocus(ctx, state.endFocusTag())
-	}
-}
-
-func (m Widget) handleCloseEvents(ctx *core.Context, gtx layout.Context, modalStateValue *modalState) {
-	for modalStateValue.dialog.Clicked(gtx) {
-		core.RequestFocus(ctx, modalStateValue.endFocusTag())
-	}
-	if modalStateValue.dialog.TakePressed() {
-		core.RequestFocus(ctx, modalStateValue.endFocusTag())
-	}
-	if !m.keyboardDismissDisabled && modalStateValue.escapePressed(gtx) {
-		m.requestClose(modalStateValue)
-	}
-	if m.showCloseButton() {
-		presses := core.SnapshotPresses(modalStateValue.close.History())
-		for modalStateValue.close.Clicked(gtx) {
-			m.requestClose(modalStateValue)
-			core.RequestFocusVisible(ctx, &modalStateValue.close, presses.ClickFocusVisible(modalStateValue.close.History()))
-		}
-		core.FocusOnPress(ctx, &modalStateValue.close, modalStateValue.close.History(), presses.Active())
-	}
-	for i := range modalStateValue.dismiss {
-		for modalStateValue.dismiss[i].Clicked(gtx) {
-			if m.isDismissable() {
-				m.requestClose(modalStateValue)
-			}
-		}
-		if modalStateValue.dismiss[i].TakePressed() {
-			core.RequestFocus(ctx, modalStateValue.endFocusTag())
-		}
-	}
 }
 
 func (m Widget) requestClose(state *modalState) {
@@ -392,13 +354,9 @@ func (m Widget) resolvedAnimation() Animation {
 	return m.animation
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ModalOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. They are resolved as the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
+func (m Widget) Style(values ...style.Style) Widget {
+	m.style = style.Join(m.style, style.Join(values...))
+	return m
 }

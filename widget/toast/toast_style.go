@@ -1,49 +1,34 @@
 package toast
 
 import (
+	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/widget/button"
 )
 
+// toastVisualKey contains only the inputs that change the built-in defaults.
+// The instance style is resolved as the last cascade layer instead of being
+// part of the key.
 type toastVisualKey struct {
-	variant     Variant
-	override    uint64
-	overrideSet bool
+	variant       Variant
+	actionVariant button.Variant
 }
 
 type toastVisualCache struct {
-	cache computed.ProviderCache[toastVisualKey, theme.ToastVisual]
+	cache computed.VisualCacheMap[toastVisualKey, toastVisual]
 }
 
-type ToastVisualCacheStats = computed.ProviderCacheStats
-
-func toastOverrideKey(override *theme.ToastOverride) (uint64, bool) {
-	if override == nil {
-		return 0, false
-	}
-	return override.Declaration.Hash64(), true
+func (p Widget) baseVisual(ctx *core.Context) toastVisual {
+	return p.visualWithCache(ctx, Default, button.Ghost)
 }
 
-func (p Widget) baseVisual(ctx *core.Context, override *theme.ToastOverride) theme.ToastVisual {
-	return p.visualWithCache(ctx, Default, override)
-}
-
-// toastVisualFor is kept as a small package-local probe for behavior tests;
-// production layout uses the per-widget cache above.
-func toastVisualFor(ctx *core.Context, variant Variant) theme.ToastVisual {
+func (p Widget) visualWithCache(ctx *core.Context, variant Variant, actionVariant button.Variant) toastVisual {
 	active := core.ActiveTheme(ctx)
-	core.RequireVisualProvider(ctx)
-	return resolveToastProvider(active, variant, nil)
-}
-
-func (p Widget) visualWithCache(ctx *core.Context, variant Variant, override *theme.ToastOverride) theme.ToastVisual {
-	active := core.ActiveTheme(ctx)
-	core.RequireVisualProvider(ctx)
-	hash, set := toastOverrideKey(override)
-	key := toastVisualKey{variant: variant, override: hash, overrideSet: set}
-	load := func() theme.ToastVisual {
-		return resolveToastProvider(active, variant, override)
+	key := toastVisualKey{variant: variant, actionVariant: actionVariant}
+	load := func() toastVisual {
+		return buildToastVisual(active, variant, actionVariant)
 	}
 	if p.visualCache == nil {
 		return load()
@@ -51,7 +36,50 @@ func (p Widget) visualWithCache(ctx *core.Context, variant Variant, override *th
 	return p.visualCache.cache.Resolve(active, key, load)
 }
 
-func resolveToastProvider(active *theme.Theme, variant Variant, override *theme.ToastOverride) theme.ToastVisual {
-	return theme.ResolveVisual(active, theme.ToastRequest{Variant: variant, Override: override},
-		theme.ComponentVisualProvider.Toast, theme.ValidateToastVisual)
+// toastResolvedStyle is the cascade result for one toast: the panel, title,
+// description and indicator layers with the instance style applied last.
+type toastResolvedStyle struct {
+	panel       style.ResolvedStyle
+	title       style.ResolvedStyle
+	description style.ResolvedStyle
+	indicator   style.ResolvedStyle
+}
+
+func (p Widget) resolveStyle(ctx *core.Context, gtx layout.Context, state style.State, visual toastVisual) toastResolvedStyle {
+	key := toastStyleKey(ctx, "toast")
+	panelParts := [1]style.Part{style.PartRoot}
+	textParts := [2]style.Part{style.PartLabel, style.PartDescription}
+	var panel [1]style.ResolvedStyle
+	var text [2]style.ResolvedStyle
+	computed.ResolvePartsInto(ctx, gtx, key, state, panelParts[:], panel[:],
+		visual.panel, style.Style{}, style.Style{}, p.style)
+	computed.ResolvePartsInto(ctx, gtx, key, state, textParts[:], text[:],
+		visual.text, style.Style{}, style.Style{}, p.style)
+	return toastResolvedStyle{
+		panel:       panel[0],
+		title:       text[0],
+		description: text[1],
+		indicator: computed.ResolvePart(ctx, gtx, key, style.PartIndicator, state,
+			visual.indicator, style.Style{}, style.Style{}, p.style),
+	}
+}
+
+func (p Widget) resolveActionStyle(ctx *core.Context, gtx layout.Context, state style.State, visual toastVisual) style.ResolvedStyle {
+	return computed.Resolve(ctx, gtx, toastStyleKey(ctx, "toast-action"), state,
+		visual.action, style.Style{}, style.Style{}, p.style)
+}
+
+func (p Widget) resolveCloseStyle(ctx *core.Context, gtx layout.Context, state style.State, visual toastVisual) style.ResolvedStyle {
+	return computed.Resolve(ctx, gtx, toastStyleKey(ctx, "toast-close"), state,
+		visual.close, style.Style{}, style.Style{}, p.style)
+}
+
+// toastStyleKey derives an animation identity below the current toast item.
+// An empty owner means there is no item scope, so transitions soft-fail.
+func toastStyleKey(ctx *core.Context, role string) string {
+	owner := core.FullKey(ctx, "")
+	if owner == "" {
+		return ""
+	}
+	return core.DerivedKey(ctx, owner, role)
 }

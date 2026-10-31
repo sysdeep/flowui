@@ -4,37 +4,7 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	textui "github.com/qianniancn/flowui/widget/text"
-)
-
-// Color selects the semantic color of a Badge.
-type Color = theme.BadgeColor
-
-const (
-	ColorDefault = theme.BadgeColorDefault
-	ColorAccent  = theme.BadgeColorAccent
-	ColorSuccess = theme.BadgeColorSuccess
-	ColorWarning = theme.BadgeColorWarning
-	ColorDanger  = theme.BadgeColorDanger
-)
-
-// Variant selects the visual prominence of a Badge.
-type Variant = theme.BadgeVariant
-
-const (
-	VariantPrimary   = theme.BadgeVariantPrimary
-	VariantSecondary = theme.BadgeVariantSecondary
-	VariantSoft      = theme.BadgeVariantSoft
-)
-
-// Size selects the minimum Badge dimensions and text size.
-type Size = theme.BadgeSize
-
-const (
-	SizeMedium = theme.BadgeSizeMedium
-	SizeSmall  = theme.BadgeSizeSmall
-	SizeLarge  = theme.BadgeSizeLarge
 )
 
 // Placement selects the Badge corner relative to its anchor.
@@ -49,10 +19,10 @@ const (
 
 // Widget displays a small status or count over an anchor component.
 type Widget struct {
-	override *theme.BadgeOverride
-	anchor   core.Widget
-	label    string
-	// Keep the label widget alive across frames so its text Provider cache is
+	style  style.Style
+	anchor core.Widget
+	label  string
+	// Keep the label widget alive across frames so its text visual cache is
 	// reused instead of being rebuilt for every Badge layout.
 	labelWidget *textui.Widget
 	content     core.Widget
@@ -114,13 +84,10 @@ func (b Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 	return b.layout(ctx, gtx)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.BadgeOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the built-in badge appearance.
+// The declaration is resolved as the last cascade layer at layout time, so
+// Style can sit anywhere in the chain.
+func (b Widget) Style(values ...style.Style) Widget {
+	b.style = style.Join(b.style, style.Join(values...))
+	return b
 }

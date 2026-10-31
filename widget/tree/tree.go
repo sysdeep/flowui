@@ -10,11 +10,12 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/menu"
 )
 
@@ -259,7 +260,7 @@ type DragEvent struct {
 
 // Widget presents hierarchical, expandable data with controlled selection and expansion.
 type Widget struct {
-	override            *theme.TreeOverride
+	style               style.Style
 	key                 string
 	selectedKey         string
 	selectedKeys        []string
@@ -585,19 +586,11 @@ func (t Widget) MaxHeight(dp int) Widget {
 }
 
 func (t Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return t.layoutWithOverride(ctx, gtx, t.override)
-}
-
-// Styled applies an instance declaration at the Tree provider boundary.
-// Tree behavior does not retain or interpret visual declarations.
-func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.TreeOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	active := core.ActiveTheme(ctx)
 	state := treeStateFor(ctx, t.key)
-	visual := state.visualCache.resolve(active, theme.TreeRequest{
-		Variant:  treeThemeVariant(t.variant),
-		Size:     treeThemeSize(t.size),
-		Override: override,
+	defaults := state.visualCache.resolve(active, treeVisualKey{
+		Variant: t.variant,
+		Size:    t.size,
 	})
 	state.beginFrame()
 	defer state.endFrame()
@@ -611,7 +604,11 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		state.finishRename(t, false)
 	}
 	state.applyRenameRequest(ctx, t, visible)
-	state.updateRename(gtx, t)
+	eventGtx := gtx
+	if t.disabled {
+		eventGtx = eventGtx.Disabled()
+	}
+	state.updateRename(ctx, eventGtx, t)
 	state.dragSource = ""
 	state.dragSources = state.dragSources[:0]
 	state.dropTarget = treeDropTarget{}
@@ -620,7 +617,35 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		dragSelection = t.selectedDragKeys(visible)
 	}
 
-	if !t.disabled {
+	result := state.updateKeys(eventGtx, t, visible)
+	for itemKey, itemState := range state.items {
+		index := state.visibleIndex(visible, itemKey, itemState)
+		if index < 0 {
+			continue
+		}
+		entry := visible[index]
+		disabled := t.itemDisabled(entry.item)
+		for itemState.toggle.Clicked(eventGtx) {
+			if eventGtx.Enabled() && !disabled && treeItemExpandable(entry.item) {
+				t.requestItemToggle(entry.item)
+			}
+		}
+		base.RowInteractionWithFocus(ctx, eventGtx, &itemState.check, &itemState.clickable,
+			t.itemCheckboxDisabled(entry.item), func() {
+				t.requestCheck(entry.item.Key, !t.itemChecked(entry.item.Key))
+			})
+		base.UpdateRow(ctx, eventGtx, base.RowInput{
+			Clickable: &itemState.clickable, Disabled: disabled,
+			OnClick: func(click widget.Click) {
+				t.activateWithModifiers(state, visible, entry.item.Key, click.Modifiers)
+				selectionModifier := click.Modifiers.Contain(key.ModShift) || click.Modifiers.Contain(key.ModCtrl) || click.Modifiers.Contain(key.ModCommand)
+				if t.rowClickExpands(click.NumClicks) && !selectionModifier && treeItemExpandable(entry.item) {
+					t.requestItemToggle(entry.item)
+				}
+			},
+		})
+	}
+	if !t.disabled && gtx.Enabled() {
 		dragIndex := -1
 		for itemKey, itemState := range state.items {
 			index := state.visibleIndex(visible, itemKey, itemState)
@@ -629,35 +654,6 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 			}
 			entry := visible[index]
 			disabled := t.itemDisabled(entry.item)
-			presses := core.SnapshotPresses(itemState.clickable.History())
-			for itemState.toggle.Clicked(gtx) {
-				if !disabled && treeItemExpandable(entry.item) {
-					t.requestItemToggle(entry.item)
-				}
-			}
-			for itemState.check.Clicked(gtx) {
-				if !t.itemCheckboxDisabled(entry.item) {
-					t.requestCheck(entry.item.Key, !t.itemChecked(entry.item.Key))
-				}
-			}
-			for {
-				click, ok := itemState.clickable.Update(gtx)
-				if !ok {
-					break
-				}
-				if disabled {
-					continue
-				}
-				t.activateWithModifiers(state, visible, entry.item.Key, click.Modifiers)
-				core.RequestFocusVisible(ctx, &itemState.clickable, presses.ClickFocusVisible(itemState.clickable.History()))
-				selectionModifier := click.Modifiers.Contain(key.ModShift) || click.Modifiers.Contain(key.ModCtrl) || click.Modifiers.Contain(key.ModCommand)
-				if t.rowClickExpands(click.NumClicks) && !selectionModifier && treeItemExpandable(entry.item) {
-					t.requestItemToggle(entry.item)
-				}
-			}
-			if !disabled {
-				core.FocusOnPress(ctx, &itemState.clickable, itemState.clickable.History(), presses.Active())
-			}
 			if t.onDrop != nil && !disabled {
 				if !entry.item.DropDisabled {
 					t.updateDropEvents(gtx, state, itemState, visible, entry)
@@ -674,7 +670,7 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 			}
 		}
 		if dragIndex >= 0 {
-			metrics := visual.Metrics
+			metrics := defaults.metrics
 			geometry := state.dragGeometryFor(
 				t,
 				visible,
@@ -710,7 +706,6 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 			t.endDragLifecycle(state)
 			state.resetDragAssist()
 		}
-		result := state.updateKeys(gtx, t, visible)
 		if result.focusKey != "" {
 			if result.rangeKey == "" && t.selectionMode == SelectionMultiple {
 				state.selectionAnchor = result.focusKey
@@ -762,13 +757,13 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		Expanded:     len(t.expandedKeys) > 0,
 		Dragging:     state.dragSource != "",
 		DropTarget:   state.dropTarget.key != "",
-	}, visual.Defaults, style.Style{}, style.Style{}, visual.Override), core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return t.layout(ctx, gtx, state, visible, visual)
+	}, defaults.root, style.Style{}, style.Style{}, t.style), core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return t.layout(ctx, gtx, state, visible, defaults)
 	}))
 	if state.dragSource != "" {
 		dragIndex := treeVisibleIndex(visible, state.dragSource)
 		if dragIndex >= 0 && !treeListPositionContains(state.list.Position, dragIndex) {
-			metrics := visual.Metrics
+			metrics := defaults.metrics
 			geometry := state.dragGeometryFor(
 				t,
 				visible,
@@ -789,7 +784,7 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 			sourceState.drag.Layout(
 				offscreenGtx,
 				func(layout.Context) layout.Dimensions { return layout.Dimensions{Size: image.Pt(1, 1)} },
-				t.dragPreview(ctx, label, press.Add(image.Pt(gtx.Dp(unit.Dp(12)), gtx.Dp(unit.Dp(12)))), visual),
+				t.dragPreview(ctx, label, press.Add(image.Pt(gtx.Dp(unit.Dp(12)), gtx.Dp(unit.Dp(12)))), defaults),
 			)
 			sourceOffset.Pop()
 		}
@@ -944,8 +939,8 @@ func (t Widget) itemHalfChecked(key string) bool {
 
 func (t Widget) keyboardActiveIndex(visible []flatItem) int {
 	if t.selectionMode == SelectionMultiple {
-		for index := len(t.selectedKeys) - 1; index >= 0; index-- {
-			visibleIndex := treeVisibleIndex(visible, t.selectedKeys[index])
+		for _, v := range slices.Backward(t.selectedKeys) {
+			visibleIndex := treeVisibleIndex(visible, v)
 			if visibleIndex >= 0 && !t.itemDisabled(visible[visibleIndex].item) {
 				return visibleIndex
 			}
@@ -1161,11 +1156,11 @@ func treeCheckAncestorKeys(items []Item, target string, checkboxDisabled func(It
 	}
 	walk(items, nil)
 	ancestors := make([]string, 0, len(path))
-	for index := len(path) - 1; index >= 0; index-- {
-		if treeCheckboxDisabled(path[index], checkboxDisabled) {
+	for _, p := range slices.Backward(path) {
+		if treeCheckboxDisabled(p, checkboxDisabled) {
 			break
 		}
-		ancestors = append(ancestors, path[index].Key)
+		ancestors = append(ancestors, p.Key)
 	}
 	return ancestors
 }
@@ -1189,15 +1184,10 @@ func removeTreeKey(keys []string, key string) []string {
 	return append(append([]string(nil), keys[:index]...), keys[index+1:]...)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-
-// Style merges instance declarations into the tree.
+// Style merges instance declarations into the tree. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.TreeOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

@@ -9,14 +9,15 @@ import (
 	"gioui.org/io/key"
 	giolayout "gioui.org/layout"
 	"github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/button"
 )
 
 func TestEditingAndCommit(t *testing.T) {
-	h := uitest.New(image.Pt(360, 140), base.Light())
+	h := uitest.New(image.Pt(360, 140), theme.Light())
 	value, changes := 2.0, 0
 	disabled := false
 	root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {

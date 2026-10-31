@@ -12,6 +12,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
+	"github.com/qianniancn/flowui/widget/internal/selectablemenu"
 )
 
 func TestWrapSelectableTextOpensMenuAndKeepsHighlight(t *testing.T) {
@@ -23,7 +24,7 @@ func TestWrapSelectableTextOpensMenuAndKeepsHighlight(t *testing.T) {
 	field := core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(200, 30))}
 	})
-	queue := func(core.SelectableEditAction) {}
+	queue := func(selectablemenu.Action) {}
 	start := time.Unix(5, 0)
 
 	var ops op.Ops

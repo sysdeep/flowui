@@ -8,7 +8,6 @@ import (
 	"gioui.org/f32"
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type resolvedPort struct {
@@ -71,7 +70,7 @@ func resolveGraph(graph Graph) resolvedGraph {
 }
 
 func resolveGraphMeasured(ctx *core.Context, gtx layout.Context, graph Graph, scope ...string) resolvedGraph {
-	return resolveGraphMeasuredWithMetrics(ctx, gtx, graph, theme.NodeGraphMetrics{}, scope...)
+	return resolveGraphMeasuredWithMetrics(ctx, gtx, graph, nodeGraphMetrics{}, scope...)
 }
 
 type nodeGraphGeometry struct {
@@ -82,7 +81,7 @@ type nodeGraphGeometry struct {
 	defaultHeight float32
 }
 
-func nodeGraphGeometryFromMetrics(metrics theme.NodeGraphMetrics) nodeGraphGeometry {
+func nodeGraphGeometryFromMetrics(metrics nodeGraphMetrics) nodeGraphGeometry {
 	return nodeGraphGeometry{
 		headerHeight:  float32(metrics.NodeHeaderHeight),
 		verticalPad:   float32(metrics.NodeVerticalPadding),
@@ -111,7 +110,7 @@ func (g nodeGraphGeometry) withDefaults() nodeGraphGeometry {
 	return g
 }
 
-func resolveGraphMeasuredWithMetrics(ctx *core.Context, gtx layout.Context, graph Graph, metrics theme.NodeGraphMetrics, scope ...string) resolvedGraph {
+func resolveGraphMeasuredWithMetrics(ctx *core.Context, gtx layout.Context, graph Graph, metrics nodeGraphMetrics, scope ...string) resolvedGraph {
 	geometry := nodeGraphGeometryFromMetrics(metrics).withDefaults()
 	result := resolvedGraph{
 		nodes:    make([]resolvedNode, 0, len(graph.Nodes)),

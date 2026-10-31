@@ -4,30 +4,24 @@ import (
 	"image/color"
 
 	"gioui.org/font"
-	"gioui.org/io/event"
-	"gioui.org/io/pointer"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/clip"
 	giotext "gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
+	"github.com/qianniancn/flowui/widget/internal/selectablemenu"
 )
 
 const stateSlotSelectableText = "selectable-text"
 
 type selectableTextState struct {
-	selectable     widget.Selectable
-	pressTag       struct{ _ byte }
-	pendingEdit    core.SelectableEditAction
-	hasPendingEdit bool
+	base.SelectableText
 }
 
 type Widget struct {
@@ -35,7 +29,7 @@ type Widget struct {
 	key             string
 	selectable      bool
 	defaults        style.Style
-	customStyle     style.Style
+	style           style.Style
 	size            unit.Sp
 	hasSize         bool
 	color           color.NRGBA
@@ -124,10 +118,10 @@ func (t Widget) FontStyle(style font.Style) Widget {
 	return t
 }
 
-// Style replaces the text's instance style with the given declarations joined
-// in order.
+// Style merges instance declarations into the text's built-in appearance. It
+// is resolved as the last cascade layer at layout time.
 func (t Widget) Style(values ...style.Style) Widget {
-	t.customStyle = style.Join(values...)
+	t.style = style.Join(t.style, style.Join(values...))
 	return t
 }
 
@@ -185,27 +179,24 @@ func (t Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 	if t.selectable {
 		key := core.ClaimKey(ctx, core.KindSelectableText, t.key)
 		stateValue := core.UseState[selectableTextState](ctx, key, stateSlotSelectableText)
-		visual := t.visualWithCache(ctx)
-		resolved := t.resolveStyle(ctx, gtx, key, style.State{Focused: gtx.Focused(&stateValue.selectable)})
-		stateValue.takePendingEdit(gtx, &stateValue.selectable)
+		resolved := t.resolveStyle(ctx, gtx, key, style.State{Focused: gtx.Focused(&stateValue.Selectable)})
+		stateValue.Update(ctx, gtx)
 		field := core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 			return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 				label := t.labelStyle(ctx, resolved)
-				preserveSelectableFocus(ctx, gtx, &stateValue.pressTag)
-				label.State = &stateValue.selectable
+				label.State = &stateValue.Selectable
 				semantic.LabelOp(t.text).Add(gtx.Ops)
 				dims := label.Layout(gtx)
-				underlineLabel(gtx, visual, resolved, dims)
-				registerSelectablePress(gtx, dims, &stateValue.pressTag)
+				underlineLabel(gtx, resolved, dims)
+				stateValue.AddPointer(gtx, dims.Size)
 				return dims
 			}))
 		})
-		if core.SelectableTextMenu != nil {
-			queue := func(action core.SelectableEditAction) {
-				stateValue.pendingEdit = action
-				stateValue.hasPendingEdit = true
+		if selectablemenu.Wrap != nil {
+			queue := func(action selectablemenu.Action) {
+				stateValue.Queue(action)
 			}
-			return core.SelectableTextMenu(ctx, gtx, key, field, &stateValue.selectable, queue)
+			return selectablemenu.Wrap(ctx, gtx, key, field, &stateValue.Selectable, queue)
 		}
 		return field(ctx, gtx)
 	}
@@ -213,7 +204,7 @@ func (t Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 	resolved := t.resolveLayoutStyle(ctx, gtx)
 	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 		dims := t.labelStyleWithVisual(ctx, resolved, visual).Layout(gtx)
-		underlineLabel(gtx, visual, resolved, dims)
+		underlineLabel(gtx, resolved, dims)
 		return dims
 	}))
 }
@@ -257,14 +248,13 @@ func (t Widget) resolveMeasureStyle(ctx *core.Context) style.ResolvedStyle {
 	return t.resolveStyleStatic(ctx, style.State{})
 }
 
-// visualForResolvedText avoids a provider lookup for the common
-// compound-widget path where the parent already supplied the immutable text
-// declaration and no selectable or underline behavior needs visual metadata.
-func (t Widget) visualForResolvedText(ctx *core.Context) theme.TextVisual {
-	if t.resolvedText == nil || (t.resolvedText.Underline != nil && *t.resolvedText.Underline) {
-		return t.visualWithCache(ctx)
+// visualForResolvedText avoids a defaults lookup for the common compound-widget
+// path where the parent already supplied the immutable text declaration.
+func (t Widget) visualForResolvedText(ctx *core.Context) textVisual {
+	if t.resolvedText != nil {
+		return textVisual{}
 	}
-	return theme.TextVisual{}
+	return t.visualWithCache(ctx)
 }
 
 // Measure reports this text widget's bounds without registering paint or
@@ -285,24 +275,6 @@ func (t Widget) resolveLayoutStyle(ctx *core.Context, gtx layout.Context) style.
 	return computed.ApplyTransitions(ctx, gtx, key, resolved)
 }
 
-func preserveSelectableFocus(ctx *core.Context, gtx layout.Context, tag event.Tag) {
-	for {
-		_, ok := core.NextPointerEvent(gtx, tag, pointer.Press)
-		if !ok {
-			return
-		}
-		core.PreserveFocus(ctx)
-	}
-}
-
-func registerSelectablePress(gtx layout.Context, dims layout.Dimensions, tag event.Tag) {
-	area := clip.Rect{Max: dims.Size}.Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	event.Op(gtx.Ops, tag)
-	pass.Pop()
-	area.Pop()
-}
-
 func (t Widget) resolveStyle(ctx *core.Context, gtx layout.Context, key string, state style.State) style.ResolvedStyle {
 	visual := t.visualWithCache(ctx)
 	return computed.Resolve(
@@ -313,7 +285,7 @@ func (t Widget) resolveStyle(ctx *core.Context, gtx layout.Context, key string, 
 		visual.Defaults,
 		t.defaults,
 		textPropertyDeclaration(t),
-		t.customStyle,
+		t.style,
 	)
 }
 
@@ -325,7 +297,7 @@ func (t Widget) resolveStyleStatic(ctx *core.Context, state style.State) style.R
 		visual.Defaults,
 		t.defaults,
 		textPropertyDeclaration(t),
-		t.customStyle,
+		t.style,
 	)
 }
 
@@ -371,7 +343,7 @@ func (t Widget) labelStyle(ctx *core.Context, resolved style.ResolvedStyle) mate
 	return t.labelStyleWithVisual(ctx, resolved, t.visualWithCache(ctx))
 }
 
-func (t Widget) labelStyleWithVisual(ctx *core.Context, resolved style.ResolvedStyle, visual theme.TextVisual) material.LabelStyle {
+func (t Widget) labelStyleWithVisual(ctx *core.Context, resolved style.ResolvedStyle, visual textVisual) material.LabelStyle {
 	size := unit.Sp(0)
 	if resolved.Text != nil && resolved.Text.FontSize != nil {
 		size = *resolved.Text.FontSize
@@ -416,20 +388,20 @@ func (t Widget) labelStyleWithVisual(ctx *core.Context, resolved style.ResolvedS
 	return label
 }
 
-// underlineLabel requests the provider-owned rule a text declaration asks for.
+// underlineLabel requests the component-owned rule a text declaration asks for.
 //
 // Gio's label API reports a single baseline and no per-line bounds, so the
 // rule lands under that baseline: exact for single-line text, and the last
 // line's rule for wrapped text.
-func underlineLabel(gtx layout.Context, visual theme.TextVisual, resolved style.ResolvedStyle, dims layout.Dimensions) {
+func underlineLabel(gtx layout.Context, resolved style.ResolvedStyle, dims layout.Dimensions) {
 	if resolved.Text == nil || resolved.Text.Underline == nil || !*resolved.Text.Underline {
 		return
 	}
 	col, ok := styleColor(resolved.Text.Color)
-	if !ok || visual.Underline == nil {
+	if !ok {
 		return
 	}
-	visual.Underline(gtx, theme.TextUnderlineRequest{Size: dims.Size, Baseline: dims.Baseline, Color: col})
+	drawTextUnderline(gtx, dims, col)
 }
 
 func styleTextAlignment(value giotext.Alignment) style.TextAlign {

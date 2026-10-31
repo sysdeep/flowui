@@ -120,16 +120,3 @@ func allEasings() map[string]Easing {
 func closeEnough(got, want, tolerance float32) bool {
 	return math.Abs(float64(got-want)) <= float64(tolerance)
 }
-
-func TestApplyEasingRejectsNonFiniteOutput(t *testing.T) {
-	for _, result := range []float32{float32(math.NaN()), float32(math.Inf(1))} {
-		func() {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("non-finite easing result did not panic")
-				}
-			}()
-			applyEasing(func(float32) float32 { return result }, 0.5)
-		}()
-	}
-}

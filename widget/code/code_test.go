@@ -7,10 +7,12 @@ import (
 
 	"gioui.org/f32"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/highlight"
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/widget/code/internal/highlight"
+	"github.com/qianniancn/flowui/window"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/uitest"
 )
 
@@ -110,7 +112,7 @@ func TestXAtTracksGlyphEdges(t *testing.T) {
 }
 
 func TestCodeBlockRenders(t *testing.T) {
-	h := uitest.New(image.Pt(600, 400), base.Light())
+	h := uitest.New(image.Pt(600, 400), theme.Light())
 	source := "func main() {\n\t// 你好\n\tfmt.Println(\"hi\")\n}\n"
 	dims := h.Frame(layout.Scroll(New("sample", "go", source)).Vertical())
 	if dims.Size.X != 600 || dims.Size.Y <= 0 {
@@ -119,7 +121,7 @@ func TestCodeBlockRenders(t *testing.T) {
 }
 
 func TestCodeBlockWithoutLanguageFallsBackToPlain(t *testing.T) {
-	h := uitest.New(image.Pt(600, 400), base.Light())
+	h := uitest.New(image.Pt(600, 400), theme.Light())
 	dims := h.Frame(New("plain", "", "SELECT 1;"))
 	if dims.Size.Y <= 0 {
 		t.Fatalf("plain block dimensions = %v", dims.Size)
@@ -127,30 +129,41 @@ func TestCodeBlockWithoutLanguageFallsBackToPlain(t *testing.T) {
 }
 
 func TestCopyButtonReportsResult(t *testing.T) {
-	h := uitest.New(image.Pt(420, 240), base.Light())
-	root := layout.Box(New("copy", "go", "func main() {}")).
-		Style(style.New().FillWidth().Padding(8))
-	h.Frame(root)
-	h.Frame(root)
+	for _, test := range []struct {
+		language window.Language
+		label    string
+		copied   string
+	}{
+		{language: window.LanguageEnglish, label: "Copy code (go)", copied: "Copied"},
+		{language: window.LanguageChinese, label: "复制代码（go）", copied: "已复制"},
+	} {
+		t.Run(string(test.language), func(t *testing.T) {
+			active := theme.Light()
+			h := uitest.NewWithConfig(uitest.Config{
+				Size: image.Pt(420, 240), Theme: &active, Language: test.language,
+			})
+			root := layout.Box(New("copy", "go", "func main() {}")).
+				Style(style.New().FillWidth().Padding(8))
+			h.Frame(root)
+			h.Frame(root)
 
-	node, ok := uitest.SemanticByLabel(h.Semantics(), "复制代码（go）")
-	if !ok {
-		node, ok = uitest.SemanticByLabel(h.Semantics(), "复制")
-	}
-	if !ok {
-		t.Fatal("copy button is missing")
-	}
-	bounds := node.Desc.Bounds
-	h.Click(f32.Pt(float32(bounds.Min.X+bounds.Max.X)/2, float32(bounds.Min.Y+bounds.Max.Y)/2))
-	h.Frame(root)
-	h.Frame(root)
-	if _, ok := uitest.SemanticByLabel(h.Semantics(), "已复制"); !ok {
-		t.Fatal("copy button did not report the copy")
+			node, ok := uitest.SemanticByLabel(h.Semantics(), test.label)
+			if !ok {
+				t.Fatal("copy button is missing")
+			}
+			bounds := node.Desc.Bounds
+			h.Click(f32.Pt(float32(bounds.Min.X+bounds.Max.X)/2, float32(bounds.Min.Y+bounds.Max.Y)/2))
+			h.Frame(root)
+			h.Frame(root)
+			if _, ok := uitest.SemanticByLabel(h.Semantics(), test.copied); !ok {
+				t.Fatal("copy button did not report the copy")
+			}
+		})
 	}
 }
 
 func TestDragSelectsSourceRange(t *testing.T) {
-	h := uitest.New(image.Pt(420, 240), base.Light())
+	h := uitest.New(image.Pt(420, 240), theme.Light())
 	root := layout.Box(New("drag", "", "abc\ndef")).
 		Style(style.New().FillWidth().Padding(8))
 	h.Frame(root)
@@ -185,7 +198,7 @@ func TestDragSelectsSourceRange(t *testing.T) {
 }
 
 func TestDragAcrossLinesSelectsBoth(t *testing.T) {
-	h := uitest.New(image.Pt(420, 240), base.Light())
+	h := uitest.New(image.Pt(420, 240), theme.Light())
 	root := layout.Box(New("drag-lines", "", "abc\ndef")).
 		Style(style.New().FillWidth().Padding(8))
 	h.Frame(root)
@@ -219,7 +232,7 @@ func TestDragAcrossLinesSelectsBoth(t *testing.T) {
 }
 
 func TestLongLinesWrapIntoVisualRows(t *testing.T) {
-	h := uitest.New(image.Pt(120, 300), base.Light())
+	h := uitest.New(image.Pt(120, 300), theme.Light())
 	long := "abcdefghijklmnopqrstuvwxyz0123456789"
 	root := layout.Box(New("wrap", "", long)).Style(style.New().FillWidth().Padding(8))
 	dims := h.Frame(root)
@@ -229,7 +242,7 @@ func TestLongLinesWrapIntoVisualRows(t *testing.T) {
 }
 
 func TestWrappedSelectionReachesTheEnd(t *testing.T) {
-	h := uitest.New(image.Pt(120, 300), base.Light())
+	h := uitest.New(image.Pt(120, 300), theme.Light())
 	long := "abcdefghijklmnopqrstuvwxyz0123456789"
 	root := layout.Box(New("wrap-drag", "", long)).Style(style.New().FillWidth().Padding(8))
 	h.Frame(root)
@@ -287,7 +300,7 @@ func TestLineNumbersDefaultToMultiLine(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			h := uitest.New(image.Pt(600, 300), base.Light())
+			h := uitest.New(image.Pt(600, 300), theme.Light())
 			h.Frame(test.code)
 			state, ok := core.PeekState[blockState](h.Context(), core.FullKey(h.Context(), test.key), stateSlot)
 			if !ok {
@@ -301,7 +314,7 @@ func TestLineNumbersDefaultToMultiLine(t *testing.T) {
 }
 
 func TestWrappedRowsKeepOneLineNumber(t *testing.T) {
-	h := uitest.New(image.Pt(180, 500), base.Light())
+	h := uitest.New(image.Pt(180, 500), theme.Light())
 	source := strings.Repeat("word ", 60)
 	root := layout.Box(New("wrapped-numbers", "", source).LineNumbers(true)).
 		Style(style.New().FillWidth().Padding(8))
@@ -334,7 +347,7 @@ func (h *countingHighlighter) Tokenize(_, source string) []highlight.Token {
 }
 
 func TestTokenizationIsCachedAcrossFrames(t *testing.T) {
-	h := uitest.New(image.Pt(300, 300), base.Light())
+	h := uitest.New(image.Pt(300, 300), theme.Light())
 	counter := &countingHighlighter{}
 	root := New("cached-tokens", "", "one\ntwo\nthree")
 	root.highlighter = counter

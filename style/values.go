@@ -3,7 +3,6 @@ package style
 import (
 	"image/color"
 	"math"
-	"time"
 )
 
 // RGB converts a packed 0xRRGGBB value to an opaque color.
@@ -65,18 +64,6 @@ func (g Gradient) Angle(degrees float32) Gradient {
 		g.AngleDegrees = degrees
 	}
 	return g
-}
-
-func TransitionDelay(value time.Duration) TransitionOption {
-	return func(transition *Transition) {
-		transition.Delay = max(value, 0)
-	}
-}
-
-func TransitionEase(value EaseFunc) TransitionOption {
-	return func(transition *Transition) {
-		transition.Ease = value
-	}
 }
 
 // ScaleAlpha multiplies an alpha channel by a factor in [0, 1].

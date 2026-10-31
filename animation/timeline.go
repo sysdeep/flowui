@@ -13,7 +13,7 @@ import (
 
 const stateSlotTimeline = "timeline"
 
-// TimelineValue is a keyed multi-keyframe float animation (track B extension).
+// TimelineValue is a keyed multi-keyframe float animation.
 // Progress advances over Duration; values are linearly interpolated between
 // sorted keyframes. Optional Easing remaps overall progress before sampling.
 type TimelineValue struct {

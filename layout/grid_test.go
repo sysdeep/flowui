@@ -6,6 +6,7 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 )
 
@@ -81,17 +82,31 @@ func TestGridPropagatesCellPosition(t *testing.T) {
 	probe.got = &got
 	ctx := newContext(nil)
 	core.BeginFrameWithViewport(ctx, image.Pt(100, 100))
-	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(100, 100)}, Ops: new(op.Ops)}
+	gtx := layout.Context{
+		Constraints: layout.Constraints{Max: image.Pt(100, 100)},
+		Metric:      unit.Metric{PxPerDp: 2, PxPerSp: 2}, Ops: new(op.Ops),
+	}
 	Grid(2,
-		Spacer(10, 10),
-		Spacer(10, 20),
+		&cellWidget{height: 10},
+		&cellWidget{height: 20},
 		probe,
-	).ColumnGap(10).RowGap(5).Layout(ctx, gtx)
+	).ColumnGapDp(4.5).RowGapDp(2.5).Layout(ctx, gtx)
 	core.LayoutOverlays(ctx, gtx)
 
 	want := image.Rect(0, 25, 10, 35)
 	if got != want {
 		t.Fatalf("grid anchor = %v, want %v", got, want)
+	}
+}
+
+func TestGridFractionalColumnGap(t *testing.T) {
+	left, right := new(cellWidget), new(cellWidget)
+	gtx := testLayoutContext()
+	gtx.Constraints.Max.X = 99
+	gtx.Metric = unit.Metric{PxPerDp: 2, PxPerSp: 2}
+	Grid(2, left, right).ColumnGapDp(4.5).Layout(newContext(nil), gtx)
+	if left.constraints.Max.X != 45 || right.constraints.Max.X != 45 {
+		t.Fatalf("cell widths = %d/%d, want 45/45", left.constraints.Max.X, right.constraints.Max.X)
 	}
 }
 

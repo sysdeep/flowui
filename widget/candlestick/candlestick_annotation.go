@@ -9,16 +9,15 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
-func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry chartGeometry, visual theme.CandlestickVisual, style chartStyle) {
+func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry chartGeometry, defaults candlestickDefaults, style chartStyle) {
 	if geometry.plot.Empty() {
 		return
 	}
-	metrics := visual.Metrics
-	fallback := visual.Colors.AnnotationArea
+	metrics := defaults.Metrics
+	fallback := defaults.Colors.AnnotationArea
 	area := clip.Rect(geometry.plot).Push(gtx.Ops)
 	for _, mark := range w.markAreas {
 		rect, ok := candlestickMarkAreaRect(mark, geometry)
@@ -41,12 +40,12 @@ func (w Widget) drawMarkAreas(ctx *core.Context, gtx layout.Context, geometry ch
 	}
 }
 
-func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, geometry chartGeometry, visual theme.CandlestickVisual, style chartStyle) {
+func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, geometry chartGeometry, defaults candlestickDefaults, style chartStyle) {
 	if geometry.plot.Empty() {
 		return
 	}
-	metrics := visual.Metrics
-	lineFallback := visual.Colors.AnnotationLine
+	metrics := defaults.Metrics
+	lineFallback := defaults.Colors.AnnotationLine
 	for _, mark := range w.markLines {
 		from, to, ok := candlestickMarkEndpoints(mark, geometry)
 		if !ok {
@@ -65,7 +64,7 @@ func (w Widget) drawMarkLinesAndPoints(ctx *core.Context, gtx layout.Context, ge
 		placeChartText(gtx, label, chart.ClampLabelPosition(position, label.dims.Size, geometry.plot))
 	}
 
-	pointFallback := visual.Colors.AnnotationPoint
+	pointFallback := defaults.Colors.AnnotationPoint
 	for _, mark := range w.markPoints {
 		if mark.X < float64(geometry.categoryStart) || mark.X >= float64(geometry.categoryEnd) || !geometry.yScale.Contains(mark.Y) {
 			continue

@@ -1,16 +1,15 @@
 package popover
 
 import (
-	"github.com/qianniancn/flowui/style"
 	"image"
 
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/widget/base"
 )
 
 type Widget struct {
-	override                *theme.PopoverOverride
 	key                     string
 	open                    bool
 	hasOpen                 bool
@@ -32,13 +31,14 @@ type Widget struct {
 	dismissable             bool
 	hasDismissable          bool
 	keyboardDismissDisabled bool
+	style                   style.Style
 }
 
 // New creates a popover. It starts uncontrolled and closed; Open sets the
 // controlled value and DefaultOpen the uncontrolled starting value.
 func New(trigger core.Widget, content core.Widget) Widget {
 	return Widget{
-		key:     core.AutoKey(),
+		key:     core.AutoKey("popover"),
 		trigger: trigger,
 		content: content,
 	}
@@ -121,10 +121,10 @@ func (p Widget) KeyboardDismissDisabled(disabled bool) Widget {
 }
 
 func (p Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return p.layoutWithOverride(ctx, gtx, p.override)
+	return p.layoutWithStyle(ctx, gtx)
 }
 
-func (p Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.PopoverOverride) layout.Dimensions {
+func (p Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	fullKey := core.FullKey(ctx, p.key)
 	naturallyDisabled := core.OverlayNaturallyDisabled(gtx)
 	triggerDims := p.layoutTrigger(ctx, gtx)
@@ -160,10 +160,12 @@ func (p Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		return triggerDims
 	}
 
-	visual := p.visualWithCache(ctx, override, &state.visualCache)
+	visual := p.visualWithCache(ctx, &state.visualCache)
 	progress := state.progressFor(gtx, open, visual.Metrics.EnterDuration, visual.Metrics.ExitDuration, visual.Motion)
 	if !open && progress <= 0 {
-		deletePopoverState(ctx, fullKey)
+		if p.hasOpen || !p.hasDefaultOpen || !p.defaultOpen {
+			deletePopoverState(ctx, fullKey)
+		}
 		return triggerDims
 	}
 
@@ -174,8 +176,11 @@ func (p Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		HasAnchor: true,
 		Disabled:  naturallyDisabled,
 		Layout: func(gtx layout.Context, anchor image.Rectangle, interactive bool) layout.Dimensions {
-			if open && interactive && gtx.Enabled() {
-				p.handleCloseEvents(ctx, gtx, state)
+			if state.popup.Update(ctx, gtx, base.PopupPolicy{
+				Open: open, Interactive: interactive,
+				DismissOutside: p.isDismissable(), DismissEscape: !p.keyboardDismissDisabled,
+			}) != base.PopupNotDismissed {
+				p.requestClose(state)
 			}
 			return p.layoutOverlay(ctx, gtx, state, anchor, progress, open && gtx.Enabled(), visual)
 		},
@@ -189,32 +194,6 @@ func (p Widget) layoutTrigger(ctx *core.Context, gtx layout.Context) layout.Dime
 		return layout.Dimensions{}
 	}
 	return p.trigger.Layout(ctx, gtx)
-}
-
-func (p Widget) handleCloseEvents(ctx *core.Context, gtx layout.Context, popoverStateValue *popoverState) {
-	for popoverStateValue.dialog.Clicked(gtx) {
-	}
-	if popoverStateValue.dialog.TakePressed() {
-		core.PreserveFocus(ctx)
-	}
-	for popoverStateValue.arrow.Clicked(gtx) {
-	}
-	if popoverStateValue.arrow.TakePressed() {
-		core.PreserveFocus(ctx)
-	}
-	if !p.keyboardDismissDisabled && popoverStateValue.escapePressed(gtx) {
-		p.requestClose(popoverStateValue)
-	}
-	for i := range popoverStateValue.dismiss {
-		for popoverStateValue.dismiss[i].Clicked(gtx) {
-			if p.isDismissable() {
-				p.requestClose(popoverStateValue)
-			}
-		}
-		if popoverStateValue.dismiss[i].TakePressed() {
-			core.PreserveFocus(ctx)
-		}
-	}
 }
 
 func (p Widget) requestClose(state *popoverState) {
@@ -246,13 +225,10 @@ func (p Widget) overflowAvoidanceEnabled() bool {
 	return p.avoidOverflow
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.PopoverOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (p Widget) Style(values ...style.Style) Widget {
+	p.style = style.Join(p.style, style.Join(values...))
+	return p
 }

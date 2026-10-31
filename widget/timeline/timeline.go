@@ -12,7 +12,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 // Item is one event in a timeline.
@@ -85,7 +84,7 @@ const timelineDefaultMaxWidthDp = 320
 
 // Widget renders a timeline. It is immutable; fluent methods return copies.
 type Widget struct {
-	override       *theme.TimelineOverride
+	style          style.Style
 	items          []Item
 	mode           Mode
 	orientation    Orientation
@@ -165,24 +164,23 @@ func (w Widget) PendingIcon(value core.Widget) Widget {
 func (w Widget) PendingLoading(value bool) Widget { w.pendingLoading = value; return w }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
+	return w.layoutWithStyle(ctx, gtx)
 }
 
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.TimelineOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+func (w Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	if w.visualCache == nil {
 		w.visualCache = &timelineVisualCache{}
 	}
 	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
+	visual := w.resolveVisual(active)
+	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, w.style)
 	host := &w.visualCache.visualHost
 	host.value = w
 	host.visual = visual
 	return layoutui.Resolved(ctx, gtx, resolved, host)
 }
 
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.TimelineVisual) layout.Dimensions {
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual timelineVisual) layout.Dimensions {
 	if w.disabled {
 		gtx = gtx.Disabled()
 	}
@@ -258,7 +256,7 @@ func (w Widget) usesStructuredVertical(items []resolvedItem) bool {
 	return false
 }
 
-func (w Widget) layoutVerticalStructured(ctx *core.Context, gtx layout.Context, items []resolvedItem, visual theme.TimelineVisual) layout.Dimensions {
+func (w Widget) layoutVerticalStructured(ctx *core.Context, gtx layout.Context, items []resolvedItem, visual timelineVisual) layout.Dimensions {
 	metrics := visual.Metrics
 	maxWidth := gtx.Constraints.Max.X
 	if maxWidth <= 0 {
@@ -288,7 +286,7 @@ func (w Widget) layoutVerticalStructured(ctx *core.Context, gtx layout.Context, 
 	return layout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(maxWidth, y))}
 }
 
-func (w Widget) layoutVerticalStructuredItem(ctx *core.Context, gtx layout.Context, item resolvedItem, index, count, headerWidth, contentWidth, railCenter, gap, y int, visual theme.TimelineVisual) int {
+func (w Widget) layoutVerticalStructuredItem(ctx *core.Context, gtx layout.Context, item resolvedItem, index, count, headerWidth, contentWidth, railCenter, gap, y int, visual timelineVisual) int {
 	metrics := visual.Metrics
 	colors := visual.Colors
 	headerAlign, contentAlign := alignEnd, alignStart
@@ -312,7 +310,7 @@ func (w Widget) layoutVerticalStructuredItem(ctx *core.Context, gtx layout.Conte
 
 	local := op.Offset(image.Pt(0, y)).Push(gtx.Ops)
 	icon := measureMarkerIcon(ctx, gtx, item, visual)
-	visual.Rail(gtx, theme.TimelineRailRequest{
+	timelineRenderRail(gtx, timelineRailRequest{
 		Vertical:      true,
 		Center:        railCenter,
 		Start:         markerCenterY,
@@ -339,7 +337,7 @@ func (w Widget) layoutVerticalStructuredItem(ctx *core.Context, gtx layout.Conte
 	return itemHeight
 }
 
-func (w Widget) layoutVerticalInline(ctx *core.Context, gtx layout.Context, items []resolvedItem, visual theme.TimelineVisual) layout.Dimensions {
+func (w Widget) layoutVerticalInline(ctx *core.Context, gtx layout.Context, items []resolvedItem, visual timelineVisual) layout.Dimensions {
 	metrics := visual.Metrics
 	colors := visual.Colors
 	maxWidth := gtx.Constraints.Max.X
@@ -372,7 +370,7 @@ func (w Widget) layoutVerticalInline(ctx *core.Context, gtx layout.Context, item
 		}
 		local := op.Offset(image.Pt(0, y)).Push(gtx.Ops)
 		icon := measureMarkerIcon(ctx, gtx, item, visual)
-		visual.Rail(gtx, theme.TimelineRailRequest{
+		timelineRenderRail(gtx, timelineRailRequest{
 			Vertical:      true,
 			Center:        railCenter,
 			Start:         markerCenterY,
@@ -400,7 +398,7 @@ func (w Widget) layoutVerticalInline(ctx *core.Context, gtx layout.Context, item
 	return layout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(maxWidth, y))}
 }
 
-func (w Widget) layoutHorizontal(ctx *core.Context, gtx layout.Context, items []resolvedItem, visual theme.TimelineVisual) layout.Dimensions {
+func (w Widget) layoutHorizontal(ctx *core.Context, gtx layout.Context, items []resolvedItem, visual timelineVisual) layout.Dimensions {
 	metrics := visual.Metrics
 	colors := visual.Colors
 	maxWidth := gtx.Constraints.Max.X
@@ -445,7 +443,7 @@ func (w Widget) layoutHorizontal(ctx *core.Context, gtx layout.Context, items []
 		if index == len(items)-1 {
 			tailEnd = x + columnWidth
 		}
-		visual.Rail(gtx, theme.TimelineRailRequest{
+		timelineRenderRail(gtx, timelineRailRequest{
 			Center:        railY,
 			Start:         x + dotSize/2,
 			End:           tailEnd,
@@ -535,7 +533,7 @@ func measureAndRecordColor(ctx *core.Context, gtx layout.Context, child core.Wid
 	return measureAndRecord(ctx, gtx, child)
 }
 
-func measureMarkerIcon(ctx *core.Context, gtx layout.Context, item resolvedItem, visual theme.TimelineVisual) measured {
+func measureMarkerIcon(ctx *core.Context, gtx layout.Context, item resolvedItem, visual timelineVisual) measured {
 	if item.Icon == nil {
 		return measured{}
 	}
@@ -566,7 +564,7 @@ func alignedX(totalWidth, childWidth int, align blockAlign) int {
 	}
 }
 
-func markerColor(colors theme.TimelineColors, item Item) color.NRGBA {
+func markerColor(colors timelineColors, item Item) color.NRGBA {
 	if item.Disabled {
 		return colors.Disabled
 	}
@@ -610,13 +608,10 @@ func markerCenter(dotSize, firstHeight, secondHeight int) int {
 	return max(anchor/2, dotSize/2)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.TimelineOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

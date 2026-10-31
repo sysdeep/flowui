@@ -11,10 +11,9 @@ import (
 	"gioui.org/op/clip"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -26,7 +25,7 @@ type DateRange struct {
 }
 
 type DateRangePickerWidget struct {
-	override     *theme.DatePickerOverride
+	style        style.Style
 	key          string
 	value        DateRange
 	label        string
@@ -35,7 +34,7 @@ type DateRangePickerWidget struct {
 	locale       Locale
 	localeSet    bool
 	onChange     func(DateRange)
-	variant      field.Variant
+	variant      Variant
 	disabled     bool
 	invalid      bool
 	required     bool
@@ -52,7 +51,7 @@ type dateRangePickerState struct {
 	pendingStart time.Time
 	selectingEnd bool
 	ready        bool
-	hover        dateInputHoverState
+	hover        base.HoverInteraction
 }
 
 func DateRangePicker(key string, value DateRange) DateRangePickerWidget {
@@ -85,7 +84,7 @@ func (d DateRangePickerWidget) OnChange(fn func(DateRange)) DateRangePickerWidge
 	return d
 }
 
-func (d DateRangePickerWidget) Variant(value field.Variant) DateRangePickerWidget {
+func (d DateRangePickerWidget) Variant(value Variant) DateRangePickerWidget {
 	d.variant = value
 	return d
 }
@@ -105,7 +104,7 @@ func (d DateRangePickerWidget) Required(value bool) DateRangePickerWidget {
 	return d
 }
 
-func (d DateRangePickerWidget) FullWidth() DateRangePickerWidget {
+func (d DateRangePickerWidget) FillWidth() DateRangePickerWidget {
 	d.fullWidth = true
 	return d
 }
@@ -121,27 +120,20 @@ func (d DateRangePickerWidget) MaxDate(value time.Time) DateRangePickerWidget {
 }
 
 func (d DateRangePickerWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return d.layoutWithOverride(ctx, gtx, d.override)
-}
-
-func (d DateRangePickerWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.DatePickerOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	key := core.ClaimKey(ctx, core.KindDateRangePicker, d.key)
 	componentState := core.UseState[dateRangePickerState](ctx, key, stateSlotDateRangePicker)
 	activeTheme := core.ActiveTheme(ctx)
-	visual := componentState.calendar.partDefaults.visualForRequest(activeTheme, d.variant, override)
-	restoreOverride := core.PushInstanceStyle(ctx, visual.Override)
-	defer restoreOverride()
+	defaults := componentState.calendar.partDefaults.defaultsFor(activeTheme, d.variant)
 	d = d.resolveLocale(ctx, &componentState.calendar.localeCache)
 	now := datePickerFrameNow(gtx.Now)
 	componentState.calendar.beginFrame()
-	componentState.calendar.resolvedParts.prepare(ctx, core.InstanceStyle(ctx), d.variant)
+	componentState.calendar.resolvedParts.prepare(ctx, d.style, d.variant)
 	componentState.sync(d.value, d.initialMonth(now))
-	metrics := visual.Metrics
-	componentState.calendar.calendarStyle = visual.Calendar
-	componentState.hover.update(gtx)
+	metrics := defaults.metrics
+	componentState.calendar.calendarStyle = defaults.calendar
 
 	enabled := gtx.Enabled() && !d.disabled
+	componentState.hover.Update(gtx, &componentState.hover, enabled)
 	core.RegisterFieldFocus(ctx, key, &componentState.start.segments[d.locale.DateOrder[0]].clickable, enabled)
 	focused := componentState.focused(gtx)
 	inputFocused := componentState.inputFocused(gtx)
@@ -174,7 +166,7 @@ func (d DateRangePickerWidget) layoutWithOverride(ctx *core.Context, gtx layout.
 	fieldState.Hovered = componentState.hovered() && !focused
 	fieldState.Focused = inputFocused
 	fieldState.FocusVisible = componentState.start.focusVisible(ctx, gtx) || componentState.end.focusVisible(ctx, gtx)
-	resolved := resolveDatePickerField(ctx, gtx, key, fieldState, core.InstanceStyle(ctx), visual)
+	resolved := resolveDatePickerField(ctx, gtx, key, fieldState, d.style, defaults)
 	var dims layout.Dimensions
 	var anchor image.Rectangle
 	dims = layoutui.Styled(ctx, gtx, key, styleState, style.Style{}, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -182,7 +174,7 @@ func (d DateRangePickerWidget) layoutWithOverride(ctx *core.Context, gtx layout.
 		return dims
 	}))
 
-	motion := componentState.calendar.partDefaults.motion(core.ActiveTheme(ctx))
+	motion := defaults.motion
 	progress := componentState.calendar.popoverProgress(gtx, componentState.calendar.open && enabled, motion)
 	if progress == 0 && (!componentState.calendar.open || !enabled) {
 		componentState.calendar.endFrame()
@@ -213,19 +205,19 @@ func (d DateRangePickerWidget) initialMonth(now time.Time) time.Time {
 	return Widget{value: value, minDate: d.minDate, maxDate: d.maxDate}.initialMonth(now)
 }
 
-func (d DateRangePickerWidget) layoutField(ctx *core.Context, gtx layout.Context, componentState *dateRangePickerState, fieldStyle field.Resolved, metrics theme.DatePickerMetrics, enabled, invalid bool) (layout.Dimensions, image.Rectangle) {
+func (d DateRangePickerWidget) layoutField(ctx *core.Context, gtx layout.Context, componentState *dateRangePickerState, fieldStyle resolvedDateField, metrics datePickerGeometry, enabled, invalid bool) (layout.Dimensions, image.Rectangle) {
 	var children [3]layout.FlexChild
 	count := 0
 	labelHeight := 0
 	inputAnchor := image.Rectangle{}
 	gap := gtx.Dp(metrics.FieldGap)
-	descriptionResolved := resolveDatePickerPartFor(
+	descriptionResolved := resolvePartFor(
 		ctx,
 		gtx,
 		core.FullKey(ctx, d.key),
 		style.PartDescription,
 		style.State{Disabled: !enabled, Invalid: invalid},
-		core.InstanceStyle(ctx),
+		d.style,
 		style.Style{},
 		&componentState.calendar.calendarStyle,
 	)
@@ -249,7 +241,7 @@ func (d DateRangePickerWidget) layoutField(ctx *core.Context, gtx layout.Context
 			y += gap
 		}
 		inputAnchor = image.Rectangle{Min: image.Pt(0, y), Max: image.Pt(dimensions.Size.X, y+dimensions.Size.Y)}
-		addDateInputHover(gtx, &componentState.hover, dimensions.Size, enabled, false)
+		componentState.hover.AddInput(gtx, &componentState.hover, image.Rectangle{Max: dimensions.Size}, enabled, nil)
 		return dimensions
 	})
 	count++
@@ -275,29 +267,22 @@ func (d DateRangePickerWidget) layoutField(ctx *core.Context, gtx layout.Context
 	return dimensions, inputAnchor
 }
 
-func (d DateRangePickerWidget) layoutInput(ctx *core.Context, gtx layout.Context, componentState *dateRangePickerState, fieldStyle field.Resolved, metrics theme.DatePickerMetrics, enabled, invalid bool) layout.Dimensions {
+func (d DateRangePickerWidget) layoutInput(ctx *core.Context, gtx layout.Context, componentState *dateRangePickerState, fieldStyle resolvedDateField, metrics datePickerGeometry, enabled, invalid bool) layout.Dimensions {
 	return layoutui.Resolved(ctx, gtx, fieldStyle.Content, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		return d.layoutInputContent(ctx, gtx, componentState, fieldStyle, metrics, enabled, invalid)
 	}))
 }
 
-func (d DateRangePickerWidget) layoutInputContent(ctx *core.Context, gtx layout.Context, componentState *dateRangePickerState, fieldStyle field.Resolved, metrics theme.DatePickerMetrics, enabled, invalid bool) layout.Dimensions {
-	visual := componentState.calendar.partDefaults.currentVisual(core.ActiveTheme(ctx))
-	presses := core.ActivePresses(componentState.calendar.trigger.History())
-	focusVisible := core.FocusVisible(ctx, &componentState.calendar.trigger, gtx.Focused(&componentState.calendar.trigger))
-	if enabled {
-		for componentState.calendar.trigger.Clicked(gtx) {
-			wasOpen := componentState.calendar.open
-			componentState.calendar.open = !wasOpen
-			if componentState.calendar.open {
-				componentState.calendar.viewMode = datePickerViewDays
-			} else if wasOpen {
-				componentState.cancelSelection(d.value)
-			}
-			core.RequestFocusVisible(ctx, &componentState.calendar.trigger, focusVisible)
+func (d DateRangePickerWidget) layoutInputContent(ctx *core.Context, gtx layout.Context, componentState *dateRangePickerState, fieldStyle resolvedDateField, metrics datePickerGeometry, enabled, invalid bool) layout.Dimensions {
+	base.RowInteraction(ctx, gtx, &componentState.calendar.trigger, !enabled, func() {
+		wasOpen := componentState.calendar.open
+		componentState.calendar.open = !wasOpen
+		if componentState.calendar.open {
+			componentState.calendar.viewMode = datePickerViewDays
+		} else if wasOpen {
+			componentState.cancelSelection(d.value)
 		}
-		core.FocusOnPress(ctx, &componentState.calendar.trigger, componentState.calendar.trigger.History(), presses)
-	}
+	})
 
 	frameConstraints := gtx.Constraints
 	if d.fullWidth {
@@ -308,7 +293,7 @@ func (d DateRangePickerWidget) layoutInputContent(ctx *core.Context, gtx layout.
 	left := gtx.Dp(metrics.FieldPaddingX)
 	right := gtx.Dp(metrics.TriggerWidth)
 	maxX := max(frameConstraints.Max.X-left-right, 0)
-	minX := min(max(frameConstraints.Min.X-left-right, 0), maxX)
+	minX := 0
 
 	macro := op.Record(gtx.Ops)
 	contentGtx := gtx
@@ -317,12 +302,11 @@ func (d DateRangePickerWidget) layoutInputContent(ctx *core.Context, gtx layout.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return componentState.start.layout(ctx, gtx, d.locale, dateSegmentsLayoutOptions{
 				key:           core.FullKey(ctx, d.key) + ".start",
-				instanceStyle: core.InstanceStyle(ctx),
+				instanceStyle: d.style,
 				calendarStyle: &componentState.calendar.calendarStyle,
 				resolvedParts: &componentState.calendar.resolvedParts,
 				colors:        fieldStyle.Colors,
 				metrics:       metrics,
-				visual:        visual,
 				enabled:       enabled,
 				invalid:       invalid,
 				minDate:       d.minDate,
@@ -337,12 +321,11 @@ func (d DateRangePickerWidget) layoutInputContent(ctx *core.Context, gtx layout.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return componentState.end.layout(ctx, gtx, d.locale, dateSegmentsLayoutOptions{
 				key:           core.FullKey(ctx, d.key) + ".end",
-				instanceStyle: core.InstanceStyle(ctx),
+				instanceStyle: d.style,
 				calendarStyle: &componentState.calendar.calendarStyle,
 				resolvedParts: &componentState.calendar.resolvedParts,
 				colors:        fieldStyle.Colors,
 				metrics:       metrics,
-				visual:        visual,
 				enabled:       enabled,
 				invalid:       invalid,
 				minDate:       d.minDate,
@@ -355,21 +338,16 @@ func (d DateRangePickerWidget) layoutInputContent(ctx *core.Context, gtx layout.
 	call := macro.Stop()
 
 	size := frameConstraints.Constrain(image.Pt(contentDims.Size.X+left+right, height))
-	offset := op.Offset(image.Pt(left, max((size.Y-contentDims.Size.Y)/2, 0))).Push(gtx.Ops)
-	contentClip := clip.Rect{Max: image.Pt(max(size.X-left-right, 0), contentDims.Size.Y)}.Push(gtx.Ops)
-	call.Add(gtx.Ops)
-	contentClip.Pop()
-	offset.Pop()
-
-	triggerSize := image.Pt(right, size.Y)
+	// Keep the field trigger behind the date segments. The whole field opens
+	// the calendar, while the segment controls retain their editing behavior.
+	triggerSize := size
 	triggerGtx := gtx
 	triggerGtx.Constraints = layout.Exact(triggerSize)
-	offset = op.Offset(image.Pt(size.X-right, 0)).Push(gtx.Ops)
 	if !enabled {
 		triggerGtx = triggerGtx.Disabled()
 	}
+	offset := op.Offset(image.Pt(0, 0)).Push(gtx.Ops)
 	componentState.calendar.trigger.Layout(triggerGtx, func(gtx layout.Context) layout.Dimensions {
-		clipped := clip.Rect{Max: triggerSize}.Push(gtx.Ops)
 		if enabled {
 			pointer.CursorPointer.Add(gtx.Ops)
 		}
@@ -377,26 +355,35 @@ func (d DateRangePickerWidget) layoutInputContent(ctx *core.Context, gtx layout.
 		semantic.LabelOp(d.calendarLabel(ctx)).Add(gtx.Ops)
 		semantic.EnabledOp(enabled).Add(gtx.Ops)
 		iconSize := image.Pt(gtx.Dp(metrics.IconSize), gtx.Dp(metrics.IconSize))
-		iconOffset := op.Offset(image.Pt((right-iconSize.X)/2, (size.Y-iconSize.Y)/2)).Push(gtx.Ops)
-		visual.CalendarIcon(gtx, theme.DatePickerIconRenderRequest{
-			Size: iconSize, Color: fieldStyle.Colors.Placeholder, Metrics: metrics,
-		})
+		iconOffset := op.Offset(image.Pt(size.X-right+(right-iconSize.X)/2, (size.Y-iconSize.Y)/2)).Push(gtx.Ops)
+		dateDrawCalendarIcon(gtx, iconSize, fieldStyle.Colors.Placeholder)
 		iconOffset.Pop()
-		focusColor := datePickerOutlineColor(visual, fieldStyle.Content)
-		visual.Focus(gtx, theme.DatePickerFocusRenderRequest{
-			Size: triggerSize, Color: focusColor,
-			Visible: enabled && core.FocusVisible(ctx, &componentState.calendar.trigger, gtx.Focused(&componentState.calendar.trigger)),
-			Trigger: true, FocusWidth: metrics.FocusRingWidth,
-			IconSize: metrics.IconSize, SegmentRadius: metrics.SegmentRadius, Metrics: metrics,
-		})
-		clipped.Pop()
+		focusColor := dateResolveOutlineColor(fieldStyle.Content, core.ActiveTheme(ctx).Semantic().Ring)
+		focusOffset := op.Offset(image.Pt(size.X-right, 0)).Push(gtx.Ops)
+		dateDrawFocus(
+			gtx,
+			image.Pt(right, size.Y),
+			focusColor,
+			0,
+			enabled && core.FocusVisible(ctx, &componentState.calendar.trigger, gtx.Focused(&componentState.calendar.trigger)),
+			true,
+			metrics.FocusRingWidth,
+			metrics.IconSize,
+			metrics.SegmentRadius,
+		)
+		focusOffset.Pop()
 		return layout.Dimensions{Size: triggerSize}
 	})
+	offset.Pop()
+	offset = op.Offset(image.Pt(left, max((size.Y-contentDims.Size.Y)/2, 0))).Push(gtx.Ops)
+	contentClip := clip.Rect{Max: image.Pt(max(size.X-left-right, 0), contentDims.Size.Y)}.Push(gtx.Ops)
+	call.Add(gtx.Ops)
+	contentClip.Pop()
 	offset.Pop()
 	return layout.Dimensions{Size: size}
 }
 
-func (d DateRangePickerWidget) layoutRangeSeparator(ctx *core.Context, gtx layout.Context, colors field.Colors, metrics theme.DatePickerMetrics) layout.Dimensions {
+func (d DateRangePickerWidget) layoutRangeSeparator(ctx *core.Context, gtx layout.Context, colors dateFieldColors, metrics datePickerGeometry) layout.Dimensions {
 	size := image.Pt(gtx.Dp(metrics.RangeSeparatorSize), min(gtx.Dp(metrics.SegmentHeight), gtx.Constraints.Max.Y))
 	gtx.Constraints = layout.Exact(size)
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -407,6 +394,7 @@ func (d DateRangePickerWidget) layoutRangeSeparator(ctx *core.Context, gtx layou
 func (d DateRangePickerWidget) calendar(componentState *dateRangePickerState) Widget {
 	start, end := componentState.displayRange(d.value, componentState.calendar.hoveredDay())
 	return Widget{
+		style:      d.style,
 		key:        d.key,
 		value:      start,
 		locale:     d.locale,
@@ -460,7 +448,7 @@ func (s *dateRangePickerState) inputFocused(gtx layout.Context) bool {
 }
 
 func (s *dateRangePickerState) hovered() bool {
-	return s.hover.hovered || s.start.hovered() || s.end.hovered() || s.calendar.trigger.Hovered()
+	return s.hover.Hovered || s.start.hovered() || s.end.hovered() || s.calendar.trigger.Hovered()
 }
 
 func (s *dateRangePickerState) updateEscape(gtx layout.Context, current DateRange) {
@@ -540,10 +528,22 @@ func (s *dateRangePickerState) cancelSelection(current DateRange) {
 
 func (s *dateRangePickerState) displayRange(current DateRange, hovered time.Time) (time.Time, time.Time) {
 	if s.selectingEnd && !s.pendingStart.IsZero() {
-		return s.pendingStart, dateOnly(hovered)
+		return orderedDateRange(s.pendingStart, hovered)
 	}
 	current = normalizeDateRange(current)
 	return current.Start, current.End
+}
+
+// orderedDateRange keeps the calendar's visual range direction stable while a
+// pending end date is previewed. The committed DateRange value is intentionally
+// left untouched so validation can still report reversed external values.
+func orderedDateRange(start, end time.Time) (time.Time, time.Time) {
+	start = dateOnly(start)
+	end = dateOnly(end)
+	if !start.IsZero() && !end.IsZero() && compareDate(start, end) > 0 {
+		start, end = end, start
+	}
+	return start, end
 }
 
 func normalizeDateRange(value DateRange) DateRange {
@@ -563,13 +563,10 @@ func invalidDateRange(value DateRange, minDate, maxDate time.Time) bool {
 		dateOutsideRange(value.End, minDate, maxDate)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the date range picker. The
+// declaration is resolved as the last cascade layer at layout time, so Style
+// can sit anywhere in the chain.
 func (w DateRangePickerWidget) Style(values ...style.Style) DateRangePickerWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.DatePickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

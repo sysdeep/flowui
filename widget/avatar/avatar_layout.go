@@ -7,16 +7,14 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme"
 	imagewidget "github.com/qianniancn/flowui/widget/image"
 )
 
 func (a Widget) layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
-	return a.layoutWithVisual(ctx, gtx, a.visualWithCache(ctx, nil))
+	return a.layoutWithVisual(ctx, gtx, a.visualWithCache(ctx))
 }
 
-func (a Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual theme.AvatarVisual) layout.Dimensions {
+func (a Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual avatarVisual) layout.Dimensions {
 	resolved := a.resolveStyle(ctx, gtx, visual)
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		if label := a.semanticLabel(); label != "" {
@@ -25,7 +23,7 @@ func (a Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual t
 		if a.image.Size() != (image.Point{}) {
 			return a.layoutImage(ctx, gtx)
 		}
-		return a.layoutFallback(ctx, gtx, resolved, visual)
+		return a.layoutFallback(ctx, gtx, resolved)
 	})
 	return layoutui.Resolved(ctx, gtx, resolved.root, content)
 }
@@ -37,7 +35,7 @@ func (a Widget) layoutImage(ctx *core.Context, gtx layout.Context) layout.Dimens
 		Layout(ctx, gtx)
 }
 
-func (a Widget) layoutFallback(ctx *core.Context, gtx layout.Context, resolved avatarResolvedStyle, visual theme.AvatarVisual) layout.Dimensions {
+func (a Widget) layoutFallback(ctx *core.Context, gtx layout.Context, resolved avatarResolvedStyle) layout.Dimensions {
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		if a.fallback != nil {
 			return layoutui.Resolved(ctx, gtx, resolved.label, a.fallback)
@@ -46,7 +44,7 @@ func (a Widget) layoutFallback(ctx *core.Context, gtx layout.Context, resolved a
 			return layoutui.Resolved(ctx, gtx, resolved.label, a.fallbackWidget)
 		}
 		return layoutui.Resolved(ctx, gtx, resolved.icon, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-			return visual.IconRenderer(gtx, ctx.ForegroundColor())
+			return avatarIcon(gtx, ctx.ForegroundColor())
 		}))
 	})
 }

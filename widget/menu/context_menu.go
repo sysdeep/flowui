@@ -7,11 +7,10 @@ import (
 	"gioui.org/io/event"
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type ContextMenuWidget struct {
-	override          *theme.MenuOverride
+	style             style.Style
 	key               string
 	trigger           core.Widget
 	menu              Widget
@@ -71,10 +70,10 @@ func (c ContextMenuWidget) LongPressDisabled(disabled bool) ContextMenuWidget {
 }
 
 func (c ContextMenuWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return c.layoutWithMenuOverride(ctx, gtx, c.override)
+	return c.layoutWithStyle(ctx, gtx)
 }
 
-func (c ContextMenuWidget) layoutWithMenuOverride(ctx *core.Context, gtx layout.Context, menuOverride *theme.MenuOverride) layout.Dimensions {
+func (c ContextMenuWidget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	state := contextMenuStateFor(ctx, c.key)
 	state.bind(c)
 	open := state.isOpen(c)
@@ -106,8 +105,8 @@ func (c ContextMenuWidget) layoutWithMenuOverride(ctx *core.Context, gtx layout.
 		})
 	}
 
-	visual := c.menu.visualWithCache(ctx, menuOverride, &state.visualCache)
-	progress := state.progressFor(gtx, open && !c.disabled, visual.Metrics.EnterDuration, visual.Metrics.ExitDuration, visual.Motion)
+	visual := c.menu.visualWithCache(ctx, &state.visualCache)
+	progress := state.progressFor(gtx, open && !c.disabled, visual.defaults.Metrics.EnterDuration, visual.defaults.Metrics.ExitDuration, visual.defaults.Motion)
 	if progress > 0 && state.hasAnchor {
 		c.registerOverlay(
 			ctx,
@@ -147,13 +146,12 @@ func (c ContextMenuWidget) focusedTarget(gtx layout.Context, state *contextMenuS
 	return c.defaultFocusTarget(state)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w ContextMenuWidget) Style(values ...style.Style) ContextMenuWidget {
+// Style merges instance declarations into the popup menu. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (c ContextMenuWidget) Style(values ...style.Style) ContextMenuWidget {
 	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.MenuOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+	c.style = style.Join(c.style, declaration)
+	c.menu = c.menu.Style(declaration)
+	return c
 }

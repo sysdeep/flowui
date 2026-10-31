@@ -14,7 +14,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -31,21 +30,21 @@ type recordedChartText struct {
 	dims layout.Dimensions
 }
 
-func candlestickStyleFor(visual theme.CandlestickVisual, disabled bool) chartStyle {
+func candlestickStyleFor(defaults candlestickDefaults, disabled bool) chartStyle {
 	opacity := float32(1)
 	if disabled {
-		opacity = visual.DisabledOpacity
+		opacity = defaults.DisabledOpacity
 	}
 	return chartStyle{
-		axis:      visual.Colors.Axis,
-		axisLabel: visual.Colors.AxisLabel,
-		grid:      visual.Colors.Grid,
-		crosshair: visual.Colors.Crosshair,
+		axis:      defaults.Colors.Axis,
+		axisLabel: defaults.Colors.AxisLabel,
+		grid:      defaults.Colors.Grid,
+		crosshair: defaults.Colors.Crosshair,
 		opacity:   opacity,
 	}
 }
 
-func drawGrid(gtx layout.Context, geometry chartGeometry, style chartStyle, show bool, metrics theme.CandlestickMetrics) {
+func drawGrid(gtx layout.Context, geometry chartGeometry, style chartStyle, show bool, metrics candlestickDimensions) {
 	if !show || geometry.plot.Empty() {
 		return
 	}
@@ -55,7 +54,7 @@ func drawGrid(gtx layout.Context, geometry chartGeometry, style chartStyle, show
 	}
 }
 
-func drawAxes(gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.CandlestickMetrics) {
+func drawAxes(gtx layout.Context, geometry chartGeometry, style chartStyle, metrics candlestickDimensions) {
 	if geometry.plot.Empty() {
 		return
 	}
@@ -64,12 +63,12 @@ func drawAxes(gtx layout.Context, geometry chartGeometry, style chartStyle, metr
 	drawLine(gtx, f32.Pt(float32(geometry.plot.Min.X), float32(geometry.plot.Max.Y)), f32.Pt(float32(geometry.plot.Max.X), float32(geometry.plot.Max.Y)), width, style.axis)
 }
 
-func (w Widget) drawCrosshair(ctx *core.Context, gtx layout.Context, geometry chartGeometry, selection chartSelection, pointer f32.Point, style chartStyle, visual theme.CandlestickVisual) {
+func (w Widget) drawCrosshair(ctx *core.Context, gtx layout.Context, geometry chartGeometry, selection chartSelection, pointer f32.Point, style chartStyle, defaults candlestickDefaults) {
 	if !selection.candle.valid || geometry.plot.Empty() {
 		return
 	}
 	pointerY := min(max(pointer.Y, float32(geometry.plot.Min.Y)), float32(geometry.plot.Max.Y))
-	metrics := visual.Metrics
+	metrics := defaults.Metrics
 	width := float32(max(gtx.Dp(metrics.CrosshairWidth), 1))
 	area := clip.Rect(geometry.plot).Push(gtx.Ops)
 	drawLine(gtx, f32.Pt(selection.pixelX, float32(geometry.plot.Min.Y)), f32.Pt(selection.pixelX, float32(geometry.plot.Max.Y)), width, style.crosshair)
@@ -78,8 +77,8 @@ func (w Widget) drawCrosshair(ctx *core.Context, gtx layout.Context, geometry ch
 
 	padding := max(gtx.Dp(metrics.CrosshairLabelPadding), 0)
 	radius := max(gtx.Dp(metrics.CrosshairLabelRadius), 0)
-	background := visual.Colors.CrosshairLabelBackground
-	foreground := visual.Colors.CrosshairLabelForeground
+	background := defaults.Colors.CrosshairLabelBackground
+	foreground := defaults.Colors.CrosshairLabelForeground
 
 	xLabel := recordChartText(ctx, gtx, w.categoryLabel(selection.index), metrics.AxisTextSize, metrics.TextWeight, foreground, max(geometry.plot.Dx()-padding*2, 1))
 	xSize := xLabel.dims.Size.Add(image.Pt(padding*2, padding*2))
@@ -106,7 +105,7 @@ func drawCrosshairLabel(gtx layout.Context, label recordedChartText, position, s
 	placeChartText(gtx, label, position.Add(image.Pt(padding, padding)))
 }
 
-func drawCandles(gtx layout.Context, data chartData, geometry chartGeometry, selectedIndex int, selected bool, metrics theme.CandlestickMetrics) {
+func drawCandles(gtx layout.Context, data chartData, geometry chartGeometry, selectedIndex int, selected bool, metrics candlestickDimensions) {
 	if geometry.plot.Empty() || geometry.categoryEnd <= geometry.categoryStart {
 		return
 	}
@@ -153,8 +152,8 @@ func drawLine(gtx layout.Context, from, to f32.Point, width float32, lineColor c
 	chart.StrokeLine(gtx, from, to, width, lineColor)
 }
 
-func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry chartGeometry, visual theme.CandlestickVisual, style chartStyle) {
-	metrics := visual.Metrics
+func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry chartGeometry, defaults candlestickDefaults, style chartStyle) {
+	metrics := defaults.Metrics
 	gap := max(gtx.Dp(metrics.TickLabelGap), 0)
 	for _, tick := range geometry.yTicks {
 		label := recordChartText(ctx, gtx, tick.label, metrics.AxisTextSize, metrics.TextWeight, style.axisLabel, max(geometry.plot.Min.X-gap, 1))
@@ -167,22 +166,22 @@ func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry
 	}
 }
 
-func (w Widget) measureYLabelWidth(ctx *core.Context, gtx layout.Context, scale chart.LinearScale, visual theme.CandlestickVisual, maxWidth int) int {
-	metrics := visual.Metrics
+func (w Widget) measureYLabelWidth(ctx *core.Context, gtx layout.Context, scale chart.LinearScale, defaults candlestickDefaults, maxWidth int) int {
+	metrics := defaults.Metrics
 	width := 0
 	for _, value := range scale.Ticks {
-		label := recordChartText(ctx, gtx, w.yLabel(value, scale.Interval), metrics.AxisTextSize, metrics.TextWeight, visual.Colors.AxisLabel, maxWidth)
+		label := recordChartText(ctx, gtx, w.yLabel(value, scale.Interval), metrics.AxisTextSize, metrics.TextWeight, defaults.Colors.AxisLabel, maxWidth)
 		width = max(width, label.dims.Size.X)
 	}
 	return width
 }
 
-func (w Widget) pruneCategoryTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, visual theme.CandlestickVisual, style chartStyle) []categoryTick {
+func (w Widget) pruneCategoryTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, defaults candlestickDefaults, style chartStyle) []categoryTick {
 	if len(geometry.xTicks) <= 1 {
 		w.resolveCategoryTickLabels(geometry, geometry.xTicks)
 		return geometry.xTicks
 	}
-	metrics := visual.Metrics
+	metrics := defaults.Metrics
 	result := make([]categoryTick, 0, len(geometry.xTicks))
 	lastRight := math.MinInt
 	lastWidth := 0
@@ -220,12 +219,12 @@ func categoryTickLabelX(pixel float32, width int, plot image.Rectangle) int {
 	return min(max(x, plot.Min.X), max(plot.Max.X-width, plot.Min.X))
 }
 
-func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry chartGeometry, visual theme.CandlestickVisual, style chartStyle) {
+func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry chartGeometry, defaults candlestickDefaults, style chartStyle) {
 	value := w.emptyText
 	if !w.hasEmptyText {
 		value = ctx.Text(i18n.ChartNoData)
 	}
-	metrics := visual.Metrics
+	metrics := defaults.Metrics
 	label := recordChartText(ctx, gtx, value, metrics.AxisTextSize, metrics.TextWeight, style.axisLabel, max(geometry.plot.Dx(), 1))
 	placeChartText(gtx, label, image.Pt(geometry.plot.Min.X+max((geometry.plot.Dx()-label.dims.Size.X)/2, 0), geometry.plot.Min.Y+max((geometry.plot.Dy()-label.dims.Size.Y)/2, 0)))
 }

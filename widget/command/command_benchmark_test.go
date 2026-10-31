@@ -8,11 +8,11 @@ import (
 	"gioui.org/io/key"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func BenchmarkCommandScopeSteadyState(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	scope := Scope([]Command{
 		New("save", "Save").Shortcut(KeyShortcut("S", ShortcutPrimary)).OnExecute(func() {}),
@@ -27,7 +27,7 @@ func BenchmarkCommandScopeSteadyState(b *testing.B) {
 }
 
 func BenchmarkCommandShortcutDispatch(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	calls := 0
 	scope := Scope([]Command{

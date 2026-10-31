@@ -14,7 +14,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/uitest"
@@ -22,19 +21,41 @@ import (
 
 func TestPieChartStyleUsesValueSemantics(t *testing.T) {
 	base := New("share", []Data{Slice("one", "One", 1)})
-	styled := (base).Style(style.Style{}.Radius(4))
-	if base.visualCache == nil || styled.override.Declaration.Resolve(style.State{}).Paint == nil {
+	styled := base.Style(style.Style{}.Radius(4))
+	if base.visualCache == nil || styled.style.Resolve(style.State{}).Paint == nil {
 		t.Fatal("PieChart style did not preserve value semantics")
+	}
+	if base.style.Resolve(style.State{}).Paint != nil {
+		t.Fatal("PieChart Style mutated the receiver")
 	}
 }
 
-func pieChartTestVisual() theme.PieChartVisual {
-	active := testtheme.Behavior()
-	provider, err := theme.ComponentProvider(active)
-	if err != nil {
-		panic(err)
+func TestPieChartInstanceStyleResolvesOutsideDefaultsCache(t *testing.T) {
+	active := new(theme.Light())
+	custom := color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff}
+	base := New("pie", []Data{Slice("one", "One", 1)})
+	styled := base.Style(style.Style{}.Background(style.Solid(custom)))
+
+	baseDefaults := base.resolveDefaults(active)
+	styledDefaults := styled.resolveDefaults(active)
+	stats := base.visualCache.Stats()
+	if stats.Misses != 1 || stats.Hits != 1 {
+		t.Fatalf("PieChart defaults cache stats = %#v, want one miss and one hit", stats)
 	}
-	return provider.PieChart(active, theme.PieChartRequest{})
+	defaultsBackground, ok := styledDefaults.Defaults.Resolve(style.State{}).Paint.Background.(style.SolidColor)
+	if !ok || defaultsBackground.Color == custom {
+		t.Fatal("PieChart instance style leaked into the cached defaults")
+	}
+	resolved := style.Cascade(style.State{}, baseDefaults.Defaults, styled.style)
+	instanceBackground, ok := resolved.Paint.Background.(style.SolidColor)
+	if !ok || instanceBackground.Color != custom {
+		t.Fatal("PieChart instance style was not applied as the last cascade layer")
+	}
+}
+
+func pieChartTestDefaults() pieChartDefaults {
+	active := new(theme.Light())
+	return buildPieChart(active)
 }
 
 func TestPieChartAllocatesEChartsAngles(t *testing.T) {
@@ -57,9 +78,9 @@ func TestPieChartAllocatesEChartsAngles(t *testing.T) {
 }
 
 func TestPieChartDataVersionCachesResolvedData(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	cache := new(chartDataCache)
-	visual := pieChartTestVisual()
+	visual := pieChartTestDefaults()
 	first := cache.resolve(New("chart", []Data{Slice("slice", "Slice", 1)}).DataVersion(1), &activeTheme, visual)
 	second := cache.resolve(New("chart", []Data{Slice("slice", "Slice", 99)}).DataVersion(1), &activeTheme, visual)
 	if first.generation == 0 || second.generation != first.generation || second.slices[0].value != 1 {
@@ -95,20 +116,20 @@ func TestPieChartPercentsUseEChartsLargestRemainder(t *testing.T) {
 
 func TestPieChartRoseTypesMatchEChartsLayout(t *testing.T) {
 	values := []Data{Slice("zero", "Zero", 0), Slice("half", "Half", 5), Slice("full", "Full", 10)}
-	radius := resolveChartData(New("rose-radius", values).RoseType(RoseRadius), pieChartTestVisual())
+	radius := resolveChartData(New("rose-radius", values).RoseType(RoseRadius), pieChartTestDefaults())
 	if radius.slices[0].radiusRatio != 0 || radius.slices[1].radiusRatio != .5 || radius.slices[2].radiusRatio != 1 {
 		t.Fatalf("radius rose radii = %#v", radius.slices)
 	}
 	assertAngle(t, radius.slices[1].rawAngle, float32(fullCircle/3))
 	assertAngle(t, radius.slices[2].rawAngle, float32(fullCircle*2/3))
 
-	area := resolveChartData(New("rose-area", values).RoseType(RoseArea), pieChartTestVisual())
+	area := resolveChartData(New("rose-area", values).RoseType(RoseArea), pieChartTestDefaults())
 	for _, slice := range area.slices {
 		assertAngle(t, slice.rawAngle, float32(fullCircle/3))
 	}
 	zeros := resolveChartData(New("rose-zero", []Data{Slice("a", "A", 0), Slice("b", "B", 0)}).
 		RoseType(RoseArea).
-		StillShowZeroSum(false), pieChartTestVisual())
+		StillShowZeroSum(false), pieChartTestDefaults())
 	if zeros.slices[0].radiusRatio != .5 || zeros.slices[1].radiusRatio != .5 || !hasVisibleSector(zeros.slices) {
 		t.Fatalf("zero-sum area rose = %#v", zeros.slices)
 	}
@@ -129,7 +150,7 @@ func TestResolvePieChartDataFiltersNegativeAndHiddenValues(t *testing.T) {
 		Slice("valid", "Valid", 2).Color(custom),
 		Slice("negative", "Negative", -1),
 		Slice("hidden", "Hidden", 4).Hidden(true),
-	}), pieChartTestVisual())
+	}), pieChartTestDefaults())
 	if len(data.slices) != 1 || len(data.legend) != 3 || data.total != 2 {
 		t.Fatalf("resolved PieChart data = %#v", data)
 	}
@@ -210,7 +231,7 @@ func TestPieChartRejectsInvalidConfiguration(t *testing.T) {
 					t.Fatal("invalid PieChart configuration did not panic")
 				}
 			}()
-			resolveChartData(widget, pieChartTestVisual())
+			resolveChartData(widget, pieChartTestDefaults())
 		}()
 	}
 	func() {
@@ -231,7 +252,7 @@ func assertAngle(t *testing.T, got, want float32) {
 }
 
 func pieChartTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func layoutPieChartFrame(ctx *core.Context, router *input.Router, widget Widget, now time.Time) layout.Dimensions {

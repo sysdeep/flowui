@@ -4,7 +4,6 @@ import (
 	"image"
 
 	"gioui.org/layout"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type treeGuideSegment struct {
@@ -13,7 +12,7 @@ type treeGuideSegment struct {
 	extend bool
 }
 
-func drawTreeGuides(gtx layout.Context, entry flatItem, metrics theme.TreeMetrics, expanded, connectors bool, guideStyle GuideStyle, visual theme.TreeVisual) {
+func drawTreeGuides(gtx layout.Context, entry flatItem, metrics treeGeometry, expanded, connectors bool, guideStyle GuideStyle, defaults treeDefaults) {
 	rowHeight := gtx.Constraints.Max.Y
 	segments := treeGuideSegments(
 		entry,
@@ -25,18 +24,10 @@ func drawTreeGuides(gtx layout.Context, entry flatItem, metrics theme.TreeMetric
 		expanded,
 		connectors,
 	)
-	if len(segments) == 0 || visual.Colors.Guides.A == 0 || visual.Guides == nil {
+	if len(segments) == 0 || defaults.colors.Guides.A == 0 {
 		return
 	}
-	providerSegments := make([]theme.TreeGuideSegment, 0, len(segments))
-	for _, segment := range segments {
-		providerSegments = append(providerSegments, theme.TreeGuideSegment{From: segment.from, To: segment.to, Extend: segment.extend})
-	}
-	style := theme.TreeGuideSolid
-	if guideStyle == GuideDashed {
-		style = theme.TreeGuideDashed
-	}
-	visual.Guides(gtx, theme.TreeGuidesRequest{Segments: providerSegments, Style: style, Color: visual.Colors.Guides}, metrics.Gap)
+	treeDrawGuides(gtx, segments, guideStyle, defaults.colors.Guides, metrics.Gap)
 }
 
 func treeGuideSegments(entry flatItem, rowPadding, indent, toggleSlot, contentGap, rowHeight int, expanded, connectors bool) []treeGuideSegment {
@@ -91,22 +82,11 @@ func treeGuideDashes(start, end, dash, period int) [][2]int {
 	return parts
 }
 
-func treeRootRadius(gtx layout.Context, metrics theme.TreeMetrics, variant Variant, size image.Point) int {
+func treeRootRadius(gtx layout.Context, metrics treeGeometry, variant Variant, size image.Point) int {
 	if variant != VariantSurface {
 		return 0
 	}
 	return min(max(gtx.Dp(metrics.SurfaceRadius), 0), min(size.X, size.Y)/2)
-}
-
-func treeDropPosition(value DropPosition) theme.TreeDropPosition {
-	switch value {
-	case DropInside:
-		return theme.TreeDropInside
-	case DropAfter:
-		return theme.TreeDropAfter
-	default:
-		return theme.TreeDropBefore
-	}
 }
 
 func treeConnectorToggleBars(size, thickness int) (image.Rectangle, image.Rectangle) {

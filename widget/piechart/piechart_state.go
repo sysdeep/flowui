@@ -5,10 +5,8 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/gesture"
-	"gioui.org/io/event"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
-	"gioui.org/op/clip"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/widget/chart"
 	"github.com/qianniancn/flowui/widget/tooltip"
@@ -65,61 +63,20 @@ func (s *chartState) legendItem(key string) *chart.LegendItem {
 }
 
 func (s *chartState) updatePointer(gtx layout.Context, enabled bool) {
-	for {
-		eventValue, ok := core.NextPointerEvent(gtx, &s.pointerTag, pointer.Enter|pointer.Leave|pointer.Move|pointer.Drag|pointer.Press|pointer.Release|pointer.Cancel)
-		if !ok {
-			break
-		}
-		if !enabled {
-			s.hovered = false
-			continue
-		}
-		switch eventValue.Kind {
-		case pointer.Enter, pointer.Move, pointer.Drag, pointer.Press:
-			s.hovered = true
-			s.pointer = eventValue.Position
-		case pointer.Leave, pointer.Cancel:
-			s.hovered = false
-		}
-	}
-	if !enabled {
-		s.hovered = false
-	}
+	chart.UpdateHoverPointer(gtx, enabled, &s.pointerTag, &s.hovered, &s.pointer)
 }
 
 func (s *chartState) addPointerInput(gtx layout.Context, area image.Rectangle, enabled bool) {
-	if !enabled || area.Empty() {
-		return
-	}
-	stack := clip.Rect(area).Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	pointer.CursorPointer.Add(gtx.Ops)
-	event.Op(gtx.Ops, &s.pointerTag)
-	pass.Pop()
-	stack.Pop()
+	chart.AddPointerInputWithCursor(gtx, area, enabled, pointer.CursorPointer, &s.pointerTag)
 }
 
 func (s *chartState) updateClick(gtx layout.Context, enabled bool) bool {
-	activated := false
-	for {
-		click, ok := s.click.Update(gtx.Source)
-		if !ok {
-			break
-		}
-		activated = activated || click.Kind == gesture.KindClick
-	}
-	return activated && enabled
+	activated, _ := chart.UpdateClicks(gtx, enabled, &s.click)
+	return activated
 }
 
 func (s *chartState) addClickInput(gtx layout.Context, area image.Rectangle, enabled bool) {
-	if !enabled || area.Empty() {
-		return
-	}
-	stack := clip.Rect(area).Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	s.click.Add(gtx.Ops)
-	pass.Pop()
-	stack.Pop()
+	chart.AddClickInputRect(gtx, area, enabled, &s.click)
 }
 
 func (s *chartState) clearTooltip() {

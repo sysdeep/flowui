@@ -20,8 +20,7 @@ import (
 	"github.com/qianniancn/flowui/window"
 )
 
-// Config controls a Harness. Size must be positive and Theme must provide a
-// complete component visual provider. LanguageAuto selects English, a zero
+// Config controls a Harness. Size must be positive and Theme must be non-nil. LanguageAuto selects English, a zero
 // Metric uses one physical pixel per dp and sp, and a zero Now starts from a
 // deterministic non-zero time.
 type Config struct {
@@ -37,6 +36,7 @@ type Config struct {
 type Harness struct {
 	ctx    *ui.Context
 	router input.Router
+	ops    op.Ops
 	size   image.Point
 	metric unit.Metric
 	now    time.Time
@@ -51,10 +51,7 @@ func New(size image.Point, activeTheme theme.Theme) *Harness {
 func NewWithConfig(config Config) *Harness {
 	validateSize(config.Size)
 	if config.Theme == nil {
-		panic(theme.ErrMissingVisualProvider)
-	}
-	if err := theme.ValidateVisualProvider(*config.Theme); err != nil {
-		panic(err)
+		panic(theme.ErrMissingTheme)
 	}
 	activeTheme := *config.Theme
 	theme.DetachMaterial(&activeTheme)
@@ -92,13 +89,14 @@ func (h *Harness) Router() *input.Router {
 // Frame lays out one complete FlowUI frame with exact viewport constraints,
 // including root overlays, focus commands, state cleanup, and input routing.
 func (h *Harness) Frame(root ui.Widget) layout.Dimensions {
-	var ops op.Ops
+	h.ops.Reset()
+	ops := &h.ops
 	gtx := layout.Context{
 		Constraints: layout.Exact(h.size),
 		Metric:      h.metric,
 		Now:         h.now,
 		Source:      h.router.Source(),
-		Ops:         &ops,
+		Ops:         ops,
 	}
 	frameCtx := (*core.Context)(h.ctx)
 	core.BeginFrameWithViewport(frameCtx, h.size)
@@ -109,7 +107,7 @@ func (h *Harness) Frame(root ui.Widget) layout.Dimensions {
 	core.LayoutOverlays(frameCtx, gtx)
 	core.ApplyFrameCommands(frameCtx, gtx)
 	core.EndFrame(frameCtx)
-	h.router.Frame(&ops)
+	h.router.Frame(ops)
 	return dimensions
 }
 

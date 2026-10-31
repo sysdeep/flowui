@@ -14,7 +14,7 @@ type ListWidget struct {
 	gap           unit.Dp
 	align         layout.Alignment
 	disabled      bool
-	stickToEnd    bool
+	followEnd     bool
 	scrollAnyAxis bool
 }
 
@@ -22,7 +22,7 @@ type ListWidget struct {
 // scope; call Key when the same position may hold different content.
 func List(count int, item func(int) Widget) ListWidget {
 	return ListWidget{
-		key:   core.AutoKey(),
+		key:   core.AutoKey("list"),
 		count: count,
 		item:  item,
 	}
@@ -59,8 +59,11 @@ func (l ListWidget) AlignEnd() ListWidget {
 	return l
 }
 
-func (l ListWidget) StickToEnd() ListWidget {
-	l.stickToEnd = true
+// FollowEnd starts the list at its end and keeps it there while new content
+// arrives. Scrolling away from the end pauses following until the end is
+// reached again.
+func (l ListWidget) FollowEnd() ListWidget {
+	l.followEnd = true
 	return l
 }
 
@@ -76,12 +79,12 @@ func (l ListWidget) Layout(ctx *Context, gtx layout.Context) layout.Dimensions {
 	state.Axis = layout.Vertical
 	state.Gap = max(gtx.Dp(l.gap), 0)
 	state.Alignment = l.align
-	state.ScrollToEnd = l.stickToEnd
+	state.ScrollToEnd = l.followEnd
 	state.ScrollAnyAxis = l.scrollAnyAxis
 	if l.disabled {
 		gtx = gtx.Disabled()
 	}
-	return layoutScrollbarList(ctx, gtx, "", state, bar, visual, l.count, l.disabled, false, style.Style{}, func(gtx layout.Context, index int) layout.Dimensions {
+	return layoutScrollbarList(ctx, gtx, "", state, &bar.bar, visual, l.count, l.disabled, false, style.Style{}, &bar.defaultsCache, true, func(gtx layout.Context, index int) layout.Dimensions {
 		item := l.item(index)
 		prepareFieldAssociations(ctx, item)
 		return item.Layout(ctx, gtx)

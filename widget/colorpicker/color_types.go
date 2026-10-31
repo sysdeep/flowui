@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"gioui.org/layout"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type ColorChannel uint8
@@ -74,17 +73,17 @@ func (state *colorValueState) hsv() hsvColor {
 	return resolved
 }
 
-func colorSwatchPixels(gtx layout.Context, tokens theme.ColorSwatchVisual, size ColorSwatchSize) int {
+func colorSwatchPixels(gtx layout.Context, defaults colorSwatchDefaults, size ColorSwatchSize) int {
 	switch size {
 	case ColorSwatchExtraSmall:
-		return gtx.Dp(tokens.ExtraSmallSize)
+		return gtx.Dp(defaults.ExtraSmallSize)
 	case ColorSwatchSmall:
-		return gtx.Dp(tokens.SmallSize)
+		return gtx.Dp(defaults.SmallSize)
 	case ColorSwatchLarge:
-		return gtx.Dp(tokens.LargeSize)
+		return gtx.Dp(defaults.LargeSize)
 	case ColorSwatchExtraLarge:
-		return gtx.Dp(tokens.ExtraLargeSize)
+		return gtx.Dp(defaults.ExtraLargeSize)
 	default:
-		return gtx.Dp(tokens.MediumSize)
+		return gtx.Dp(defaults.MediumSize)
 	}
 }

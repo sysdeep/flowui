@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"gioui.org/f32"
-	"gioui.org/layout"
-	"gioui.org/op"
 )
 
 func TestLinearGradientNormalizesStopsWithoutMutatingInput(t *testing.T) {
@@ -19,11 +17,14 @@ func TestLinearGradientNormalizesStopsWithoutMutatingInput(t *testing.T) {
 	if input[0].Offset != .8 || input[1].Offset != .2 {
 		t.Fatal("linear gradient mutated its input stops")
 	}
-	if len(brush.stops) != 4 {
-		t.Fatalf("normalized stops = %d, want 4", len(brush.stops))
+	if got := brush.ColorAt(0); got != red {
+		t.Fatalf("start color = %#v, want %#v", got, red)
 	}
-	if brush.stops[0].Offset != 0 || brush.stops[1].Offset != .2 || brush.stops[2].Offset != .8 || brush.stops[3].Offset != 1 {
-		t.Fatalf("normalized offsets = %#v", brush.stops)
+	if got := brush.ColorAt(1); got != blue {
+		t.Fatalf("end color = %#v, want %#v", got, blue)
+	}
+	if got := brush.ColorAt(.5); got != (color.NRGBA{R: 128, B: 128, A: 255}) {
+		t.Fatalf("midpoint color = %#v", got)
 	}
 }
 
@@ -32,8 +33,8 @@ func TestLinearGradientClampsInvalidStops(t *testing.T) {
 		GradientStop{Offset: float32(math.NaN()), Color: color.NRGBA{R: 1}},
 		GradientStop{Offset: float32(math.Inf(1)), Color: color.NRGBA{R: 2}},
 	)
-	if brush.stops[0].Offset != 0 || brush.stops[len(brush.stops)-1].Offset != 1 {
-		t.Fatalf("invalid stop offsets = %#v", brush.stops)
+	if brush.ColorAt(0).R != 1 || brush.ColorAt(1).R != 2 {
+		t.Fatalf("invalid stops produced endpoints %#v and %#v", brush.ColorAt(0), brush.ColorAt(1))
 	}
 }
 
@@ -75,7 +76,7 @@ func TestBrushAngleNormalizesAndRejectsInvalidValues(t *testing.T) {
 func TestSingleGradientStopBecomesSolidBrush(t *testing.T) {
 	col := color.NRGBA{R: 10, G: 20, B: 30, A: 200}
 	brush := LinearGradient(GradientStop{Offset: .5, Color: col})
-	if brush.kind != brushSolid || brush.ColorAt(0) != col || brush.ColorAt(1) != col {
+	if brush.ColorAt(0) != col || brush.ColorAt(1) != col {
 		t.Fatalf("single-stop brush = %#v", brush)
 	}
 }
@@ -112,20 +113,6 @@ func TestLinearGradientLineUsesCSSAngles(t *testing.T) {
 			t.Fatalf("angle %v line = %v to %v, want %v to %v", test.angle, start, end, test.wantStart, test.wantEnd)
 		}
 	}
-}
-
-func TestDrawBrushHandlesSolidGradientAndEmptyBounds(t *testing.T) {
-	var ops op.Ops
-	gtx := layout.Context{Ops: &ops}
-	red := color.NRGBA{R: 255, A: 255}
-	blue := color.NRGBA{B: 255, A: 255}
-	Fill(gtx, image.Rect(0, 0, 100, 40), 8, SolidBrush(red))
-	Fill(gtx, image.Rect(0, 0, 100, 40), 8, LinearGradient(
-		GradientStop{Color: red},
-		GradientStop{Offset: .5, Color: blue},
-		GradientStop{Offset: 1, Color: red},
-	))
-	Fill(gtx, image.Rectangle{}, 0, Brush{})
 }
 
 func nearPoint(got, want f32.Point) bool {

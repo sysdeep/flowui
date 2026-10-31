@@ -12,7 +12,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	"github.com/qianniancn/flowui/internal/locale"
 )
 
@@ -23,11 +22,11 @@ func TestDateFieldOptionsUseValueSemantics(t *testing.T) {
 		Description("Choose a date").
 		ErrorMessage("Invalid date").
 		Locale(Chinese()).
-		Variant(field.Secondary).
+		Variant(Secondary).
 		Disabled(true).
 		Invalid(true).
 		Required(true).
-		FullWidth().
+		FillWidth().
 		MinDate(testDate(2026, 1, 1)).
 		MaxDate(testDate(2026, 12, 31)).
 		OnChange(func(time.Time) {})
@@ -37,6 +36,17 @@ func TestDateFieldOptionsUseValueSemantics(t *testing.T) {
 	}
 	if configured.label != "Date" || configured.description == "" || configured.errorMessage == "" || !configured.localeSet || configured.locale.DateOrder[0] != DatePartYear || !configured.disabled || !configured.invalid || !configured.required || !configured.fullWidth || configured.onChange == nil {
 		t.Fatalf("configured DateField = %#v", configured)
+	}
+}
+
+func TestDateRangePickerFillWidthUsesValueSemantics(t *testing.T) {
+	base := DateRangePicker("range", DateRange{})
+	configured := base.FillWidth()
+	if base.fullWidth {
+		t.Fatal("FillWidth mutated the original date range picker")
+	}
+	if !configured.fullWidth {
+		t.Fatal("FillWidth did not enable full width")
 	}
 }
 
@@ -84,7 +94,7 @@ func TestDateFieldArrowNavigationUsesLocaleOrder(t *testing.T) {
 func TestDateFieldPointerSegmentFocusIsNotKeyboardVisible(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageEnglish)
 	router := new(input.Router)
-	widget := DateField("date", testDate(2026, 7, 9)).FullWidth()
+	widget := DateField("date", testDate(2026, 7, 9)).FillWidth()
 	start := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, widget, start)
 	state := testComponentState[dateFieldState](ctx, "date", stateSlotDateField)
@@ -203,7 +213,7 @@ func TestDateRangePickerPreviewsPendingRangeAtHoveredDate(t *testing.T) {
 	componentState.selectDate(testDate(2026, 7, 20), nil)
 	start, end := componentState.displayRange(DateRange{}, testDate(2026, 7, 10))
 
-	if !sameDate(start, testDate(2026, 7, 20)) || !sameDate(end, testDate(2026, 7, 10)) {
+	if !sameDate(start, testDate(2026, 7, 10)) || !sameDate(end, testDate(2026, 7, 20)) {
 		t.Fatalf("preview range = %v - %v", start, end)
 	}
 }
@@ -312,7 +322,7 @@ func TestDateRangePickerTriggerFocusDoesNotFocusDateSegments(t *testing.T) {
 func TestDateSegmentsScrollWhenWidthIsConstrained(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageEnglish)
 	router := new(input.Router)
-	dimensions := layoutDateComponentFrameWithViewport(ctx, router, DateField("date", testDate(2026, 7, 9)).FullWidth(), testDate(2026, 7, 1), image.Pt(80, 100))
+	dimensions := layoutDateComponentFrameWithViewport(ctx, router, DateField("date", testDate(2026, 7, 9)).FillWidth(), testDate(2026, 7, 1), image.Pt(80, 100))
 	componentState := testComponentState[dateFieldState](ctx, "date", stateSlotDateField)
 
 	if dimensions.Size.X != 80 {
@@ -323,21 +333,19 @@ func TestDateSegmentsScrollWhenWidthIsConstrained(t *testing.T) {
 	}
 }
 
-func TestDateSegmentPlaceholderExpandsPastProviderMinimum(t *testing.T) {
+func TestDateSegmentPlaceholderExpandsPastMinimum(t *testing.T) {
 	ctx := newContext(nil)
 	gtx := testLayoutContext()
 	segments := new(dateSegmentsState)
 	segments.sync(time.Time{})
-	activeTheme := core.ActiveTheme(ctx)
-	visual := datePickerVisualDeclarationForVariant(activeTheme, field.Primary)
+	defaults := buildDatePickerDefaults(core.ActiveTheme(ctx), Primary)
 	dimensions := segments.layoutSegment(ctx, gtx, int(DatePartMonth), dateSegmentsLayoutOptions{
-		colors:        field.Colors{},
-		metrics:       visual.Metrics,
-		visual:        visual,
-		calendarStyle: &visual.Calendar,
+		colors:        dateFieldColors{},
+		metrics:       defaults.metrics,
+		calendarStyle: &defaults.calendar,
 		enabled:       true,
 	})
-	minimum := gtx.Dp(visual.Metrics.SegmentWidth)
+	minimum := gtx.Dp(defaults.metrics.SegmentWidth)
 
 	if dimensions.Size.X <= minimum {
 		t.Fatalf("month placeholder width = %d, want more than theme minimum %d", dimensions.Size.X, minimum)

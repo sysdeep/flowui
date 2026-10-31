@@ -9,12 +9,12 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func TestStyledPreservesChipBehavior(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 
 	baseStart := &chipProbe{size: image.Pt(12, 12)}
 	baseEnd := &chipProbe{size: image.Pt(12, 12)}

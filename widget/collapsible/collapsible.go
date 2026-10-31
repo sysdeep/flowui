@@ -9,7 +9,7 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 )
 
 // Item describes one entry in a Group.
@@ -24,7 +24,8 @@ type Item struct {
 
 // Widget presents one controlled expandable section.
 type Widget struct {
-	override           *theme.CollapsibleOverride
+	style              style.Style
+	triggerStyle       style.Style
 	key                string
 	expanded           bool
 	hasExpanded        bool
@@ -46,7 +47,7 @@ type Widget struct {
 // Expanded sets the controlled value and DefaultExpanded the starting one.
 func New(label string, content core.Widget) Widget {
 	return Widget{
-		key:     core.AutoKey(),
+		key:     core.AutoKey("collapsible"),
 		label:   label,
 		content: content,
 	}
@@ -93,101 +94,80 @@ func (w Widget) DefaultExpanded(expanded bool) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
+	return w.layoutWithStyle(ctx, gtx)
 }
 
-// Style merges instance declarations into the section. The declaration reaches
-// the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the section. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.CollapsibleOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }
 
 // StyleTrigger styles the internal disclosure button.
 func (w Widget) StyleTrigger(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.CollapsibleOverride{}
-	}
-	w.override.Trigger = style.Join(w.override.Trigger, declaration)
+	w.triggerStyle = style.Join(w.triggerStyle, style.Join(values...))
 	return w
 }
 
 // StyleWithTrigger styles the section and its disclosure button together.
 func (w Widget) StyleWithTrigger(root, trigger style.Style) Widget {
-	if w.override == nil {
-		w.override = &theme.CollapsibleOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, root)
-	w.override.Trigger = style.Join(w.override.Trigger, trigger)
+	w.style = style.Join(w.style, root)
+	w.triggerStyle = style.Join(w.triggerStyle, trigger)
 	return w
 }
 
 // Style merges instance declarations into the group.
 func (g GroupWidget) Style(values ...style.Style) GroupWidget {
-	declaration := style.Join(values...)
-	if g.override == nil {
-		g.override = &theme.CollapsibleOverride{}
-	}
-	g.override.Declaration = style.Join(g.override.Declaration, declaration)
+	g.style = style.Join(g.style, style.Join(values...))
 	return g
 }
 
 // StyleWithTrigger styles every item root and its disclosure button.
 func (g GroupWidget) StyleWithTrigger(root, trigger style.Style) GroupWidget {
-	if g.override == nil {
-		g.override = &theme.CollapsibleOverride{}
-	}
-	g.override.Declaration = style.Join(g.override.Declaration, root)
-	g.override.Trigger = style.Join(g.override.Trigger, trigger)
+	g.style = style.Join(g.style, root)
+	g.triggerStyle = style.Join(g.triggerStyle, trigger)
 	return g
 }
 
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.CollapsibleOverride) layout.Dimensions {
+func (w Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	rootKey := core.FullKey(ctx, w.key)
 	state := collapsibleStateFor(ctx, w.key)
-	visual := state.visual(ctx, override)
+	visual := state.visual(ctx)
 	state.item.bind(w)
 	expanded := state.item.isExpanded(w)
 
 	disabled := w.disabled || !gtx.Enabled()
-	presses := activePresses(&state.item)
-	if !disabled {
-		for state.item.clickable.Clicked(gtx) {
-			state.item.requestExpanded(w, !expanded)
-		}
-		focusOnPress(ctx, &state.item, presses)
-	}
+	trigger := base.Disclosure(w.key, expanded).Label(w.label).Disabled(disabled).Clickable(&state.item.clickable).
+		OnToggle(func(next bool) { state.item.requestExpanded(w, next) }).Update(ctx, gtx)
 
 	restore := core.PushKey(ctx, w.key)
 	defer restore()
-	focused := gtx.Focused(&state.item.clickable)
+	focused := trigger.Focused
 	return layoutui.Styled(ctx, gtx, rootKey, style.State{
-		Hovered:      state.item.clickable.Hovered(),
-		Pressed:      state.item.clickable.Pressed(),
+		Hovered:      trigger.Hovered,
+		Pressed:      trigger.Pressed,
 		Focused:      focused,
-		FocusVisible: core.FocusVisible(ctx, &state.item.clickable, focused),
+		FocusVisible: trigger.FocusVisible,
 		Disabled:     disabled,
 		Expanded:     expanded,
-	}, visual.Override, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return layoutItem(ctx, gtx, &state.item, Item{
+	}, w.style, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return layoutItem(ctx, gtx, trigger, Item{
 			Key:      w.key,
 			Label:    w.label,
 			Leading:  w.leading,
 			Trailing: w.trailing,
 			Content:  w.content,
 			Disabled: w.disabled,
-		}, expanded, disabled, visual)
+		}, expanded, disabled, visual, w.triggerStyle)
 	}))
 }
 
 // GroupWidget coordinates a controlled collection of collapsible sections.
 type GroupWidget struct {
-	override              *theme.CollapsibleOverride
+	style                 style.Style
+	triggerStyle          style.Style
 	key                   string
 	expandedKeys          []string
 	items                 []Item
@@ -221,30 +201,29 @@ func (g GroupWidget) OnExpandedChange(fn func([]string)) GroupWidget {
 }
 
 func (g GroupWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return g.layoutWithOverride(ctx, gtx, g.override)
+	return g.layoutWithStyle(ctx, gtx)
 }
 
-func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.CollapsibleOverride) layout.Dimensions {
+func (g GroupWidget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	rootKey := core.FullKey(ctx, g.key)
 	state := collapsibleStateFor(ctx, g.key)
-	visual := state.visual(ctx, override)
+	visual := state.visual(ctx)
 	state.beginFrame()
 	defer state.endFrame()
 	state.checkItems(g.items)
 
-	for _, item := range g.items {
+	triggers := make([]base.DisclosureState, len(g.items))
+	for index, item := range g.items {
 		itemState := state.itemFor(item.Key)
 		disabled := g.disabled || item.Disabled || !gtx.Enabled()
-		presses := activePresses(itemState)
-		if disabled {
-			continue
-		}
-		for itemState.clickable.Clicked(gtx) {
-			if g.onExpandedChange != nil {
-				g.onExpandedChange(toggleExpandedKeys(g.expandedKeys, item.Key, g.allowMultipleExpanded))
-			}
-		}
-		focusOnPress(ctx, itemState, presses)
+		triggers[index] = base.Disclosure(core.DerivedKey(ctx, rootKey, item.Key), slices.Contains(g.expandedKeys, item.Key)).
+			Label(item.Label).
+			Disabled(disabled).Clickable(&itemState.clickable).
+			OnToggle(func(bool) {
+				if g.onExpandedChange != nil {
+					g.onExpandedChange(toggleExpandedKeys(g.expandedKeys, item.Key, g.allowMultipleExpanded))
+				}
+			}).Update(ctx, gtx)
 	}
 	if !g.disabled && gtx.Enabled() {
 		if focusKey := state.updateKeys(gtx, g.items); focusKey != "" {
@@ -255,13 +234,11 @@ func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, o
 	restore := core.PushKey(ctx, g.key)
 	defer restore()
 	hovered, pressed, focused, focusVisible := false, false, false, false
-	for _, item := range g.items {
-		itemState := state.itemFor(item.Key)
-		hovered = hovered || itemState.clickable.Hovered()
-		pressed = pressed || itemState.clickable.Pressed()
-		itemFocused := gtx.Focused(&itemState.clickable)
-		focused = focused || itemFocused
-		focusVisible = focusVisible || core.FocusVisible(ctx, &itemState.clickable, itemFocused)
+	for _, trigger := range triggers {
+		hovered = hovered || trigger.Hovered
+		pressed = pressed || trigger.Pressed
+		focused = focused || trigger.Focused
+		focusVisible = focusVisible || trigger.FocusVisible
 	}
 	return layoutui.Styled(ctx, gtx, rootKey, style.State{
 		Hovered:      hovered,
@@ -270,12 +247,12 @@ func (g GroupWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, o
 		FocusVisible: focusVisible,
 		Disabled:     g.disabled || !gtx.Enabled(),
 		Expanded:     len(g.expandedKeys) > 0,
-	}, visual.Override, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return g.layout(ctx, gtx, state, visual)
+	}, g.style, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return g.layout(ctx, gtx, triggers, visual)
 	}))
 }
 
-func (g GroupWidget) layout(ctx *core.Context, gtx layout.Context, state *collapsibleState, visual theme.CollapsibleVisual) layout.Dimensions {
+func (g GroupWidget) layout(ctx *core.Context, gtx layout.Context, triggers []base.DisclosureState, visual collapsibleVisual) layout.Dimensions {
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	children := make([]layout.FlexChild, len(g.items))
 	placements := make([]core.OverlayPlacement, len(g.items))
@@ -286,7 +263,7 @@ func (g GroupWidget) layout(ctx *core.Context, gtx layout.Context, state *collap
 			defer restore()
 			dims, placement := core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
 				disabled := g.disabled || item.Disabled || !gtx.Enabled()
-				return layoutItem(ctx, gtx, state.itemFor(item.Key), item, slices.Contains(g.expandedKeys, item.Key), disabled, visual)
+				return layoutItem(ctx, gtx, triggers[index], item, slices.Contains(g.expandedKeys, item.Key), disabled, visual, g.triggerStyle)
 			})
 			dimensions[index], placements[index] = dims, placement
 			return dims

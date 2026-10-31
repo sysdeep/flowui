@@ -15,14 +15,13 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
 func newContext(_ any) *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	return core.New(nil, new(theme.Light()), locale.LanguageAuto)
 }
 
 func testComponentState[T any](ctx *core.Context, key, slot string) *T {
@@ -184,10 +183,9 @@ func TestRadioPartsResolveCompleteStyles(t *testing.T) {
 		Part(style.PartDescription, style.Style{}.TextColor(style.SolidColor{Color: description}).FontSize(13))
 
 	ctx := newContext(nil)
-	provider, _ := theme.ComponentProvider(core.ActiveTheme(ctx))
-	visual := provider.RadioGroup(core.ActiveTheme(ctx), theme.RadioGroupRequest{Variant: theme.RadioPrimary, Override: &theme.RadioGroupOverride{Declaration: custom}})
-	widget := New(radioTestItems()).Key("plan").SelectedKey("pro")
-	resolved := widget.resolveItemStyle(ctx, layout.Context{Ops: new(op.Ops)}, "plan:pro", style.State{Checked: true, Selected: true}, visual)
+	defaults := buildRadioDefaults(core.ActiveTheme(ctx), RadioPrimary)
+	widget := New(radioTestItems()).Key("plan").SelectedKey("pro").Style(custom)
+	resolved := widget.resolveItemStyle(ctx, layout.Context{Ops: new(op.Ops)}, "plan:pro", style.State{Checked: true, Selected: true}, defaults)
 	if resolved.indicatorOn.Paint == nil || resolved.indicatorOn.Paint.Opacity == nil || *resolved.indicatorOn.Paint.Opacity != .5 || resolved.indicatorOn.Paint.Border == nil || *resolved.indicatorOn.Paint.Border.Width != 3 || *resolved.indicatorOn.Paint.Radius != 8 || len(resolved.indicatorOn.Paint.Shadows) != 1 {
 		t.Fatalf("indicator paint = %#v", resolved.indicatorOn.Paint)
 	}
@@ -209,46 +207,32 @@ func TestRadioPartsResolveCompleteStyles(t *testing.T) {
 }
 
 func TestRadioIndicatorPartControlsGeometry(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	gtx := testLayoutContext()
 	override := style.Style{}.Part(style.PartIndicator, style.Style{}.Width(12).Height(10))
-	widget := New(nil).Key("compact")
-	provider, _ := theme.ComponentProvider(&activeTheme)
-	visual := provider.RadioGroup(&activeTheme, theme.RadioGroupRequest{Variant: theme.RadioPrimary, Override: &theme.RadioGroupOverride{Declaration: override}})
-	resolved := widget.resolveItemStyle(ctx, gtx, "compact:one", style.State{}, visual)
-	dims := drawRadio(ctx, gtx, visual, resolved, 1)
-	focusSpace := max(gtx.Dp(visual.Metrics.FocusSpace), 1)
+	widget := New(nil).Key("compact").Style(override)
+	defaults := buildRadioDefaults(&activeTheme, RadioPrimary)
+	resolved := widget.resolveItemStyle(ctx, gtx, "compact:one", style.State{}, defaults)
+	dims := drawRadio(ctx, gtx, defaults, resolved, 1)
+	focusSpace := max(gtx.Dp(defaults.Metrics.FocusSpace), 1)
 	want := image.Pt(gtx.Dp(12)+focusSpace*2, gtx.Dp(10)+focusSpace*2)
 	if dims.Size != want {
 		t.Fatalf("styled radio size = %v, want %v", dims.Size, want)
 	}
 }
 
-func TestRadioGroupDelegatesIndicatorDrawingToProvider(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	var got theme.RadioIndicatorRenderRequest
-	activeTheme.VisualProvider = incompleteRadioProvider{
-		ComponentVisualProvider: testtheme.BehaviorProvider(),
-		mutate: func(visual *theme.RadioGroupVisual) {
-			visual.IndicatorRenderer = func(_ layout.Context, request theme.RadioIndicatorRenderRequest) layout.Dimensions {
-				got = request
-				return layout.Dimensions{Size: request.Size}
+func TestRadioSelectedDotIsWhiteInBothThemes(t *testing.T) {
+	want := color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	for name, active := range map[string]theme.Theme{"light": theme.Light(), "dark": theme.Dark()} {
+		t.Run(name, func(t *testing.T) {
+			defaults := buildRadioDefaults(&active, RadioPrimary)
+			resolved := style.CascadePart(style.State{Checked: true, Selected: true}, style.PartIndicator, defaults.Defaults)
+			got, ok := computed.Color(resolved.Text.Color)
+			if !ok || got != want {
+				t.Fatalf("selected dot color = %#v, want white", got)
 			}
-		},
-	}
-	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
-	gtx := testLayoutContext()
-	provider, _ := theme.ComponentProvider(&activeTheme)
-	visual := provider.RadioGroup(&activeTheme, theme.RadioGroupRequest{Variant: theme.RadioPrimary})
-	widget := New(radioTestItems()).Key("provider-renderer").SelectedKey("pro")
-	resolved := widget.resolveItemStyle(ctx, gtx, "provider-renderer:pro", style.State{Checked: true, Selected: true}, visual)
-	resolved.selected = 1
-	if dims := drawRadio(ctx, gtx, visual, resolved, 1); dims.Size == (image.Point{}) {
-		t.Fatal("radio indicator layout returned an empty size")
-	}
-	if got.Selection != 1 || got.DotScale != visual.Metrics.DotScale || got.DotPressedScale != visual.Metrics.DotPressedScale {
-		t.Fatalf("indicator request = %#v, want provider metrics and selected state", got)
+		})
 	}
 }
 
@@ -256,8 +240,8 @@ func TestRadioLabelAndDescriptionPartsUseCommonRenderer(t *testing.T) {
 	items := []RadioItem{{Key: "one", Label: "One", Description: "Details"}}
 	base := New(items).Key("base").Layout(newContext(nil), testLayoutContext())
 	styled := (New(items).Key("styled")).Style(style.Style{}.
-		Part(style.PartLabel, style.Style{}.PaddingY(5)).
-		Part(style.PartDescription, style.Style{}.PaddingY(4)))
+		Part(style.PartLabel, style.Style{}.Padding(5)).
+		Part(style.PartDescription, style.Style{}.Padding(4)))
 	styledDims := styled.Layout(newContext(nil), testLayoutContext())
 	if styledDims.Size.Y <= base.Size.Y {
 		t.Fatalf("styled radio height = %d, want greater than %d", styledDims.Size.Y, base.Size.Y)

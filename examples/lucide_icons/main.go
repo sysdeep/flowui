@@ -18,7 +18,6 @@ import (
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/icon"
@@ -135,10 +134,10 @@ func searchRow(ctx *ui.Context, model Model, send ui.Send[Msg]) ui.Widget {
 			Size(input.Large).
 			OnChange(func(value string) { send(SearchChanged{Value: value}) }).
 			OnSubmit(func(value string) { send(SearchSubmitted{Value: value}) }).
-			FullWidth(),
+			FillWidth(),
 	).
 		Prefix(icon.New(lucide.Search).Size(18).Color(sem.MutedForeground)).
-		FullWidth()
+		FillWidth()
 
 	children := []layout.Widget{layout.Expanded(search)}
 	if model.query != "" || model.letter != "" {
@@ -248,7 +247,7 @@ func letterChip(ctx *ui.Context, letter, label string, selected bool, send ui.Se
 			}
 			return style.New().
 				Height(30).
-				PaddingX(8).
+				Padding(0, 8).
 				Radius(6).
 				Background(style.Color(background)).
 				BorderWidth(1).
@@ -289,7 +288,7 @@ func iconGrid(ctx *ui.Context, icons []catalogIcon, model Model, send ui.Send[Ms
 		key := fmt.Sprintf("icon-grid:%d:%s:%s", columns, model.query, model.letter)
 		return layout.List(rows, func(row int) ui.Widget {
 			children := make([]layout.Widget, 0, columns)
-			for column := 0; column < columns; column++ {
+			for column := range columns {
 				index := row*columns + column
 				if index >= len(icons) {
 					break
@@ -481,6 +480,6 @@ func main() {
 	ui.Run(ui.NewProgram(Model{selected: "AArrowDown"}, Update, View),
 		window.Title("FlowUI Lucide Icons"),
 		window.Size(1080, 780),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 }

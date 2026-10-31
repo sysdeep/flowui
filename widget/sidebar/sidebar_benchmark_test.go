@@ -13,7 +13,6 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -26,7 +25,7 @@ type sidebarBenchmarkFrame struct {
 }
 
 func newSidebarBenchmarkFrame(maximum image.Point) *sidebarBenchmarkFrame {
-	frame := &sidebarBenchmarkFrame{ctx: core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)}
+	frame := &sidebarBenchmarkFrame{ctx: core.New(nil, new(theme.Light()), locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
 		Source:      frame.router.Source(), Ops: &frame.ops, Now: time.Unix(1, 0),
@@ -58,39 +57,29 @@ func sidebarBenchmarkTree() Widget {
 	return NewSections("benchmark-tree", "item-0-0", sections).DataVersion(1)
 }
 
-func reportSidebarVisualStats(b *testing.B, after, before computed.ProviderCacheStats) {
+func reportSidebarDefaultsStats(b *testing.B, after, before computed.VisualCacheStats) {
 	if b.N == 0 {
 		return
 	}
-	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "sidebar-visual-cache-hits/op")
-	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "sidebar-visual-cache-misses/op")
-	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "sidebar-visual-cache-theme-invalidations/op")
-	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "sidebar-visual-cache-key-invalidations/op")
+	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "sidebar-defaults-cache-hits/op")
+	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "sidebar-defaults-cache-misses/op")
+	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "sidebar-defaults-cache-theme-invalidations/op")
+	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "sidebar-defaults-cache-key-invalidations/op")
 }
 
-func BenchmarkSidebarProviderVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	cache := sidebarVisualCache{}
-	cache.resolve(active, theme.SidebarRequest{}, func() theme.SidebarVisual {
-		provider, err := theme.ComponentProvider(active)
-		if err != nil {
-			b.Fatal(err)
-		}
-		visual := provider.Sidebar(active, theme.SidebarRequest{})
-		theme.ValidateSidebarVisual(visual)
-		return visual
-	})
+func BenchmarkSidebarDefaultsCacheHit(b *testing.B) {
+	active := new(theme.Light())
+	metrics := (Widget{}).metrics(active)
+	cache := sidebarDefaultsCache{}
+	cache.resolve(active, metrics)
 	before := cache.stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		cache.resolve(active, theme.SidebarRequest{}, func() theme.SidebarVisual {
-			b.Helper()
-			panic("sidebar visual cache miss")
-		})
+		cache.resolve(active, metrics)
 	}
 	b.StopTimer()
-	reportSidebarVisualStats(b, cache.stats(), before)
+	reportSidebarDefaultsStats(b, cache.stats(), before)
 }
 
 func BenchmarkSidebarComponentTreeSteadyState(b *testing.B) {
@@ -104,7 +93,7 @@ func BenchmarkSidebarComponentTreeSteadyState(b *testing.B) {
 	}
 }
 
-func BenchmarkSidebarComponentTreeVisualCacheHit(b *testing.B) {
+func BenchmarkSidebarComponentTreeDefaultsCacheHit(b *testing.B) {
 	frame := newSidebarBenchmarkFrame(image.Pt(320, 800))
 	value := sidebarBenchmarkTree()
 	frame.layout(value)
@@ -112,17 +101,17 @@ func BenchmarkSidebarComponentTreeVisualCacheHit(b *testing.B) {
 	if !ok {
 		b.Fatal("sidebar state was not initialized")
 	}
-	before := state.visualCache.stats()
+	before := state.defaults.stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
 		frame.layout(value)
 	}
 	b.StopTimer()
-	reportSidebarVisualStats(b, state.visualCache.stats(), before)
+	reportSidebarDefaultsStats(b, state.defaults.stats(), before)
 }
 
-func BenchmarkSidebarComponentTreeVisualCacheMiss(b *testing.B) {
+func BenchmarkSidebarComponentTreeDefaultsCacheMiss(b *testing.B) {
 	frame := newSidebarBenchmarkFrame(image.Pt(320, 800))
 	value := sidebarBenchmarkTree()
 	frame.layout(value)
@@ -130,9 +119,9 @@ func BenchmarkSidebarComponentTreeVisualCacheMiss(b *testing.B) {
 	if !ok {
 		b.Fatal("sidebar state was not initialized")
 	}
-	first := *testtheme.Behavior()
-	second := *testtheme.Behavior()
-	before := state.visualCache.stats()
+	first := theme.Light()
+	second := theme.Light()
+	before := state.defaults.stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
@@ -144,43 +133,17 @@ func BenchmarkSidebarComponentTreeVisualCacheMiss(b *testing.B) {
 		frame.layout(value)
 	}
 	b.StopTimer()
-	reportSidebarVisualStats(b, state.visualCache.stats(), before)
+	reportSidebarDefaultsStats(b, state.defaults.stats(), before)
 }
 
-func BenchmarkSidebarStyledOverrideBypass(b *testing.B) {
+func BenchmarkSidebarInstanceStyle(b *testing.B) {
 	frame := newSidebarBenchmarkFrame(image.Pt(320, 800))
-	value := (sidebarBenchmarkTree()).Style(style.Style{}.PaddingX(2))
+	value := (sidebarBenchmarkTree()).Style(style.Style{}.Padding(2))
 	frame.layout(value)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
 		frame.layout(value)
-	}
-}
-
-func BenchmarkSidebarItemVisualCacheHit(b *testing.B) {
-	active := theme.Theme{}
-	state := new(sidebarState)
-	visual := theme.SidebarVisual{Item: func(theme.SidebarItemRequest) theme.SidebarItemVisual {
-		return theme.SidebarItemVisual{Opacity: 1}
-	}}
-	state.itemVisualCache.resolve(&active, visual, theme.SidebarItemRequest{Selected: true})
-	b.ReportAllocs()
-	for b.Loop() {
-		_ = state.itemVisualCache.resolve(&active, visual, theme.SidebarItemRequest{Selected: true})
-	}
-}
-
-func BenchmarkSidebarItemVisualCacheMiss(b *testing.B) {
-	active := theme.Theme{}
-	state := new(sidebarState)
-	visual := theme.SidebarVisual{Item: func(request theme.SidebarItemRequest) theme.SidebarItemVisual {
-		return theme.SidebarItemVisual{Opacity: 1}
-	}}
-	b.ReportAllocs()
-	for b.Loop() {
-		state.itemVisualCache.valid = [32]bool{}
-		_ = state.itemVisualCache.resolve(&active, visual, theme.SidebarItemRequest{Selected: true})
 	}
 }
 

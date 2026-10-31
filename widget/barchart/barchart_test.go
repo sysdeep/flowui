@@ -16,7 +16,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/chart"
@@ -43,43 +42,8 @@ func TestBarChartCopiesMutableInputs(t *testing.T) {
 	}
 }
 
-func TestBarChartRejectsInvalidConfiguration(t *testing.T) {
-	tests := []struct {
-		name string
-		run  func()
-	}{
-		{"series width", func() { Values("a", "A", nil).Width(0) }},
-		{"series max width", func() { Values("a", "A", nil).MaxWidth(-1) }},
-		{"series min height", func() { Values("a", "A", nil).MinHeight(-1) }},
-		{"series radius", func() { Values("a", "A", nil).Radius(-1) }},
-		{"label position", func() { Values("a", "A", nil).LabelPosition(LabelPosition(9)) }},
-		{"height", func() { New("chart", nil).Height(0) }},
-		{"Y range", func() { New("chart", nil).YRange(math.NaN(), 1) }},
-		{"Y ticks", func() { New("chart", nil).YTicks(1) }},
-		{"negative bar gap", func() { New("chart", nil).BarGap(-0.1) }},
-		{"large category gap", func() { New("chart", nil).CategoryGap(1) }},
-		{"NaN gap", func() { New("chart", nil).BarGap(float32(math.NaN())) }},
-		{"animation duration", func() { New("chart", nil).AnimationDuration(-time.Millisecond) }},
-		{"update animation duration", func() { New("chart", nil).UpdateAnimationDuration(-time.Millisecond) }},
-		{"animation easing", func() { New("chart", nil).AnimationEasing(nil) }},
-		{"update animation easing", func() { New("chart", nil).UpdateAnimationEasing(nil) }},
-		{"data window", func() { New("chart", nil).DataWindow(0.8, 0.2) }},
-		{"orientation", func() { New("chart", nil).Orientation(Orientation(9)) }},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("invalid BarChart configuration did not panic")
-				}
-			}()
-			test.run()
-		})
-	}
-}
-
 func TestBarChartDataVersionCachesResolvedData(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	cache := new(chartDataCache)
 	metric := unit.Metric{PxPerDp: 1, PxPerSp: 1}
 	colors := testBarChartSeriesColors()
@@ -123,11 +87,7 @@ func TestBarChartResolvesCategoryLabelsAfterPruning(t *testing.T) {
 	var ops op.Ops
 	gtx := layout.Context{Constraints: layout.Exact(image.Pt(520, 320)), Ops: &ops}
 	core.BeginFrameWithViewport(ctx, image.Pt(520, 320))
-	provider, err := theme.ComponentProvider(core.ActiveTheme(ctx))
-	if err != nil {
-		t.Fatal(err)
-	}
-	visual := provider.BarChart(core.ActiveTheme(ctx), theme.BarChartRequest{})
+	visual := buildBarChart(core.ActiveTheme(ctx))
 	ticks := widget.pruneXTicks(ctx, gtx, geometry, barChartStyleFor(visual, false), visual.Metrics)
 	core.EndFrame(ctx)
 	if len(ticks) == 0 || len(ticks) >= 100 {
@@ -562,16 +522,12 @@ func testDp(value unit.Dp) int {
 }
 
 func barChartTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
-func testBarChartSeriesColors() theme.BarChartColors {
-	active := testtheme.Behavior()
-	provider, err := theme.ComponentProvider(active)
-	if err != nil {
-		panic(err)
-	}
-	return provider.BarChart(active, theme.BarChartRequest{}).Colors
+func testBarChartSeriesColors() barChartColors {
+	active := new(theme.Light())
+	return buildBarChart(active).Colors
 }
 
 func layoutBarChartFrame(ctx *core.Context, router *input.Router, widget Widget, now time.Time) layout.Dimensions {

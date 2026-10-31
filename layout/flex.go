@@ -8,6 +8,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
+	"github.com/qianniancn/flowui/style"
 )
 
 type CenterWidget struct {
@@ -30,6 +31,7 @@ type ColumnWidget struct {
 	gap      unit.Dp
 	align    layout.Alignment
 	spacing  layout.Spacing
+	boxStyle style.Style
 }
 
 func Column(children ...Widget) ColumnWidget {
@@ -68,9 +70,49 @@ func (c ColumnWidget) Spacing(spacing FlexSpacing) ColumnWidget {
 	return c
 }
 
+func (c ColumnWidget) Width(dp int) ColumnWidget {
+	c.boxStyle = c.boxStyle.Width(unit.Dp(dp))
+	return c
+}
+
+func (c ColumnWidget) Height(dp int) ColumnWidget {
+	c.boxStyle = c.boxStyle.Height(unit.Dp(dp))
+	return c
+}
+
+func (c ColumnWidget) MaxWidth(dp int) ColumnWidget {
+	c.boxStyle = c.boxStyle.MaxWidth(unit.Dp(dp))
+	return c
+}
+
+func (c ColumnWidget) FillWidth() ColumnWidget {
+	c.boxStyle = c.boxStyle.FillWidth()
+	return c
+}
+
+func (c ColumnWidget) FillHeight() ColumnWidget {
+	c.boxStyle = c.boxStyle.FillHeight()
+	return c
+}
+
+func (c ColumnWidget) Padding(dp ...int) ColumnWidget {
+	values := make([]unit.Dp, len(dp))
+	for i, value := range dp {
+		values[i] = unit.Dp(value)
+	}
+	c.boxStyle = c.boxStyle.Padding(values...)
+	return c
+}
+
 func (c ColumnWidget) Layout(ctx *Context, gtx layout.Context) layout.Dimensions {
 	prepareFieldAssociations(ctx, c.children...)
-	return flexLayout(ctx, gtx, layout.Vertical, c.gap, c.align, c.spacing, c.children)
+	child := core.WidgetFunc(func(ctx *Context, gtx layout.Context) layout.Dimensions {
+		return flexLayout(ctx, gtx, layout.Vertical, c.gap, c.align, c.spacing, c.children)
+	})
+	if c.boxStyle.IsEmpty() {
+		return child.Layout(ctx, gtx)
+	}
+	return Box(child).Style(c.boxStyle).Layout(ctx, gtx)
 }
 
 type RowWidget struct {
@@ -78,6 +120,7 @@ type RowWidget struct {
 	gap      unit.Dp
 	align    layout.Alignment
 	spacing  layout.Spacing
+	boxStyle style.Style
 }
 
 func Row(children ...Widget) RowWidget {
@@ -120,9 +163,49 @@ func (r RowWidget) Spacing(spacing FlexSpacing) RowWidget {
 	return r
 }
 
+func (r RowWidget) Width(dp int) RowWidget {
+	r.boxStyle = r.boxStyle.Width(unit.Dp(dp))
+	return r
+}
+
+func (r RowWidget) Height(dp int) RowWidget {
+	r.boxStyle = r.boxStyle.Height(unit.Dp(dp))
+	return r
+}
+
+func (r RowWidget) MaxWidth(dp int) RowWidget {
+	r.boxStyle = r.boxStyle.MaxWidth(unit.Dp(dp))
+	return r
+}
+
+func (r RowWidget) FillWidth() RowWidget {
+	r.boxStyle = r.boxStyle.FillWidth()
+	return r
+}
+
+func (r RowWidget) FillHeight() RowWidget {
+	r.boxStyle = r.boxStyle.FillHeight()
+	return r
+}
+
+func (r RowWidget) Padding(dp ...int) RowWidget {
+	values := make([]unit.Dp, len(dp))
+	for i, value := range dp {
+		values[i] = unit.Dp(value)
+	}
+	r.boxStyle = r.boxStyle.Padding(values...)
+	return r
+}
+
 func (r RowWidget) Layout(ctx *Context, gtx layout.Context) layout.Dimensions {
 	prepareFieldAssociations(ctx, r.children...)
-	return flexLayout(ctx, gtx, layout.Horizontal, r.gap, r.align, r.spacing, r.children)
+	child := core.WidgetFunc(func(ctx *Context, gtx layout.Context) layout.Dimensions {
+		return flexLayout(ctx, gtx, layout.Horizontal, r.gap, r.align, r.spacing, r.children)
+	})
+	if r.boxStyle.IsEmpty() {
+		return child.Layout(ctx, gtx)
+	}
+	return Box(child).Style(r.boxStyle).Layout(ctx, gtx)
 }
 
 // TrackedFlex keeps overlay anchors aligned with flex children.

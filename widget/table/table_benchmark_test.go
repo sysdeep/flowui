@@ -11,7 +11,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -23,7 +22,7 @@ type tableCheckboxBenchmarkFrame struct {
 }
 
 func newTableCheckboxBenchmarkFrame(maximum image.Point) *tableCheckboxBenchmarkFrame {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	frame := &tableCheckboxBenchmarkFrame{
 		ctx: core.New(nil, &activeTheme, locale.LanguageEnglish),
 	}
@@ -82,19 +81,19 @@ func BenchmarkTableCheckboxCompositeLayout(b *testing.B) {
 	b.ReportMetric(float64(stats.Misses)/float64(b.N), "checkbox-cache-misses/op")
 }
 
-func BenchmarkTableProviderVisualCacheHit(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
-	var cache tableVisualCache
-	request := theme.TableRequest{Variant: theme.TablePrimary}
-	cache.resolve(&activeTheme, request)
+func BenchmarkTableDefaultVisualCacheHit(b *testing.B) {
+	activeTheme := theme.Light()
+	var cache tableDefaultsCache
+	key := tableDefaultsKey{variant: VariantPrimary}
+	cache.resolve(&activeTheme, key)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = cache.resolve(&activeTheme, request)
+		_ = cache.resolve(&activeTheme, key)
 	}
 	stats := cache.statsSnapshot()
-	b.ReportMetric(float64(stats.Hits)/float64(b.N), "table-visual-cache-hits/op")
-	b.ReportMetric(float64(stats.Misses)/float64(b.N), "table-visual-cache-misses/op")
+	b.ReportMetric(float64(stats.Hits)/float64(b.N), "table-defaults-cache-hits/op")
+	b.ReportMetric(float64(stats.Misses)/float64(b.N), "table-defaults-cache-misses/op")
 }
 
 func tableBenchmarkVirtualValue() Widget {
@@ -115,19 +114,19 @@ func tableBenchmarkVirtualValue() Widget {
 		MaxHeight(320)
 }
 
-func tableVisualStats(frame *tableCheckboxBenchmarkFrame, key string) tableVisualCacheStats {
+func tableDefaultsStats(frame *tableCheckboxBenchmarkFrame, key string) tableDefaultsCacheStats {
 	state := tablePeekState(frame.ctx, key)
 	if state == nil {
-		return tableVisualCacheStats{}
+		return tableDefaultsCacheStats{}
 	}
-	return state.visualCache.statsSnapshot()
+	return state.defaultsCache.statsSnapshot()
 }
 
-func reportTableVisualStats(b *testing.B, after, before tableVisualCacheStats) {
-	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "table-visual-cache-hits/op")
-	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "table-visual-cache-misses/op")
-	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "table-visual-cache-theme-invalidations/op")
-	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "table-visual-cache-key-invalidations/op")
+func reportTableDefaultsStats(b *testing.B, after, before tableDefaultsCacheStats) {
+	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "table-defaults-cache-hits/op")
+	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "table-defaults-cache-misses/op")
+	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "table-defaults-cache-theme-invalidations/op")
+	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "table-defaults-cache-key-invalidations/op")
 }
 
 func BenchmarkTableVirtualComponentTreeSteadyState(b *testing.B) {
@@ -146,7 +145,7 @@ func BenchmarkTableVirtualComponentTreeVisualCacheHit(b *testing.B) {
 	frame := newTableCheckboxBenchmarkFrame(image.Pt(720, 360))
 	value := tableBenchmarkVirtualValue()
 	frame.layout(value)
-	before := tableVisualStats(frame, value.key)
+	before := tableDefaultsStats(frame, value.key)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -154,16 +153,16 @@ func BenchmarkTableVirtualComponentTreeVisualCacheHit(b *testing.B) {
 		frame.layout(value)
 	}
 	b.StopTimer()
-	reportTableVisualStats(b, tableVisualStats(frame, value.key), before)
+	reportTableDefaultsStats(b, tableDefaultsStats(frame, value.key), before)
 }
 
 func BenchmarkTableVirtualComponentTreeVisualCacheMiss(b *testing.B) {
 	frame := newTableCheckboxBenchmarkFrame(image.Pt(720, 360))
 	value := tableBenchmarkVirtualValue()
 	frame.layout(value)
-	before := tableVisualStats(frame, value.key)
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	before := tableDefaultsStats(frame, value.key)
+	light := theme.Light()
+	dark := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -176,7 +175,7 @@ func BenchmarkTableVirtualComponentTreeVisualCacheMiss(b *testing.B) {
 		frame.layout(value)
 	}
 	b.StopTimer()
-	reportTableVisualStats(b, tableVisualStats(frame, value.key), before)
+	reportTableDefaultsStats(b, tableDefaultsStats(frame, value.key), before)
 }
 
 func BenchmarkTableVirtualComponentTreeVisualCacheKeyInvalidation(b *testing.B) {
@@ -184,7 +183,7 @@ func BenchmarkTableVirtualComponentTreeVisualCacheKeyInvalidation(b *testing.B) 
 	primary := tableBenchmarkVirtualValue()
 	secondary := primary.Variant(VariantSecondary)
 	frame.layout(primary)
-	before := tableVisualStats(frame, primary.key)
+	before := tableDefaultsStats(frame, primary.key)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -196,5 +195,5 @@ func BenchmarkTableVirtualComponentTreeVisualCacheKeyInvalidation(b *testing.B) 
 		}
 	}
 	b.StopTimer()
-	reportTableVisualStats(b, tableVisualStats(frame, primary.key), before)
+	reportTableDefaultsStats(b, tableDefaultsStats(frame, primary.key), before)
 }

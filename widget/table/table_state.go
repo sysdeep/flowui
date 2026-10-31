@@ -15,72 +15,57 @@ import (
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
-	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/navigation"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/toggle"
 )
 
 const stateSlotTable = "table"
 
 type tableState struct {
-	vertical               layout.List
-	verticalBar            widget.Scrollbar
-	verticalVisualOutset   layoutui.VisualOutsetState
-	horizontal             layout.List
-	horizontalBar          widget.Scrollbar
-	horizontalVisualOutset layoutui.VisualOutsetState
-	rows                   map[string]*tableRowState
-	columns                map[string]*tableColumnState
-	frameRows              map[string]struct{}
-	frameColumns           map[string]struct{}
-	rowKeys                map[string]struct{}
-	columnKeys             map[string]struct{}
-	keyFilters             []event.Filter
-	selectedKeys           core.StringSetCache
-	disabledKeys           core.StringSetCache
-	pressedKey             key.Name
-	pressedRowKey          string
-	pressedModifiers       key.Modifiers
-	selectionAnchor        string
-	typeahead              navigation.Typeahead
-	selectAll              widget.Clickable
-	selectAllFocus         animation.FocusAnimation
-	selectAllSelection     toggle.CheckboxSelectionAnimation
-	checkboxVisual         toggle.CheckboxVisualCache
-	visualCache            tableVisualCache
-	loadMoreCount          int
-	loadMoreHasMore        bool
-	loadMoreRequested      bool
+	vertical           layout.List
+	verticalBar        widget.Scrollbar
+	horizontal         layout.List
+	horizontalBar      widget.Scrollbar
+	rows               map[string]*tableRowState
+	columns            map[string]*tableColumnState
+	frameRows          map[string]struct{}
+	frameColumns       map[string]struct{}
+	rowKeys            map[string]struct{}
+	columnKeys         map[string]struct{}
+	selectedKeys       core.StringSetCache
+	disabledKeys       core.StringSetCache
+	selectionAnchor    string
+	navigation         base.CollectionNavigation
+	selectAll          widget.Clickable
+	selectAllFocus     animation.FocusAnimation
+	selectAllSelection toggle.CheckboxSelectionAnimation
+	checkboxVisual     toggle.CheckboxVisualCache
+	defaultsCache      tableDefaultsCache
+	loadMoreCount      int
+	loadMoreHasMore    bool
+	loadMoreRequested  bool
 }
 
-type tableVisualCache struct {
-	cache computed.ProviderCacheMap[theme.TableVariant, theme.TableVisual]
+type tableDefaultsCache struct {
+	cache computed.VisualCacheMap[tableDefaultsKey, tableDefaults]
 }
 
-type tableVisualCacheStats = computed.ProviderCacheStats
+type tableDefaultsCacheStats = computed.VisualCacheStats
 
-func (c *tableVisualCache) statsSnapshot() tableVisualCacheStats {
+func (c *tableDefaultsCache) statsSnapshot() tableDefaultsCacheStats {
 	if c == nil {
-		return tableVisualCacheStats{}
+		return tableDefaultsCacheStats{}
 	}
 	return c.cache.Stats()
 }
 
-func (c *tableVisualCache) resolve(active *theme.Theme, request theme.TableRequest) theme.TableVisual {
-	if request.Override != nil {
-		return resolveTableVisual(active, request)
-	}
+func (c *tableDefaultsCache) resolve(active *theme.Theme, key tableDefaultsKey) tableDefaults {
+	load := func() tableDefaults { return buildTableDefaults(active, key) }
 	if c == nil {
-		return resolveTableVisual(active, request)
+		return load()
 	}
-	return c.cache.Resolve(active, request.Variant, func() theme.TableVisual {
-		return resolveTableVisual(active, theme.TableRequest{Variant: request.Variant})
-	})
-}
-
-func resolveTableVisual(active *theme.Theme, request theme.TableRequest) theme.TableVisual {
-	return theme.ResolveVisual(active, request, theme.ComponentVisualProvider.Table, theme.ValidateTableVisual)
+	return c.cache.Resolve(active, key, load)
 }
 
 func (s *tableState) updateLoadMore(count int, hasMore, loading, visible bool, onLoadMore func()) {
@@ -202,153 +187,46 @@ type tableKeyResult struct {
 }
 
 func (s *tableState) updateKeys(gtx layout.Context, table Widget) tableKeyResult {
-	s.keyFilters = s.keyFilters[:0]
-	for keyValue, rowState := range s.rows {
-		if rowState.index < 0 || rowState.index >= table.count() {
-			continue
-		}
-		row := table.row(rowState.index)
-		if row.Key != keyValue {
-			continue
-		}
-		tag := &rowState.clickable
-		if table.rowDisabled(row) {
-			s.keyFilters = append(s.keyFilters, rowState.keyFilters.ResolveOptional(tag, key.ModShift,
-				key.NameDownArrow,
-				key.NameUpArrow,
-				key.NameHome,
-				key.NameEnd,
-			)...)
-			continue
-		}
-		s.keyFilters = append(s.keyFilters, rowState.keyFilters.ResolveOptional(tag, key.ModShift,
-			key.NameDownArrow,
-			key.NameUpArrow,
-			key.NameHome,
-			key.NameEnd,
-			key.NameEnter,
-			key.NameReturn,
-			key.NameSpace,
-			"",
-		)...)
+	if table.disabled {
+		gtx = gtx.Disabled()
 	}
-	if len(s.keyFilters) == 0 {
-		return tableKeyResult{}
-	}
-	current := s.focusedIndex(gtx, table)
-	list := tableNavList(table)
 	result := tableKeyResult{}
-	for {
-		e, ok := gtx.Event(s.keyFilters...)
-		if !ok {
-			break
-		}
-		event, ok := e.(key.Event)
-		if !ok {
-			continue
-		}
-		if current < 0 {
-			current = table.keyboardActiveIndex()
-		}
-		switch event.Name {
-		case key.NameDownArrow:
-			if event.State == key.Press {
-				if next, ok := navigation.Move(list, current, 1, false); ok {
-					current = next
-					result.focusKey = table.row(next).Key
-					if event.Modifiers.Contain(key.ModShift) && table.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
+	s.navigation.UpdateWithEvents(gtx, base.Collection{
+		Count:    table.count(),
+		Key:      func(i int) string { return table.row(i).Key },
+		Label:    func(i int) string { return table.rowLabel(table.row(i)) },
+		Disabled: func(i int) bool { return table.rowDisabled(table.row(i)) },
+		Fallback: table.keyboardActiveIndex,
+		Clickables: func(yield func(int, *widget.Clickable) bool) {
+			for keyValue, row := range s.rows {
+				if row.index >= 0 && row.index < table.count() && table.row(row.index).Key == keyValue {
+					if !yield(row.index, &row.clickable) {
+						return
 					}
 				}
 			}
-		case key.NameUpArrow:
-			if event.State == key.Press {
-				if next, ok := navigation.Move(list, current, -1, false); ok {
-					current = next
-					result.focusKey = table.row(next).Key
-					if event.Modifiers.Contain(key.ModShift) && table.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
-					}
-				}
+		},
+	}, -1, base.CollectionPolicy{
+		Activate: true, Typeahead: true, Modifiers: key.ModShift,
+	}, func(e base.CollectionEvent) int {
+		rowKey := table.row(e.Index).Key
+		switch e.Kind {
+		case base.CollectionFocus:
+			result.focusKey = rowKey
+			rangeMovement := e.Name == key.NameDownArrow || e.Name == key.NameUpArrow || e.Name == key.NameHome || e.Name == key.NameEnd
+			if rangeMovement && e.Modifiers.Contain(key.ModShift) && table.selectionMode == SelectionMultiple {
+				result.rangeKey = rowKey
 			}
-		case key.NameHome:
-			if event.State == key.Press {
-				if next, ok := navigation.First(list); ok {
-					current = next
-					result.focusKey = table.row(next).Key
-					if event.Modifiers.Contain(key.ModShift) && table.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
-					}
-				}
-			}
-		case key.NameEnd:
-			if event.State == key.Press {
-				if next, ok := navigation.Last(list); ok {
-					current = next
-					result.focusKey = table.row(next).Key
-					if event.Modifiers.Contain(key.ModShift) && table.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
-					}
-				}
-			}
-		case key.NameEnter, key.NameReturn, key.NameSpace:
-			s.handleActivation(event, table, current, &result)
-		default:
-			if event.State != key.Press || event.Modifiers&(key.ModCtrl|key.ModCommand|key.ModAlt|key.ModSuper) != 0 {
-				continue
-			}
-			text := navigation.Printable(event.Name)
-			if text == "" {
-				continue
-			}
-			query := s.typeahead.Append(gtx.Now, text)
-			next, ok := navigation.Match(list, current, query)
-			if !ok && query != text {
-				s.typeahead.Set(text)
-				next, ok = navigation.Match(list, current, text)
-			}
-			if ok {
-				current = next
-				result.focusKey = table.row(next).Key
-			}
-		}
-	}
-	return result
-}
-
-func (s *tableState) handleActivation(event key.Event, table Widget, current int, result *tableKeyResult) {
-	switch event.State {
-	case key.Press:
-		s.pressedKey = event.Name
-		s.pressedModifiers = event.Modifiers
-		s.pressedRowKey = ""
-		if current >= 0 && current < table.count() && !table.rowDisabled(table.row(current)) {
-			s.pressedRowKey = table.row(current).Key
-		}
-	case key.Release:
-		if s.pressedKey == event.Name && s.pressedRowKey != "" {
-			if s.pressedModifiers.Contain(key.ModShift) && table.selectionMode == SelectionMultiple {
-				result.rangeKey = s.pressedRowKey
+		case base.CollectionActivate:
+			if e.Modifiers.Contain(key.ModShift) && table.selectionMode == SelectionMultiple {
+				result.rangeKey = rowKey
 			} else {
-				result.actionKey = s.pressedRowKey
+				result.actionKey = rowKey
 			}
 		}
-		s.pressedKey = ""
-		s.pressedRowKey = ""
-		s.pressedModifiers = 0
-	}
-}
-
-func (s *tableState) focusedIndex(gtx layout.Context, table Widget) int {
-	for keyValue, rowState := range s.rows {
-		if gtx.Focused(&rowState.clickable) {
-			if rowState.index >= 0 && rowState.index < table.count() && table.row(rowState.index).Key == keyValue {
-				return rowState.index
-			}
-			return table.rowIndex(keyValue)
-		}
-	}
-	return -1
+		return e.Index
+	})
+	return result
 }
 
 func (s *tableState) ensureVisible(index int) {
@@ -382,17 +260,6 @@ func (t Widget) keyboardActiveIndex() int {
 	return -1
 }
 
-// tableNavList adapts the table's rows into a navigation.List. rowDisabled resolves in
-// O(1) via the table's disabled-key set, so per-keystroke navigation does not
-// linearly scan disabledKeys.
-func tableNavList(table Widget) navigation.List {
-	return navigation.List{
-		Count:    table.count(),
-		Disabled: func(i int) bool { return table.rowDisabled(table.row(i)) },
-		Label:    func(i int) string { return table.rowLabel(table.row(i)) },
-	}
-}
-
 func (t Widget) rowLabel(row Row) string {
 	if row.Label != "" {
 		return row.Label
@@ -411,7 +278,6 @@ func (t Widget) rowLabel(row Row) string {
 type tableRowState struct {
 	clickable        widget.Clickable
 	focus            animation.FocusAnimation
-	keyFilters       core.KeyFilterCache
 	background       animation.ColorTransition
 	selection        toggle.CheckboxSelectionAnimation
 	interactiveCells []image.Rectangle

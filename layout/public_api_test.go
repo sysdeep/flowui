@@ -5,49 +5,42 @@ import (
 	"testing"
 
 	giolayout "gioui.org/layout"
-	"gioui.org/unit"
 	"github.com/qianniancn/flowui/layout"
+	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
+	"github.com/qianniancn/flowui/uitest"
 )
 
-func TestLayoutWidgetsImplementUIWidget(t *testing.T) {
-	child := ui.WidgetFunc(func(_ *ui.Context, _ giolayout.Context) giolayout.Dimensions {
-		return giolayout.Dimensions{}
+func TestPublicLayoutComposition(t *testing.T) {
+	var calls int
+	var constraints giolayout.Constraints
+	var decoration image.Rectangle
+	child := ui.WidgetFunc(func(_ *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
+		calls++
+		constraints = gtx.Constraints
+		return giolayout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(10, 10))}
 	})
+	decorated := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
+		return layout.VisualOverflow(ctx, gtx, ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
+			return layout.VisualOutset(ctx, gtx, child, 2, 2, 2, 2)
+		}), func(_ *ui.Context, _ giolayout.Context, bounds image.Rectangle) {
+			decoration = bounds
+		})
+	})
+	root := layout.Box(layout.Row(
+		layout.Spacer(20, 10), layout.Expanded(decorated),
+	).Gap(8)).Style(style.Style{}.FillWidth().FillHeight().Padding(10))
 
-	values := []ui.Widget{
-		layout.Box(child),
-		layout.Center(child),
-		layout.Column(child).Gap(4).AlignMiddle().Spacing(layout.SpaceBetween),
-		layout.Row(child).Gap(4).AlignBaseline().Spacing(layout.SpaceAround),
-		layout.Wrap(child).Gap(4).AlignEnd(),
-		layout.Grid(2, child).Gap(4),
-		layout.AutoGrid(120, child),
-		layout.Expanded(child),
-		layout.Flexible(1, child),
-		layout.Spacer(8, 8),
-		layout.Divider(),
-		layout.Divider().Vertical(),
-		layout.Stack(layout.Stacked(child), layout.Overlay(child)),
-		layout.Key("stable", child),
-		layout.Scroll(child),
-		layout.Scrollbar(child),
-		layout.SplitPane(child, child),
-		layout.AspectRatio(1, child),
+	h := uitest.New(image.Pt(160, 100), theme.Light())
+	dims := h.Frame(root)
+	if dims.Size != image.Pt(160, 100) || calls != 1 {
+		t.Fatalf("size/calls = %v/%d, want (160,100)/1", dims.Size, calls)
 	}
-
-	for index, value := range values {
-		if value == nil {
-			t.Fatalf("layout %d returned a nil ui.Widget", index)
-		}
+	if constraints.Min.X != 112 || constraints.Max.X != 112 {
+		t.Fatalf("expanded child constraints = %v, want exact width 112", constraints)
 	}
-}
-
-func TestLayoutHelpersAcceptPublicWidgetAndContextAliases(t *testing.T) {
-	// Assigning the public function types verifies that callers only need
-	// ui.Context/ui.Widget aliases; no internal package is required.
-	var _ layout.VisualOverflowDraw = func(*ui.Context, giolayout.Context, image.Rectangle) {}
-	var _ func(*ui.Context, giolayout.Context, ui.Widget, layout.VisualOverflowDraw) giolayout.Dimensions = layout.VisualOverflow
-	var _ func(*ui.Context, giolayout.Context, ui.Widget, unit.Dp, unit.Dp, unit.Dp, unit.Dp) giolayout.Dimensions = layout.VisualOutset
-	var _ func(*ui.Context, ...ui.Widget) = layout.PrepareFieldAssociations
+	if decoration != image.Rect(0, 0, 112, 80) {
+		t.Fatalf("decoration = %v, want (0,0)-(112,80)", decoration)
+	}
 }

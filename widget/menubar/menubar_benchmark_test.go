@@ -9,8 +9,6 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
-	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -37,64 +35,45 @@ func benchmarkMenubarLayout(b *testing.B) {
 }
 
 func BenchmarkMenubarVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
-	cache := &menubarVisualCache{}
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+	cache := &menubarDefaultsCache{}
 	widget := Widget{}
-	widget.visualWithCache(ctx, nil, cache)
-	before := cache.stats()
+	widget.defaultsWithCache(ctx, cache)
+	before := cache.Stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		widget.visualWithCache(ctx, nil, cache)
+		widget.defaultsWithCache(ctx, cache)
 	}
 	b.StopTimer()
-	reportMenubarVisualCacheStats(b, cache.stats(), before)
+	reportMenubarVisualCacheStats(b, cache.Stats(), before)
 }
 
 func BenchmarkMenubarVisualCacheInvalidation(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
-	cache := &menubarVisualCache{}
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+	cache := &menubarDefaultsCache{}
 	widget := Widget{}
-	widget.visualWithCache(ctx, nil, cache)
-	override := &theme.MenubarOverride{Declaration: style.Style{}.Padding(2)}
-	first := testtheme.Behavior()
-	second := testtheme.Behavior()
+	widget.defaultsWithCache(ctx, cache)
+	first := new(theme.Light())
+	second := new(theme.Light())
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
-		switch index % 8 {
+		switch index % 4 {
 		case 0, 1:
 			core.ReplaceTheme(ctx, *first)
 			widget.compact = false
-			widget.visualWithCache(ctx, nil, cache)
 		case 2, 3:
 			core.ReplaceTheme(ctx, *second)
 			widget.compact = true
-			widget.visualWithCache(ctx, nil, cache)
-		case 4, 5:
-			widget.compact = false
-			widget.visualWithCache(ctx, override, cache)
-		case 6, 7:
-			widget.compact = false
-			widget.visualWithCache(ctx, nil, cache)
 		}
+		widget.defaultsWithCache(ctx, cache)
 	}
 	b.StopTimer()
-	reportMenubarVisualCacheStats(b, cache.stats(), computed.ProviderCacheStats{})
+	reportMenubarVisualCacheStats(b, cache.Stats(), computed.VisualCacheStats{})
 }
 
-func BenchmarkMenubarVisualOverrideBypass(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
-	widget := Widget{}
-	override := &theme.MenubarOverride{Declaration: style.Style{}.Padding(2)}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		widget.visualWithCache(ctx, override, nil)
-	}
-}
-
-func reportMenubarVisualCacheStats(b *testing.B, after, before computed.ProviderCacheStats) {
+func reportMenubarVisualCacheStats(b *testing.B, after, before computed.VisualCacheStats) {
 	if b.N == 0 {
 		return
 	}
@@ -105,7 +84,7 @@ func reportMenubarVisualCacheStats(b *testing.B, after, before computed.Provider
 }
 
 func BenchmarkMenubarComponentTreeSteadyState(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	items := make([]Item, 0, 32)
 	for index := 0; index < cap(items); index++ {

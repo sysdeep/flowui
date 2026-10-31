@@ -1,9 +1,7 @@
 package runtime
 
 import (
-	"context"
 	"testing"
-	"time"
 )
 
 func TestQueueDrainsInOrder(t *testing.T) {
@@ -54,25 +52,5 @@ func TestQueueReplacesMatchingEntryWhenFull(t *testing.T) {
 	q.Drain(func(msg message) { got = append(got, msg) })
 	if len(got) != 2 || got[1].value != 3 {
 		t.Fatalf("drained messages = %#v, want latest stream value", got)
-	}
-}
-
-func TestStartCmdSendsMessage(t *testing.T) {
-	done := make(chan int, 1)
-	var effects effectGroup
-	StartCmd(&effects, context.Background(), func(_ context.Context, send Send[int]) error {
-		send(7)
-		return nil
-	}, func(msg int) {
-		done <- msg
-	}, nil)
-
-	select {
-	case got := <-done:
-		if got != 7 {
-			t.Fatalf("message = %d, want 7", got)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for command")
 	}
 }

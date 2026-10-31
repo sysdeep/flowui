@@ -12,44 +12,27 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type BarWidget struct {
-	override      *theme.ProgressOverride
-	key           string
-	value         float64
-	minValue      float64
-	maxValue      float64
-	label         string
-	semanticLabel string
-	semanticKey   i18n.Key
-	valueText     string
-	hasValueText  bool
-	showValue     bool
-	indeterminate bool
-	color         BarColor
-	size          BarSize
-	disabled      bool
+	style          style.Style
+	key            string
+	value          float64
+	minValue       float64
+	maxValue       float64
+	label          string
+	semanticLabel  string
+	semanticKey    i18n.Key
+	meter          bool
+	valueFormatter func(float64) string
+	valueText      string
+	hasValueText   bool
+	showValue      bool
+	indeterminate  bool
+	color          BarColor
+	size           BarSize
+	disabled       bool
 }
-
-type BarColor = theme.ProgressBarColor
-
-const (
-	BarAccent  = theme.ProgressBarAccent
-	BarDefault = theme.ProgressBarDefault
-	BarSuccess = theme.ProgressBarSuccess
-	BarWarning = theme.ProgressBarWarning
-	BarDanger  = theme.ProgressBarDanger
-)
-
-type BarSize = theme.ProgressBarSize
-
-const (
-	BarMedium = theme.ProgressBarMedium
-	BarSmall  = theme.ProgressBarSmall
-	BarLarge  = theme.ProgressBarLarge
-)
 
 func Bar(key string, value float64) BarWidget {
 	return BarWidget{
@@ -61,6 +44,25 @@ func Bar(key string, value float64) BarWidget {
 
 func (p BarWidget) Label(label string) BarWidget {
 	p.label = label
+	if label != "" {
+		p.semanticKey = ""
+	}
+	return p
+}
+
+// Alt overrides the semantic label announced by assistive technology.
+func (p BarWidget) Alt(label string) BarWidget {
+	p.semanticLabel = label
+	if label != "" {
+		p.semanticKey = ""
+	}
+	return p
+}
+
+// ValueFormatter supplies the displayed value when ValueText is not set.
+func (p BarWidget) ValueFormatter(formatter func(float64) string) BarWidget {
+	p.valueFormatter = formatter
+	p.showValue = true
 	return p
 }
 
@@ -110,15 +112,11 @@ func (p BarWidget) Disabled(disabled bool) BarWidget {
 }
 
 func (p BarWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return p.layoutWithOverride(ctx, gtx, p.override)
-}
-
-func (p BarWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ProgressOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+	p = p.resolved()
 	key := core.ClaimKey(ctx, core.KindProgressBar, p.key)
 	progressState := progressBarStateFor(ctx, key)
-	resolved := p.resolveStyle(ctx, gtx, key, &progressState.barStyleCache, override)
-	progress := progressState.progress(gtx, p.ratio(), p.indeterminate, resolved.metrics.ValueDuration, resolved.motion)
+	resolved := p.resolveStyle(ctx, gtx, key, &progressState.barStyleCache)
+	progress := progressState.progress(gtx, p.ratio(), p.indeterminate, resolved.defaults.valueDuration, resolved.defaults.motion)
 	return layoutui.Resolved(ctx, gtx, resolved.root, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		dims := p.layout(ctx, gtx, resolved, progress)
 		clipStack := clip.Rect{Max: dims.Size}.Push(gtx.Ops)
@@ -159,6 +157,18 @@ func (p BarWidget) outputText() string {
 	return fmt.Sprintf("%.0f%%", p.ratio()*100)
 }
 
+func (p BarWidget) resolved() BarWidget {
+	if p.meter && p.semanticLabel == "" && p.label == "" {
+		p.semanticKey = i18n.MeterDefault
+	} else if p.semanticKey == i18n.MeterDefault {
+		p.semanticKey = ""
+	}
+	if !p.hasValueText && p.valueFormatter != nil {
+		p = p.ValueText(p.valueFormatter(p.value))
+	}
+	return p
+}
+
 func (p BarWidget) addSemantic(ctx *core.Context, gtx layout.Context) {
 	semantic.EnabledOp(!p.disabled).Add(gtx.Ops)
 	if description := p.semanticDescriptionFor(ctx); description != "" {
@@ -167,7 +177,7 @@ func (p BarWidget) addSemantic(ctx *core.Context, gtx layout.Context) {
 }
 
 func (p BarWidget) semanticDescription() string {
-	return p.semanticDescriptionFor(nil)
+	return p.resolved().semanticDescriptionFor(nil)
 }
 
 func (p BarWidget) semanticDescriptionFor(ctx *core.Context) string {
@@ -192,13 +202,9 @@ func (p BarWidget) semanticDescriptionFor(ctx *core.Context) string {
 	return ctx.Textf(i18n.ProgressValue, label, value)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w BarWidget) Style(values ...style.Style) BarWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ProgressOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

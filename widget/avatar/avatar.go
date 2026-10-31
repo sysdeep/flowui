@@ -5,43 +5,14 @@ import (
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	textui "github.com/qianniancn/flowui/widget/text"
-)
-
-// Color selects the semantic color of an Avatar fallback.
-type Color = theme.AvatarColor
-
-const (
-	ColorDefault = theme.AvatarColorDefault
-	ColorAccent  = theme.AvatarColorAccent
-	ColorSuccess = theme.AvatarColorSuccess
-	ColorWarning = theme.AvatarColorWarning
-	ColorDanger  = theme.AvatarColorDanger
-)
-
-// Variant selects the visual treatment of an Avatar fallback.
-type Variant = theme.AvatarVariant
-
-const (
-	VariantDefault = theme.AvatarVariantDefault
-	VariantSoft    = theme.AvatarVariantSoft
-)
-
-// Size selects the Avatar diameter.
-type Size = theme.AvatarSize
-
-const (
-	SizeMedium = theme.AvatarSizeMedium
-	SizeSmall  = theme.AvatarSizeSmall
-	SizeLarge  = theme.AvatarSizeLarge
 )
 
 // Widget displays a profile image or fallback content.
 type Widget struct {
-	override     *theme.AvatarOverride
+	style        style.Style
 	fallbackText string
-	// Keep the text widget alongside the Avatar so its Provider cache survives
+	// Keep the text widget alongside the Avatar so its visual cache survives
 	// each frame; constructing it in Layout would make every fallback cold.
 	fallbackWidget *textui.Widget
 	fallback       core.Widget
@@ -103,13 +74,10 @@ func (a Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 	return a.layout(ctx, gtx)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.AvatarOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the avatar. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (a Widget) Style(values ...style.Style) Widget {
+	a.style = style.Join(a.style, style.Join(values...))
+	return a
 }

@@ -9,7 +9,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type benchmarkSurfaceChild struct{}
@@ -19,7 +19,7 @@ func (benchmarkSurfaceChild) Layout(_ *core.Context, gtx layout.Context) layout.
 }
 
 func BenchmarkSurfaceLayout(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New(benchmarkSurfaceChild{}).Variant(Secondary)
 	gtx := layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(640, 480)},
@@ -33,13 +33,13 @@ func BenchmarkSurfaceLayout(b *testing.B) {
 }
 
 func BenchmarkSurfaceVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New(nil).Variant(Secondary)
-	value.visualWithCache(ctx, nil)
+	value.visualWithCache(ctx)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		value.visualWithCache(ctx, nil)
+		value.visualWithCache(ctx)
 	}
 }
 
@@ -51,7 +51,7 @@ type surfaceBenchmarkFrame struct {
 }
 
 func newSurfaceComponentTreeFrame(count int) *surfaceBenchmarkFrame {
-	frame := &surfaceBenchmarkFrame{ctx: core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)}
+	frame := &surfaceBenchmarkFrame{ctx: core.New(nil, new(theme.Light()), locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(640, 480)},
 		Ops:         &frame.ops,
@@ -89,7 +89,7 @@ func (frame *surfaceBenchmarkFrame) layoutTree() layout.Dimensions {
 func (frame *surfaceBenchmarkFrame) cacheStats() [4]uint64 {
 	var result [4]uint64
 	for _, value := range frame.values {
-		stats := value.visualCache.stats()
+		stats := value.visualCache.Stats()
 		result[0] += stats.Hits
 		result[1] += stats.Misses
 		result[2] += stats.ThemeInvalidations
@@ -138,8 +138,8 @@ func BenchmarkSurfaceComponentTreeVisualCacheMiss(b *testing.B) {
 	frame := newSurfaceComponentTreeFrame(64)
 	frame.layoutTree()
 	baseline := frame.cacheStats()
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()

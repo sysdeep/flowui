@@ -9,9 +9,9 @@ import (
 	"gioui.org/io/input"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -25,7 +25,7 @@ type buttonBenchmarkFrame struct {
 }
 
 func newButtonBenchmarkFrame(maximum image.Point) *buttonBenchmarkFrame {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	frame := &buttonBenchmarkFrame{ctx: core.New(nil, &activeTheme, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -72,8 +72,8 @@ func (frame *buttonBenchmarkFrame) layoutTree() layout.Dimensions {
 	return dimensions
 }
 
-func (frame *buttonBenchmarkFrame) cacheStats() ButtonDeclarationCacheStats {
-	var total ButtonDeclarationCacheStats
+func (frame *buttonBenchmarkFrame) cacheStats() computed.VisualCacheStats {
+	var total computed.VisualCacheStats
 	for index := range frame.values {
 		state, ok := core.PeekState[buttonDeclarationCache](frame.ctx, frame.values[index].key, stateSlotStyle)
 		if !ok || state == nil {
@@ -88,8 +88,8 @@ func (frame *buttonBenchmarkFrame) cacheStats() ButtonDeclarationCacheStats {
 	return total
 }
 
-func buttonCacheStatsDelta(after, before ButtonDeclarationCacheStats) ButtonDeclarationCacheStats {
-	return ButtonDeclarationCacheStats{
+func buttonCacheStatsDelta(after, before computed.VisualCacheStats) computed.VisualCacheStats {
+	return computed.VisualCacheStats{
 		Hits:               after.Hits - before.Hits,
 		Misses:             after.Misses - before.Misses,
 		ThemeInvalidations: after.ThemeInvalidations - before.ThemeInvalidations,
@@ -97,7 +97,7 @@ func buttonCacheStatsDelta(after, before ButtonDeclarationCacheStats) ButtonDecl
 	}
 }
 
-func reportButtonCacheStats(b *testing.B, stats ButtonDeclarationCacheStats) {
+func reportButtonCacheStats(b *testing.B, stats computed.VisualCacheStats) {
 	b.ReportMetric(float64(stats.Hits)/float64(b.N), "button-declaration-cache-hits/op")
 	b.ReportMetric(float64(stats.Misses)/float64(b.N), "button-declaration-cache-misses/op")
 	b.ReportMetric(float64(stats.ThemeInvalidations)/float64(b.N), "button-declaration-cache-theme-invalidations/op")
@@ -131,7 +131,7 @@ func BenchmarkButtonGroupLayoutSteadyState(b *testing.B) {
 	}
 }
 
-// BenchmarkButtonComponentTreeSteadyState measures the same provider and
+// BenchmarkButtonComponentTreeSteadyState measures the same recipe and
 // cascade path over a realistic repeated control tree rather than one button.
 func BenchmarkButtonComponentTreeSteadyState(b *testing.B) {
 	frame := newButtonComponentTreeFrame(128)
@@ -162,8 +162,8 @@ func BenchmarkButtonComponentTreeVisualCacheMiss(b *testing.B) {
 	frame := newButtonComponentTreeFrame(128)
 	frame.layoutTree()
 	baseline := frame.cacheStats()
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -184,7 +184,7 @@ func BenchmarkStyledVerticalButtonGroupLayoutSteadyState(b *testing.B) {
 	value := (Group(
 		New("Save").Variant(Primary),
 		New("Cancel").Variant(Secondary),
-	).Orientation(GroupVertical)).Style(style.Style{}.PaddingX(8))
+	).Orientation(GroupVertical)).Style(style.Style{}.Padding(8))
 	frame.layout(value)
 
 	b.ReportAllocs()
@@ -194,17 +194,17 @@ func BenchmarkStyledVerticalButtonGroupLayoutSteadyState(b *testing.B) {
 	}
 }
 
-func BenchmarkButtonProviderStyleDeclarations(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
+func BenchmarkButtonVisualStyleDeclarations(b *testing.B) {
+	activeTheme := theme.Light()
 	value := New("").Content(nil).Variant(Primary).Size(Medium)
 
 	b.Run("cache-hit", func(b *testing.B) {
 		cache := buttonDeclarationCache{}
-		value.declarationsForOverride(&activeTheme, &cache, nil)
+		value.declarations(&activeTheme, &cache)
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			value.declarationsForOverride(&activeTheme, &cache, nil)
+			value.declarations(&activeTheme, &cache)
 		}
 		b.StopTimer()
 		b.ReportMetric(float64(cache.Stats().Hits)/float64(b.N), "cache-hits/op")
@@ -215,45 +215,15 @@ func BenchmarkButtonProviderStyleDeclarations(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for index := 0; b.Loop(); index++ {
-			variant := theme.ButtonPrimary
+			variant := Primary
 			if index&1 != 0 {
-				variant = theme.ButtonSecondary
+				variant = Secondary
 			}
-			value.Variant(variant).declarationsForOverride(&activeTheme, &cache, nil)
+			value.Variant(variant).declarations(&activeTheme, &cache)
 		}
 		b.StopTimer()
 		b.ReportMetric(float64(cache.Stats().Misses)/float64(b.N), "cache-misses/op")
 		b.ReportMetric(float64(cache.Stats().KeyInvalidations)/float64(b.N), "key-invalidations/op")
 	})
 
-	b.Run("override-cache-hit", func(b *testing.B) {
-		cache := buttonDeclarationCache{}
-		override := &theme.ButtonOverride{Declaration: style.Style{}.PaddingX(8)}
-		value.declarationsForOverride(&activeTheme, &cache, override)
-		b.ReportAllocs()
-		b.ResetTimer()
-		for b.Loop() {
-			value.declarationsForOverride(&activeTheme, &cache, override)
-		}
-		b.StopTimer()
-		b.ReportMetric(float64(cache.Stats().Hits)/float64(b.N), "cache-hits/op")
-	})
-
-	b.Run("override-cache-miss", func(b *testing.B) {
-		cache := buttonDeclarationCache{}
-		first := &theme.ButtonOverride{Declaration: style.Style{}.PaddingX(8)}
-		second := &theme.ButtonOverride{Declaration: style.Style{}.PaddingX(12)}
-		b.ReportAllocs()
-		b.ResetTimer()
-		for index := 0; b.Loop(); index++ {
-			override := first
-			if index&1 != 0 {
-				override = second
-			}
-			value.declarationsForOverride(&activeTheme, &cache, override)
-		}
-		b.StopTimer()
-		b.ReportMetric(float64(cache.Stats().Misses)/float64(b.N), "cache-misses/op")
-		b.ReportMetric(float64(cache.Stats().KeyInvalidations)/float64(b.N), "key-invalidations/op")
-	})
 }

@@ -11,11 +11,10 @@ import (
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
-func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.BarChartMetrics) {
+func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics barChartMetrics) {
 	gap := max(gtx.Dp(metrics.TickLabelGap), 0)
 	if geometry.horizontal {
 		for _, tick := range geometry.yTicks {
@@ -44,7 +43,7 @@ func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry
 	}
 }
 
-func (w Widget) measureCategoryLabelWidth(ctx *core.Context, gtx layout.Context, data chartData, metrics theme.BarChartMetrics, color color.NRGBA, maxWidth int) int {
+func (w Widget) measureCategoryLabelWidth(ctx *core.Context, gtx layout.Context, data chartData, metrics barChartMetrics, color color.NRGBA, maxWidth int) int {
 	start, end := chart.VisibleCategoryRange(data.categories, w.effectiveDataWindow())
 	width := 0
 	for index := start; index < end; index++ {
@@ -54,7 +53,7 @@ func (w Widget) measureCategoryLabelWidth(ctx *core.Context, gtx layout.Context,
 	return width
 }
 
-func (w Widget) measureYAxisLabelWidth(ctx *core.Context, gtx layout.Context, data chartData, metrics theme.BarChartMetrics, color color.NRGBA, maxWidth int) int {
+func (w Widget) measureYAxisLabelWidth(ctx *core.Context, gtx layout.Context, data chartData, metrics barChartMetrics, color color.NRGBA, maxWidth int) int {
 	scale := w.resolveYScale(data)
 	width := 0
 	for _, value := range scale.Ticks {
@@ -64,7 +63,7 @@ func (w Widget) measureYAxisLabelWidth(ctx *core.Context, gtx layout.Context, da
 	return width
 }
 
-func (w Widget) pruneXTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.BarChartMetrics) []categoryTick {
+func (w Widget) pruneXTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics barChartMetrics) []categoryTick {
 	if len(geometry.xTicks) < 2 {
 		w.resolveCategoryTickLabels(geometry.xTicks)
 		return geometry.xTicks
@@ -108,7 +107,7 @@ func (w Widget) pruneXTicks(ctx *core.Context, gtx layout.Context, geometry char
 	return ticks
 }
 
-func (w Widget) pruneCategoryTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.BarChartMetrics) []categoryTick {
+func (w Widget) pruneCategoryTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics barChartMetrics) []categoryTick {
 	if len(geometry.xTicks) < 2 {
 		w.resolveCategoryTickLabels(geometry.xTicks)
 		return geometry.xTicks
@@ -165,7 +164,7 @@ func (w Widget) resolveCategoryTickLabels(ticks []categoryTick) {
 	}
 }
 
-func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.BarChartMetrics) {
+func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics barChartMetrics) {
 	value := w.emptyText
 	if !w.hasEmptyText {
 		value = ctx.Text(i18n.ChartNoData)
@@ -178,7 +177,7 @@ func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry char
 	placeChartText(gtx, label, position)
 }
 
-func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, style chartStyle, metrics theme.BarChartMetrics, hiddenOpacity float32, maxWidth int, enabled bool) recordedChartBlock {
+func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, style chartStyle, metrics barChartMetrics, hiddenOpacity float32, maxWidth int, enabled bool) recordedChartBlock {
 	if maxWidth <= 0 || len(data.legend) == 0 {
 		return recordedChartBlock{}
 	}

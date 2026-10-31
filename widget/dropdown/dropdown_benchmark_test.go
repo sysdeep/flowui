@@ -1,6 +1,7 @@
 package dropdown
 
 import (
+	"github.com/qianniancn/flowui/internal/computed"
 	"image"
 	"strconv"
 	"testing"
@@ -11,7 +12,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type dropdownBenchmarkFrame struct {
@@ -23,7 +24,7 @@ type dropdownBenchmarkFrame struct {
 }
 
 func newDropdownBenchmarkFrame(count int) *dropdownBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &dropdownBenchmarkFrame{
 		ctx: core.New(nil, active, locale.LanguageEnglish),
 	}
@@ -61,14 +62,14 @@ func (frame *dropdownBenchmarkFrame) layout() layout.Dimensions {
 	return dimensions
 }
 
-func (frame *dropdownBenchmarkFrame) cacheStats() DropdownVisualCacheStats {
-	var total DropdownVisualCacheStats
+func (frame *dropdownBenchmarkFrame) cacheStats() computed.VisualCacheStats {
+	var total computed.VisualCacheStats
 	for index := range frame.values {
 		state, ok := core.PeekState[dropdownState](frame.ctx, frame.values[index].key, stateSlotDropdown)
 		if !ok || state == nil {
 			continue
 		}
-		stats := state.visualCache.stats()
+		stats := state.visualCache.Stats()
 		total.Hits += stats.Hits
 		total.Misses += stats.Misses
 		total.ThemeInvalidations += stats.ThemeInvalidations
@@ -77,15 +78,15 @@ func (frame *dropdownBenchmarkFrame) cacheStats() DropdownVisualCacheStats {
 	return total
 }
 
-func reportDropdownCacheStats(b *testing.B, stats DropdownVisualCacheStats) {
+func reportDropdownCacheStats(b *testing.B, stats computed.VisualCacheStats) {
 	b.ReportMetric(float64(stats.Hits)/float64(b.N), "dropdown-visual-cache-hits/op")
 	b.ReportMetric(float64(stats.Misses)/float64(b.N), "dropdown-visual-cache-misses/op")
 	b.ReportMetric(float64(stats.ThemeInvalidations)/float64(b.N), "dropdown-visual-cache-theme-invalidations/op")
 	b.ReportMetric(float64(stats.KeyInvalidations)/float64(b.N), "dropdown-visual-cache-key-invalidations/op")
 }
 
-func dropdownCacheStatsDelta(after, before DropdownVisualCacheStats) DropdownVisualCacheStats {
-	return DropdownVisualCacheStats{
+func dropdownCacheStatsDelta(after, before computed.VisualCacheStats) computed.VisualCacheStats {
+	return computed.VisualCacheStats{
 		Hits:               after.Hits - before.Hits,
 		Misses:             after.Misses - before.Misses,
 		ThemeInvalidations: after.ThemeInvalidations - before.ThemeInvalidations,
@@ -130,7 +131,7 @@ func BenchmarkDropdownVisualCacheMiss(b *testing.B) {
 	frame := newDropdownBenchmarkFrame(128)
 	frame.layout()
 	baseline := frame.cacheStats()
-	light := *testtheme.Behavior()
+	light := theme.Light()
 	dark := light
 	b.ReportAllocs()
 	b.ResetTimer()

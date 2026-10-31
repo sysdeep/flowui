@@ -7,13 +7,13 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/io/input"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
@@ -30,11 +30,11 @@ func (s *popoverState) progress(gtx layout.Context, open bool, motions ...theme.
 }
 
 func newContext(_ any) *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	return core.New(nil, new(theme.Light()), locale.LanguageAuto)
 }
 
 func DefaultTheme() theme.Theme {
-	return theme.NeutralTheme()
+	return theme.Light()
 }
 
 func Spacer(width, height int) layoutui.SpacerWidget {
@@ -60,8 +60,8 @@ func testLayoutContext() layout.Context {
 	}
 }
 
-func popoverTestVisual(ctx *core.Context, value Widget) theme.PopoverVisual {
-	return value.visualWithCache(ctx, nil, nil)
+func popoverTestVisual(ctx *core.Context, value Widget) popoverVisual {
+	return value.visualWithCache(ctx, nil)
 }
 
 func TestPopoverClosedLaysOutTriggerAndDoesNotClaimState(t *testing.T) {
@@ -119,36 +119,97 @@ func TestPopoverClosedRemovesStateWhenExitAnimationFinishes(t *testing.T) {
 	}
 }
 
-func TestPopoverDismissAreaRequestsClose(t *testing.T) {
-	ctx, state := popoverTestContextWithState("help")
-	closed := false
-	popover := New(Spacer(24, 12), text.New("Body")).Key("help").Open(true).
-		OnOpenChange(func(open bool) {
-			closed = !open
+func TestPopoverOutsideClickPolicy(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		dismissable  bool
+		wantRequests int
+	}{
+		{name: "dismissable", dismissable: true, wantRequests: 1},
+		{name: "non-dismissable", dismissable: false, wantRequests: 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := newContext(nil)
+			router := new(input.Router)
+			background := new(widget.Clickable)
+			requests, backgroundClicked := 0, false
+			value := New(Spacer(24, 12), text.New("Body")).Key("help").Open(true).
+				Dismissable(tt.dismissable).OnOpenChange(func(bool) { requests++ })
+			start := time.Unix(1, 0)
+			frame := func(now time.Time) {
+				layoutPopoverOverBackgroundFrame(ctx, router, value, background, &backgroundClicked, now)
+			}
+			frame(start)
+			frame(start.Add(time.Second))
+			router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1,
+				Buttons: pointer.ButtonPrimary, Position: f32.Pt(290, 190)})
+			frame(start.Add(2 * time.Second))
+			if requests != 0 {
+				t.Fatal("popover dismissed on press instead of completed click")
+			}
+			router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1,
+				Position: f32.Pt(290, 190)})
+			frame(start.Add(3 * time.Second))
+			frame(start.Add(4 * time.Second))
+			if requests != tt.wantRequests || backgroundClicked {
+				t.Fatalf("requests=%d want=%d background clicked=%v", requests, tt.wantRequests, backgroundClicked)
+			}
 		})
-	layoutPopoverFrame(ctx, popover)
-	state.dismiss[0].Click()
-	layoutPopoverFrame(ctx, popover)
-
-	if !closed {
-		t.Fatal("dismiss area did not request close")
 	}
 }
 
-func TestPopoverDismissableFalseIgnoresDismissArea(t *testing.T) {
-	ctx, state := popoverTestContextWithState("help")
-	closed := false
-	popover := New(Spacer(24, 12), text.New("Body")).Key("help").Open(true).
-		Dismissable(false).
-		OnOpenChange(func(open bool) {
-			closed = !open
+func TestPopoverEscapePolicy(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		keyboardDisabled bool
+		wantRequests     int
+	}{
+		{name: "escape closes non-dismissable popup", wantRequests: 1},
+		{name: "keyboard dismissal disabled", keyboardDisabled: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := newContext(nil)
+			router := new(input.Router)
+			background := new(widget.Clickable)
+			requests, backgroundClicked := 0, false
+			value := New(Spacer(24, 12), text.New("Body")).Key("help").Open(true).
+				Dismissable(false).KeyboardDismissDisabled(tt.keyboardDisabled).
+				OnOpenChange(func(bool) { requests++ })
+			start := time.Unix(1, 0)
+			frame := func(now time.Time) {
+				layoutPopoverOverBackgroundFrame(ctx, router, value, background, &backgroundClicked, now)
+			}
+			frame(start)
+			frame(start.Add(time.Second))
+			router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+			frame(start.Add(2 * time.Second))
+			frame(start.Add(3 * time.Second))
+			if requests != tt.wantRequests {
+				t.Fatalf("Escape requests = %d, want %d", requests, tt.wantRequests)
+			}
 		})
-	layoutPopoverFrame(ctx, popover)
-	state.dismiss[0].Click()
-	layoutPopoverFrame(ctx, popover)
+	}
+}
 
-	if closed {
-		t.Fatal("non-dismissable popover closed from dismiss area")
+func TestPopoverDefaultOpenStaysClosedAfterAnimatedDismissal(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	background := new(widget.Clickable)
+	backgroundClicked := false
+	value := New(Spacer(24, 12), text.New("Body")).Key("help").DefaultOpen(true)
+	start := time.Unix(1, 0)
+	frame := func(now time.Time) {
+		layoutPopoverOverBackgroundFrame(ctx, router, value, background, &backgroundClicked, now)
+	}
+	frame(start)
+	frame(start.Add(time.Second))
+	router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	frame(start.Add(2 * time.Second))
+	frame(start.Add(3 * time.Second))
+	frame(start.Add(4 * time.Second))
+	frame(start.Add(5 * time.Second))
+	if core.HasTopOverlay(ctx) {
+		t.Fatal("default-open popover reopened after its exit animation")
 	}
 }
 
@@ -161,16 +222,16 @@ func TestPopoverPanelPosition(t *testing.T) {
 	trigger := image.Rect(100, 50, 140, 70)
 	panel := image.Pt(80, 40)
 	overlaySize := image.Pt(300, 200)
-	if got := popover.Placement(core.PopoverBottom).resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverBottom, visual).Position; got != image.Pt(80, 78) {
+	if got := popover.Placement(core.PopoverBottom).resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverBottom, visual).Position; got != image.Pt(80, 78) {
 		t.Fatalf("bottom position = %v", got)
 	}
-	if got := popover.Placement(core.PopoverTop).resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverTop, visual).Position; got != image.Pt(80, 2) {
+	if got := popover.Placement(core.PopoverTop).resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverTop, visual).Position; got != image.Pt(80, 2) {
 		t.Fatalf("top position = %v", got)
 	}
-	if got := popover.Placement(core.PopoverRight).resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverRight, visual).Position; got != image.Pt(148, 40) {
+	if got := popover.Placement(core.PopoverRight).resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverRight, visual).Position; got != image.Pt(148, 40) {
 		t.Fatalf("right position = %v", got)
 	}
-	if got := popover.Placement(core.PopoverLeft).resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverLeft, visual).Position; got != image.Pt(12, 40) {
+	if got := popover.Placement(core.PopoverLeft).resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverLeft, visual).Position; got != image.Pt(12, 40) {
 		t.Fatalf("left position = %v", got)
 	}
 }
@@ -184,16 +245,16 @@ func TestPopoverPanelAlignment(t *testing.T) {
 	trigger := image.Rect(100, 50, 140, 70)
 	panel := image.Pt(80, 40)
 	overlaySize := image.Pt(300, 200)
-	if got := popover.resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverBottomStart, visual).Position; got != image.Pt(100, 78) {
+	if got := popover.resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverBottomStart, visual).Position; got != image.Pt(100, 78) {
 		t.Fatalf("bottom start position = %v", got)
 	}
-	if got := popover.resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverBottomEnd, visual).Position; got != image.Pt(60, 78) {
+	if got := popover.resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverBottomEnd, visual).Position; got != image.Pt(60, 78) {
 		t.Fatalf("bottom end position = %v", got)
 	}
-	if got := popover.resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverRightStart, visual).Position; got != image.Pt(148, 50) {
+	if got := popover.resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverRightStart, visual).Position; got != image.Pt(148, 50) {
 		t.Fatalf("right start position = %v", got)
 	}
-	if got := popover.resolvedPositionWithVisual(ctx, gtx, trigger, panel, overlaySize, core.PopoverRightEnd, visual).Position; got != image.Pt(148, 30) {
+	if got := popover.resolvedPosition(gtx, trigger, panel, overlaySize, core.PopoverRightEnd, visual).Position; got != image.Pt(148, 30) {
 		t.Fatalf("right end position = %v", got)
 	}
 }
@@ -206,10 +267,10 @@ func TestPopoverFlipsBottomAndRightWhenPositiveSpaceIsInsufficient(t *testing.T)
 
 	panel := image.Pt(80, 80)
 	overlaySize := image.Pt(120, 160)
-	if got := popover.resolvedPositionWithVisual(ctx, gtx, image.Rect(20, 120, 100, 140), panel, overlaySize, core.PopoverBottom, visual).Placement.PopoverPlacement(); got != core.PopoverTop {
+	if got := popover.resolvedPosition(gtx, image.Rect(20, 120, 100, 140), panel, overlaySize, core.PopoverBottom, visual).Placement.PopoverPlacement(); got != core.PopoverTop {
 		t.Fatalf("bottom resolved placement = %v, want top", got)
 	}
-	if got := popover.resolvedPositionWithVisual(ctx, gtx, image.Rect(100, 40, 120, 120), panel, overlaySize, core.PopoverRightEnd, visual).Placement.PopoverPlacement(); got != core.PopoverLeftEnd {
+	if got := popover.resolvedPosition(gtx, image.Rect(100, 40, 120, 120), panel, overlaySize, core.PopoverRightEnd, visual).Placement.PopoverPlacement(); got != core.PopoverLeftEnd {
 		t.Fatalf("right resolved placement = %v, want left end", got)
 	}
 }
@@ -220,7 +281,7 @@ func TestPopoverFlipCanBeDisabled(t *testing.T) {
 	popover := New(Spacer(80, 120), text.New("Body")).Key("help").Open(true).Offset(8).ShouldFlip(false)
 	visual := popoverTestVisual(ctx, popover)
 
-	got := popover.resolvedPositionWithVisual(ctx, gtx, image.Rect(20, 120, 100, 140), image.Pt(80, 80), image.Pt(120, 160), core.PopoverBottom, visual).Placement.PopoverPlacement()
+	got := popover.resolvedPosition(gtx, image.Rect(20, 120, 100, 140), image.Pt(80, 80), image.Pt(120, 160), core.PopoverBottom, visual).Placement.PopoverPlacement()
 	if got != core.PopoverBottom {
 		t.Fatalf("resolved placement = %v, want bottom", got)
 	}
@@ -244,7 +305,7 @@ func TestPopoverFlipLaysOutNestedContentOnce(t *testing.T) {
 		Arrow(true)
 
 	core.BeginFrameWithViewport(ctx, viewport)
-	layoutui.Box(outer).Style(style.Style{}.PaddingLeft(50).PaddingTop(130)).Layout(ctx, gtx)
+	layoutui.Box(outer).Style(style.Style{}.Padding(130, 0, 0, 50)).Layout(ctx, gtx)
 	core.LayoutOverlays(ctx, gtx)
 
 	if content.layouts != 1 {
@@ -295,6 +356,10 @@ func TestPopoverArrowBlocksPointerWithoutDismissing(t *testing.T) {
 
 func TestPopoverAnimatedPanelEdgeHasNoPointerHole(t *testing.T) {
 	ctx, state := popoverTestContextWithState("help")
+	active := core.ActiveTheme(ctx)
+	visual := buildPopoverVisual(active)
+	visual.Metrics.AnimationScale = .9
+	state.visualCache.Resolve(active, struct{}{}, func() popoverVisual { return visual })
 	start := time.Unix(1, 0)
 	state.transition.Set(.5, 1, start)
 	router := new(input.Router)
@@ -372,14 +437,14 @@ func TestPopoverAvoidsPositiveOverflow(t *testing.T) {
 	}
 }
 
-func TestPopoverSlideOffsetUsesThemeDistance(t *testing.T) {
-	themeValue := *testtheme.Behavior()
-	themeValue.Components.Popover.AnimationDistance = 10
+func TestPopoverSlideOffsetUsesDefaultDistance(t *testing.T) {
+	themeValue := theme.Light()
 	ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 	gtx := testLayoutContext()
 	visual := popoverTestVisual(ctx, New(nil, nil).Key("help").Open(true))
+	visual.Metrics.AnimationDistance = 10
 
-	got := popoverSlideOffsetWithVisual(gtx, 0, core.PopoverBottom, visual)
+	got := popoverSlideOffset(gtx, 0, core.PopoverBottom, visual)
 	if want := image.Pt(0, -gtx.Dp(10)); got != want {
 		t.Fatalf("popover slide offset = %v, want %v", got, want)
 	}
@@ -410,7 +475,7 @@ func TestPopoverBodyTextStyle(t *testing.T) {
 	active := core.ActiveTheme(ctx)
 	popover := New(Spacer(24, 12), text.New("Body")).Key("help").Open(true)
 	visual := popoverTestVisual(ctx, popover)
-	body, ok := popover.styleContentWithVisual(ctx, text.New("Body"), visual).(text.Widget)
+	body, ok := popover.styleContent(ctx, text.New("Body"), visual).(text.Widget)
 	if !ok {
 		t.Fatal("styled body is not TextWidget")
 	}

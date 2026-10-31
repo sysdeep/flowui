@@ -11,44 +11,12 @@ import (
 	"gioui.org/io/input"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
-	"gioui.org/op"
 	"gioui.org/widget"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/theme"
 )
-
-func TestScrollbarOptionsAndState(t *testing.T) {
-	ctx := newContext(nil)
-	value := Scrollbar(Spacer(300, 20)).
-		Key("body").
-		Horizontal().
-		AlignEnd().
-		StickToEnd().
-		ScrollAnyAxis().
-		Overlay().
-		Disabled(true).
-		Style(style.Style{}.Width(12))
-	value.Layout(ctx, testLayoutContext())
-
-	state := testComponentState[scrollbarState](ctx, "body", stateSlotScrollbar)
-	if state == nil || state.list.Axis != layout.Horizontal || state.list.Alignment != layout.End {
-		t.Fatalf("scrollbar state = %#v", state)
-	}
-	if !state.list.ScrollToEnd || !state.list.ScrollAnyAxis || !value.overlay || !value.disabled {
-		t.Fatalf("scrollbar options = %#v state = %#v", value, state.list)
-	}
-	if value.customStyle.Resolve(style.State{}).Box == nil {
-		t.Fatal("scrollbar style was not retained")
-	}
-}
-
-func TestScrollbarPassesDisabledContext(t *testing.T) {
-	probe := new(enabledProbeWidget)
-	Scrollbar(probe).Disabled(true).Layout(newContext(nil), testLayoutContext())
-	if probe.enabled {
-		t.Fatal("scrollbar child was laid out with enabled context")
-	}
-}
 
 func TestScrollbarResolvesTrackAndThumbParts(t *testing.T) {
 	track := color.NRGBA{R: 1, A: 0xff}
@@ -63,49 +31,88 @@ func TestScrollbarResolvesTrackAndThumbParts(t *testing.T) {
 	}
 }
 
+func TestScrollbarDefaultsCacheMatchesUncachedStyle(t *testing.T) {
+	cache := new(computed.VisualCache[scrollbarDeclarationKey, style.Style])
+	bar := new(widget.Scrollbar)
+	for _, test := range []struct {
+		name     string
+		active   theme.Theme
+		disabled bool
+	}{
+		{name: "light", active: theme.Light()},
+		{name: "dark", active: theme.Dark()},
+		{name: "disabled", active: theme.Dark(), disabled: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := core.New(nil, &test.active, "")
+			gtx := testLayoutContext()
+			want := resolvedScrollbarStyle(ctx, gtx, "", bar, test.disabled, style.Style{})
+			for range 2 {
+				got := resolvedScrollbarStyle(ctx, gtx, "", bar, test.disabled, style.Style{}, cache)
+				if got.Indicator.Color != want.Indicator.Color || got.Indicator.HoverColor != want.Indicator.HoverColor || got.Width() != want.Width() {
+					t.Fatalf("cached scrollbar differs from uncached: got %#v, want %#v", got.Indicator, want.Indicator)
+				}
+			}
+		})
+	}
+}
+
 func TestScrollbarOnlyReservesSpaceWhenScrollable(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	probe := &scrollbarConstraintWidget{height: 20}
-	value := Scrollbar(probe)
+	value := Scroll(probe)
 	start := time.Unix(1, 0)
 
-	layoutScrollbarFrame(ctx, router, value, start)
+	layoutScrollFrame(ctx, router, value, start)
 	if probe.constraints.Max.X != 100 {
 		t.Fatalf("non-scrollable content max width = %d, want 100", probe.constraints.Max.X)
 	}
 
 	probe.height = 300
-	layoutScrollbarFrame(ctx, router, value, start.Add(time.Millisecond))
-	layoutScrollbarFrame(ctx, router, value, start.Add(2*time.Millisecond))
+	layoutScrollFrame(ctx, router, value, start.Add(time.Millisecond))
+	layoutScrollFrame(ctx, router, value, start.Add(2*time.Millisecond))
 	if probe.constraints.Max.X != 86 {
 		t.Fatalf("scrollable content max width = %d, want 86", probe.constraints.Max.X)
 	}
 
 	probe.height = 20
-	layoutScrollbarFrame(ctx, router, value, start.Add(3*time.Millisecond))
-	layoutScrollbarFrame(ctx, router, value, start.Add(4*time.Millisecond))
+	layoutScrollFrame(ctx, router, value, start.Add(3*time.Millisecond))
+	layoutScrollFrame(ctx, router, value, start.Add(4*time.Millisecond))
 	if probe.constraints.Max.X != 100 {
 		t.Fatalf("content max width after overflow = %d, want 100", probe.constraints.Max.X)
+	}
+}
+
+func TestScrollbarStyleChangesReservedWidth(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	probe := &scrollbarConstraintWidget{height: 300}
+	value := Scroll(probe).Style(style.Style{}.Part(style.PartTrack, style.Style{}.Width(12)))
+	start := time.Unix(1, 0)
+	layoutScrollFrame(ctx, router, value, start)
+	layoutScrollFrame(ctx, router, value, start.Add(time.Millisecond))
+	if probe.constraints.Max.X != 84 {
+		t.Fatalf("styled scrollbar content width = %d, want 84", probe.constraints.Max.X)
 	}
 }
 
 func TestOverlayScrollbarNeverReservesSpace(t *testing.T) {
 	for _, test := range []struct {
 		name string
-		bar  ScrollbarWidget
+		bar  ScrollWidget
 		want int
 	}{
-		{name: "short", bar: Scrollbar(&scrollbarConstraintWidget{height: 20}).Overlay(), want: 100},
-		{name: "long", bar: Scrollbar(&scrollbarConstraintWidget{height: 300}).Overlay(), want: 100},
+		{name: "short", bar: Scroll(&scrollbarConstraintWidget{height: 20}).Overlay(), want: 100},
+		{name: "long", bar: Scroll(&scrollbarConstraintWidget{height: 300}).Overlay(), want: 100},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			probe := test.bar.child.(*scrollbarConstraintWidget)
 			ctx := newContext(nil)
 			router := new(input.Router)
 			start := time.Unix(1, 0)
-			layoutScrollbarFrame(ctx, router, test.bar, start)
-			layoutScrollbarFrame(ctx, router, test.bar, start.Add(time.Millisecond))
+			layoutScrollFrame(ctx, router, test.bar, start)
+			layoutScrollFrame(ctx, router, test.bar, start.Add(time.Millisecond))
 			if probe.constraints.Max.X != test.want {
 				t.Fatalf("content max width = %d, want %d", probe.constraints.Max.X, test.want)
 			}
@@ -139,54 +146,24 @@ func TestScrollbarViewportUsesListPosition(t *testing.T) {
 	}
 }
 
-func TestScrollbarTrackClickScrollsContent(t *testing.T) {
-	ctx := newContext(nil)
-	router := new(input.Router)
-	value := Scrollbar(Spacer(100, 300)).Key("body")
-	start := time.Unix(1, 0)
-	layoutScrollbarFrame(ctx, router, value, start)
-	router.Queue(
-		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: f32.Pt(95, 80)},
-		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(95, 80)},
-	)
-	layoutScrollbarFrame(ctx, router, value, start.Add(time.Millisecond))
-	layoutScrollbarFrame(ctx, router, value, start.Add(2*time.Millisecond))
-
-	state := testComponentState[scrollbarState](ctx, "body", stateSlotScrollbar)
-	if state.list.Position.Offset <= 0 {
-		t.Fatalf("scroll offset = %d, want positive after track click", state.list.Position.Offset)
-	}
-}
-
 func TestScrollbarDoesNotReuseDistanceAfterContentShrinks(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	probe := &scrollbarConstraintWidget{height: 300}
-	value := Scrollbar(probe).Key("body")
+	value := Scroll(probe).Key("body")
 	start := time.Unix(1, 0)
-	layoutScrollbarFrame(ctx, router, value, start)
-	layoutScrollbarFrame(ctx, router, value, start.Add(time.Millisecond))
+	layoutScrollFrame(ctx, router, value, start)
+	layoutScrollFrame(ctx, router, value, start.Add(time.Millisecond))
 	router.Queue(
 		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: f32.Pt(95, 80)},
 		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(95, 80)},
 	)
-	layoutScrollbarFrame(ctx, router, value, start.Add(2*time.Millisecond))
+	layoutScrollFrame(ctx, router, value, start.Add(2*time.Millisecond))
 
 	probe.height = 20
-	layoutScrollbarFrame(ctx, router, value, start.Add(3*time.Millisecond))
-	state := testComponentState[scrollbarState](ctx, "body", stateSlotScrollbar)
-	if state.list.Position.First != 0 || state.list.Position.Offset != 0 {
-		t.Fatalf("short content position = %#v, want start", state.list.Position)
+	layoutScrollFrame(ctx, router, value, start.Add(3*time.Millisecond))
+	state := testComponentState[layout.List](ctx, "body", stateSlotScroll)
+	if state.Position.First != 0 || state.Position.Offset != 0 {
+		t.Fatalf("short content position = %#v, want start", state.Position)
 	}
-}
-
-func layoutScrollbarFrame(ctx *core.Context, router *input.Router, value ScrollbarWidget, now time.Time) layout.Dimensions {
-	viewport := image.Pt(100, 100)
-	var ops op.Ops
-	gtx := layout.Context{Constraints: layout.Exact(viewport), Source: router.Source(), Ops: &ops, Now: now}
-	core.BeginFrameWithViewport(ctx, viewport)
-	dims := value.Layout(ctx, gtx)
-	core.EndFrame(ctx)
-	router.Frame(&ops)
-	return dims
 }

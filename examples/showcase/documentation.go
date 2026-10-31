@@ -9,6 +9,7 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/ui"
+	"github.com/qianniancn/flowui/window"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -23,21 +24,23 @@ type markdownDocument struct {
 	root   ast.Node
 }
 
-// Parse embedded documents once. Widgets are built per view so their visual
-// caches and selectable state remain local to each window.
-var componentDocuments = sync.OnceValue(func() map[string]markdownDocument {
+// Parse only visited documents, once each. Widgets and selectable state remain
+// local to each window rather than being cached with the document.
+var componentDocuments = sync.OnceValue(func() map[string]func() markdownDocument {
 	files, err := fs.Glob(documentationFS, "docs/*.md")
 	if err != nil {
 		panic(err)
 	}
-	documents := make(map[string]markdownDocument, len(files))
+	documents := make(map[string]func() markdownDocument, len(files))
 	for _, file := range files {
-		source, err := documentationFS.ReadFile(file)
-		if err != nil {
-			panic(err)
-		}
 		key := strings.TrimSuffix(path.Base(file), ".md")
-		documents[key] = parseDocumentation(source)
+		documents[key] = sync.OnceValue(func() markdownDocument {
+			source, err := documentationFS.ReadFile(file)
+			if err != nil {
+				panic(err)
+			}
+			return parseDocumentation(source)
+		})
 	}
 	return documents
 })
@@ -47,12 +50,15 @@ func parseDocumentation(source []byte) markdownDocument {
 	return markdownDocument{source: source, root: parser.Parse(markdowntext.NewReader(source))}
 }
 
-func componentDocumentation(key string) ui.Widget {
+func componentDocumentation(key string, language window.Language) ui.Widget {
+	if language == window.LanguageEnglish {
+		key += ".en"
+	}
 	document, ok := componentDocuments()[key]
 	if !ok {
 		return nil
 	}
-	return document.view("docs-" + key)
+	return document().view("docs-" + key)
 }
 
 func (d markdownDocument) view(key string) ui.Widget {

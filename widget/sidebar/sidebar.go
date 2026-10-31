@@ -8,7 +8,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 // Item describes one destination in a Sidebar.
@@ -40,7 +39,6 @@ const (
 
 // Widget presents controlled primary application navigation.
 type Widget struct {
-	override          *theme.SidebarOverride
 	key               string
 	selectedKey       string
 	items             []Item
@@ -78,6 +76,7 @@ type Widget struct {
 	hasItemRadius     bool
 	inlineIndent      unit.Dp
 	hasInlineIndent   bool
+	style             style.Style
 }
 
 // New creates a controlled Sidebar.
@@ -268,97 +267,28 @@ func (w Widget) OnAction(fn func(string)) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
-}
-
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.SidebarOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	state := sidebarStateFor(ctx, w.key)
-	visual := state.sidebarVisualFor(ctx, w.sidebarRequest(override))
 	w.disabledKeySet = state.disabledKeys.Resolve(w.disabledKeys)
 	entries, items := state.resolveEntries(w)
 	state.beginFrame()
 	defer state.endFrame()
-	if !w.disabled {
-		result := state.updateKeys(gtx, w, items)
-		if result.focusKey != "" {
-			itemState := state.item(result.focusKey)
-			core.RequestFocus(ctx, &itemState.clickable)
-			state.ensureVisible(sidebarEntryIndex(entries, result.focusKey))
-		}
-		if result.actionKey != "" {
-			w.activateEntry(entries, result.actionKey)
-		}
+	keyGtx := gtx
+	if w.disabled {
+		keyGtx = keyGtx.Disabled()
+	}
+	result := state.updateKeys(keyGtx, w, items)
+	if result.focusKey != "" {
+		itemState := state.item(result.focusKey)
+		core.RequestFocus(ctx, &itemState.clickable)
+		state.ensureVisible(sidebarEntryIndex(entries, result.focusKey))
+	}
+	if result.actionKey != "" {
+		w.activateEntry(entries, result.actionKey)
 	}
 
 	restoreKey := core.PushKey(ctx, w.key)
 	defer restoreKey()
-	return w.layout(ctx, gtx, state, entries, visual)
-}
-
-func (w Widget) sidebarRequest(override *theme.SidebarOverride) theme.SidebarRequest {
-	request := theme.SidebarRequest{Override: override}
-	set := func(mask theme.SidebarMetricsMask, value unit.Dp) {
-		request.MetricsMask |= mask
-		request.Metrics = setSidebarMetric(request.Metrics, mask, value)
-	}
-	if w.width > 0 {
-		set(theme.SidebarMetricWidth, w.width)
-	}
-	if w.collapsedWidth > 0 {
-		set(theme.SidebarMetricCollapsedWidth, w.collapsedWidth)
-	}
-	if w.hasPadding {
-		set(theme.SidebarMetricPadding, w.padding)
-	}
-	if w.hasContentGap {
-		set(theme.SidebarMetricContentGap, w.contentGap)
-	}
-	if w.hasItemGap {
-		set(theme.SidebarMetricItemGap, w.itemGap)
-	}
-	if w.itemHeight > 0 {
-		set(theme.SidebarMetricItemHeight, w.itemHeight)
-	}
-	if w.hasItemPadding {
-		set(theme.SidebarMetricItemPaddingX, w.itemPaddingX)
-	}
-	if w.hasItemContentGap {
-		set(theme.SidebarMetricItemContentGap, w.itemContentGap)
-	}
-	if w.hasItemRadius {
-		set(theme.SidebarMetricItemRadius, w.itemRadius)
-	}
-	if w.hasInlineIndent {
-		set(theme.SidebarMetricInlineIndent, w.inlineIndent)
-	}
-	return request
-}
-
-func setSidebarMetric(metrics theme.SidebarMetrics, mask theme.SidebarMetricsMask, value unit.Dp) theme.SidebarMetrics {
-	switch mask {
-	case theme.SidebarMetricWidth:
-		metrics.Width = value
-	case theme.SidebarMetricCollapsedWidth:
-		metrics.CollapsedWidth = value
-	case theme.SidebarMetricPadding:
-		metrics.Padding = value
-	case theme.SidebarMetricContentGap:
-		metrics.ContentGap = value
-	case theme.SidebarMetricItemGap:
-		metrics.ItemGap = value
-	case theme.SidebarMetricItemHeight:
-		metrics.ItemHeight = value
-	case theme.SidebarMetricItemPaddingX:
-		metrics.ItemPaddingX = value
-	case theme.SidebarMetricItemContentGap:
-		metrics.ItemContentGap = value
-	case theme.SidebarMetricItemRadius:
-		metrics.ItemRadius = value
-	case theme.SidebarMetricInlineIndent:
-		metrics.InlineIndent = value
-	}
-	return metrics
+	return w.layout(ctx, gtx, state, entries)
 }
 
 func (w Widget) activate(key string) {
@@ -531,13 +461,10 @@ func validateSidebarWidget(w Widget) {
 	validateSidebarItems(items)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the built-in sidebar appearance. The
+// declaration is resolved as the last cascade layer at layout time, so Style
+// can sit anywhere in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.SidebarOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

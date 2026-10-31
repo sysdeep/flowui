@@ -2,7 +2,6 @@ package nodegraph
 
 import (
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"image/color"
 	"slices"
 	"strings"
@@ -741,7 +740,7 @@ func ReconnectEdge(old Edge, connection Connection, edges []Edge) []Edge {
 // Widget lays out an interactive node graph. Nodes and edges are controlled by
 // the caller; viewport, selection, and position changes are reported as callbacks.
 type Widget struct {
-	override            theme.NodeGraphOverride
+	style               style.Style
 	key                 string
 	graph               Graph
 	viewport            Viewport
@@ -755,7 +754,7 @@ type Widget struct {
 	showGrid            bool
 	gridPattern         GridPattern
 	gridSize            float32
-	visualCache         *nodeGraphVisualCache
+	visualCache         *nodeGraphDefaultsCache
 	minimapEnabled      bool
 	controlsEnabled     bool
 	cullingEnabled      bool
@@ -833,7 +832,7 @@ func New(key string, graph Graph) Widget {
 		minZoom:            defaultMinZoom,
 		maxZoom:            defaultMaxZoom,
 		fitViewPadding:     defaultFitViewPadding,
-		visualCache:        &nodeGraphVisualCache{},
+		visualCache:        &nodeGraphDefaultsCache{},
 		selectionMode:      SelectionSingle,
 		nodesDraggable:     true,
 		resizeHandles:      ResizeHandleBottomRight,
@@ -1344,13 +1343,6 @@ func (w Widget) Disabled(disabled bool) Widget {
 
 // Style merges instance declarations into the graph.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
-}
-
-// StyleOverride applies a complete provider-owned override.
-func (w Widget) StyleOverride(override theme.NodeGraphOverride) Widget {
-	w.override = override
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

@@ -11,7 +11,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -23,7 +22,7 @@ type treeCheckboxBenchmarkFrame struct {
 }
 
 func newTreeCheckboxBenchmarkFrame(maximum image.Point) *treeCheckboxBenchmarkFrame {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	frame := &treeCheckboxBenchmarkFrame{
 		ctx: core.New(nil, &activeTheme, locale.LanguageEnglish),
 	}
@@ -126,17 +125,17 @@ func reportTreeVisualStats(b *testing.B, after, before treeVisualCacheStats) {
 	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "tree-visual-cache-key-invalidations/op")
 }
 
-func BenchmarkTreeProviderVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
+func BenchmarkTreeDefaultVisualCacheHit(b *testing.B) {
+	active := new(theme.Light())
 	cache := treeVisualCache{}
-	request := theme.TreeRequest{Variant: theme.TreeVariantDefault, Size: theme.TreeSizeMedium}
-	cache.resolve(active, request)
+	key := treeVisualKey{Variant: VariantDefault, Size: SizeMedium}
+	cache.resolve(active, key)
 	before := cache.Stats()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		cache.resolve(active, request)
+		cache.resolve(active, key)
 	}
 	b.StopTimer()
 	reportTreeVisualStats(b, cache.Stats(), before)
@@ -174,8 +173,8 @@ func BenchmarkTreeComponentTreeVisualCacheMiss(b *testing.B) {
 	value := treeBenchmarkValue()
 	frame.layout(value)
 	before := treeVisualStats(frame, value.key)
-	first := *testtheme.Behavior()
-	second := *testtheme.Behavior()
+	first := theme.Light()
+	second := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()

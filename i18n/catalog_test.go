@@ -48,6 +48,7 @@ func TestCatalogFallsBackAcrossLanguageSubtags(t *testing.T) {
 func TestBuiltInCatalogTranslationsAreComplete(t *testing.T) {
 	keys := []Key{
 		ActionCut, ActionCopy, ActionPaste, ActionSelectAll, ActionClose,
+		CodeCopy, CodeCopySource, CodeCopied,
 		DatePickerChooseDate, DatePickerChooseDateRange, DateFieldYear, DateFieldMonth, DateFieldDay,
 		ColorPickerPickColor, ColorPickerWheel, ColorPickerAlpha, ColorPickerHue, ColorPickerArea, ColorPickerColor,
 		TitleBarMinimize, TitleBarRestore, TitleBarMaximize, TitleBarClose,
@@ -68,7 +69,7 @@ func TestBuiltInCatalogTranslationsAreComplete(t *testing.T) {
 		ChartCandlestickLow, ChartCandlestickClose, ChartMoreSeries, GanttProgress,
 		GanttTimeMonthDay, GanttTimeMonthDayTime, GanttTimeMonthYear, GanttTimeYear,
 		ProgressDefault, ProgressInProgress, ProgressValue, MeterDefault, SliderDefault, SliderValue,
-		SliderMinimum, SliderMaximum, ToolbarDefault, WorkbenchNextTab, WorkbenchPreviousTab,
+		SliderMinimum, SliderMaximum, ToolbarDefault, ToolbarMore, WorkbenchNextTab, WorkbenchPreviousTab,
 		WorkbenchCloseTab, WorkbenchToggleSidebar, WorkbenchTogglePanel, WorkbenchToggleStatus,
 		ShortcutLeft, ShortcutRight, ShortcutUp, ShortcutDown, ShortcutReturn, ShortcutEnter, ShortcutEscape,
 		ShortcutHome, ShortcutEnd, ShortcutBackspace, ShortcutDelete, ShortcutPageUp, ShortcutPageDown,

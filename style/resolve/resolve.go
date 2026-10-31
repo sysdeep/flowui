@@ -3,10 +3,9 @@
 //
 // It is deliberately separate from github.com/qianniancn/flowui/style. The
 // style package is a pure declaration mechanism: it depends on nothing in the
-// framework, which is what lets theme depend on it. Resolving a declaration
-// needs the active frame context and the active theme values, so those entry
-// points live here instead — keeping the dependency direction one-way
-// (resolve -> computed -> theme -> style).
+// framework. These runtime entry points add inherited text, scoped styles, and
+// per-widget transition state through internal/computed. Both style and theme
+// remain independent of this runtime adapter, and theme does not import style.
 //
 // There are two resolution paths, and they exist for different call shapes.
 // Resolve and ResolvePart resolve a declaration and apply its transitions in
@@ -112,8 +111,7 @@ func CloneResolvedStyle(value style.ResolvedStyle) style.ResolvedStyle {
 	return computed.CloneResolvedStyle(value)
 }
 
-// Color resolves a color source to its concrete value. Sources carry concrete
-// colors since the theme token types were retired, so no context is needed.
+// Color resolves a color source to its concrete value without frame context.
 func Color(source style.ColorSource) (color.NRGBA, bool) {
 	return computed.Color(source)
 }
@@ -130,8 +128,8 @@ func ApplyOutlineOpacity(value style.ResolvedStyle, opacity float32) style.Resol
 }
 
 // Brush converts a paint source into a brush for custom drawing, mirroring
-// Color for solid colors. Paint sources carry concrete colors since the theme
-// token types were retired, so conversion is a pure type dispatch.
+// Color for solid colors. Paint sources carry concrete colors, so conversion
+// is a pure type dispatch.
 func Brush(source style.PaintSource) (draw.Brush, bool) {
 	return computed.Brush(source)
 }

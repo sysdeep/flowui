@@ -12,16 +12,16 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/i18n"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 const stateSlotColorWheel = "color-wheel"
 
 type ColorWheelWidget struct {
-	override *theme.ColorPickerOverride
+	style    style.Style
 	key      string
 	value    color.NRGBA
 	label    string
@@ -32,9 +32,10 @@ type ColorWheelWidget struct {
 }
 
 type colorWheelState struct {
-	control     colorControlState
-	color       colorValueState
-	visualCache colorPickerVisualCache
+	control       colorControlState
+	color         colorValueState
+	defaultsCache colorWheelDefaultsCache
+	imageCache    colorWheelImageCache
 }
 
 func ColorWheel(key string, value color.NRGBA) ColorWheelWidget {
@@ -63,17 +64,17 @@ func (wheel ColorWheelWidget) Disabled(disabled bool) ColorWheelWidget {
 }
 
 func (wheel ColorWheelWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return wheel.layoutWithOverride(ctx, gtx, wheel.override)
+	return wheel.layoutWithStyle(ctx, gtx)
 }
 
-func (wheel ColorWheelWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ColorPickerOverride) layout.Dimensions {
+func (wheel ColorWheelWidget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	key := core.ClaimKey(ctx, core.KindColorWheel, wheel.key)
 	wheelState := core.UseState[colorWheelState](ctx, key, stateSlotColorWheel)
-	visual := wheelState.visualCache.resolve(core.ActiveTheme(ctx), colorPickerRequest(override))
+	defaults := colorWheelDefaultsFor(ctx, &wheelState.defaultsCache)
 	wheelState.color.sync(wheel.value)
 
 	enabled := gtx.Enabled() && !wheel.disabled
-	diameter := visual.Wheel.Size
+	diameter := defaults.Size
 	if wheel.hasSize {
 		diameter = unit.Dp(wheel.size)
 	}
@@ -92,26 +93,38 @@ func (wheel ColorWheelWidget) layoutWithOverride(ctx *core.Context, gtx layout.C
 	}
 
 	focused := gtx.Focused(&wheelState.control)
-	return layoutui.Styled(ctx, gtx, key, style.State{
-		Pressed:      wheelState.control.dragging,
+	state := style.State{
+		Pressed:      wheelState.control.Dragging,
 		Focused:      focused,
 		FocusVisible: core.FocusVisible(ctx, &wheelState.control, focused),
 		Disabled:     !enabled,
-		Dragging:     wheelState.control.dragging,
-	}, visual.Override, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		opacity := paint.PushOpacity(gtx.Ops, func() float32 {
-			if enabled {
-				return 1
-			}
-			return visual.DisabledOpacity
-		}())
-		visual.Wheel.Render(gtx, theme.ColorWheelRenderRequest{
-			Size:  size,
-			Value: colorPickerHSV(current),
-			Focus: wheelState.control.focusOpacity(ctx, gtx, visual.Motion),
-		})
+		Dragging:     wheelState.control.Dragging,
+	}
+	resolved := computed.Resolve(
+		ctx,
+		gtx,
+		key,
+		state,
+		defaults.Defaults,
+		style.Style{},
+		style.Style{},
+		wheel.style,
+	)
+	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		opacity := paint.PushOpacity(gtx.Ops, colorControlOpacity(enabled, defaults.DisabledOpacity))
+		colorDrawColorWheel(
+			gtx,
+			size,
+			current,
+			&wheelState.imageCache,
+			max(gtx.Dp(defaults.ThumbSize), 1),
+			max(gtx.Dp(defaults.ThumbBorderWidth), 1),
+			max(gtx.Dp(defaults.FocusRingWidth), 1),
+			wheelState.control.focusOpacity(ctx, gtx, defaults.Motion),
+			defaults.FocusColor,
+		)
 		opacity.Pop()
-		addColorControlInput(gtx, &wheelState.control, size, enabled, true, wheel.semanticLabel(ctx), formatHexColor(wheel.value, wheel.value.A != 255))
+		wheelState.control.AddInput(gtx, &wheelState.control, image.Rectangle{Max: size}, enabled, pointer.CursorCrosshair, wheel.semanticLabel(ctx), formatHexColor(wheel.value, wheel.value.A != 255))
 		return layout.Dimensions{Size: size}
 	}))
 }
@@ -126,53 +139,17 @@ func (wheel ColorWheelWidget) semanticLabel(ctx *core.Context) string {
 func (control *colorControlState) updateWheel(ctx *core.Context, gtx layout.Context, size image.Point, current hsvColor, enabled bool) (hsvColor, bool) {
 	next := current
 	changed := false
-	if !enabled {
-		control.dragging = false
-	}
-	for {
-		eventValue, ok := core.NextPointerEvent(gtx, control, pointer.Press|pointer.Drag|pointer.Release|pointer.Cancel)
-		if !ok {
-			break
-		}
-		if !enabled {
-			continue
-		}
-		switch eventValue.Kind {
-		case pointer.Press:
-			if !core.IsPrimaryPointerPress(eventValue) {
-				continue
-			}
-			core.PreserveFocus(ctx)
-			control.dragging = true
-			control.pointer = eventValue.PointerID
-			core.RequestFocusVisible(ctx, control, false)
-			core.GrabPointer(gtx, control, eventValue)
-			next = colorWheelPosition(eventValue.Position, size, next)
-			changed = true
-		case pointer.Drag:
-			if control.dragging && eventValue.PointerID == control.pointer {
-				next = colorWheelPosition(eventValue.Position, size, next)
-				changed = true
-			}
-		case pointer.Release:
-			if eventValue.PointerID == control.pointer {
-				next = colorWheelPosition(eventValue.Position, size, next)
-				control.dragging = false
-				changed = true
-			}
-		case pointer.Cancel:
-			if eventValue.PointerID == control.pointer {
-				control.dragging = false
-			}
-		}
-	}
+	control.DragInteraction.Update(ctx, gtx, control, enabled, func(position f32.Point, _ bool) {
+		next = colorWheelPosition(position, size, next)
+		changed = true
+	})
 
 	for {
 		value, ok := gtx.Event(
-			key.Filter{Focus: control, Name: key.NameLeftArrow},
-			key.Filter{Focus: control, Name: key.NameRightArrow},
-			key.Filter{Focus: control, Name: key.NameUpArrow},
-			key.Filter{Focus: control, Name: key.NameDownArrow},
+			key.Filter{Focus: control, Name: key.NameLeftArrow, Optional: key.ModShift},
+			key.Filter{Focus: control, Name: key.NameRightArrow, Optional: key.ModShift},
+			key.Filter{Focus: control, Name: key.NameUpArrow, Optional: key.ModShift},
+			key.Filter{Focus: control, Name: key.NameDownArrow, Optional: key.ModShift},
 			key.Filter{Focus: control, Name: key.NameHome},
 			key.Filter{Focus: control, Name: key.NameEnd},
 		)
@@ -232,13 +209,9 @@ func wrapUnit(value float64) float64 {
 	return value
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w ColorWheelWidget) Style(values ...style.Style) ColorWheelWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ColorPickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

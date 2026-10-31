@@ -4,45 +4,14 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	textui "github.com/qianniancn/flowui/widget/text"
-)
-
-// Color selects the semantic color of a Chip.
-type Color = theme.ChipColor
-
-const (
-	ColorDefault = theme.ChipColorDefault
-	ColorAccent  = theme.ChipColorAccent
-	ColorSuccess = theme.ChipColorSuccess
-	ColorWarning = theme.ChipColorWarning
-	ColorDanger  = theme.ChipColorDanger
-)
-
-// Variant selects the visual prominence of a Chip.
-type Variant = theme.ChipVariant
-
-const (
-	VariantSecondary = theme.ChipVariantSecondary
-	VariantPrimary   = theme.ChipVariantPrimary
-	VariantTertiary  = theme.ChipVariantTertiary
-	VariantSoft      = theme.ChipVariantSoft
-)
-
-// Size selects the height and horizontal padding of a Chip.
-type Size = theme.ChipSize
-
-const (
-	SizeMedium = theme.ChipSizeMedium
-	SizeSmall  = theme.ChipSizeSmall
-	SizeLarge  = theme.ChipSizeLarge
 )
 
 // Widget presents compact, non-interactive metadata or status information.
 type Widget struct {
-	override *theme.ChipOverride
-	label    string
-	// Keep the label widget alive across frames so its text Provider cache is
+	style style.Style
+	label string
+	// Keep the label widget alive across frames so its text visual cache is
 	// reused instead of being rebuilt for every Chip layout.
 	labelWidget  *textui.Widget
 	color        Color
@@ -93,13 +62,10 @@ func (c Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 	return c.layout(ctx, gtx)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ChipOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the built-in chip appearance. The
+// declaration is resolved as the last cascade layer at layout time, so Style
+// can sit anywhere in the chain.
+func (c Widget) Style(values ...style.Style) Widget {
+	c.style = style.Join(c.style, style.Join(values...))
+	return c
 }

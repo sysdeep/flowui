@@ -48,7 +48,7 @@ func TestTimelineDisabledSnapsToEnd(t *testing.T) {
 }
 
 func TestTimelineHonorsMotionOff(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	activeTheme.Motion.Enabled = false
 	ctx := tweenTestContext(&activeTheme)
 	router := new(input.Router)

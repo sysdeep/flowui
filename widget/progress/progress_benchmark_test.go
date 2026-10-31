@@ -11,7 +11,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -23,7 +22,7 @@ type progressBenchmarkFrame struct {
 }
 
 func newProgressBenchmarkFrame(maximum image.Point) *progressBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &progressBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -99,15 +98,15 @@ func BenchmarkProgressComponentTreeSteadyState(b *testing.B) {
 }
 
 func BenchmarkProgressBarVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	var cache progressBarVisualCache
-	key := progressDeclarationKey{color: BarAccent, size: BarMedium}
-	cache.resolve(active, key)
+	active := new(theme.Light())
+	var cache progressBarStyleCache
+	key := progressStyleKey{color: BarAccent, size: BarMedium}
+	cache.Resolve(active, key, benchmarkBarDefaults)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = cache.resolve(active, key)
+		_ = cache.Resolve(active, key, benchmarkBarDefaults)
 	}
 	b.StopTimer()
 	stats := cache.Stats()
@@ -118,15 +117,15 @@ func BenchmarkProgressBarVisualCacheHit(b *testing.B) {
 }
 
 func BenchmarkProgressCircleVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	var cache progressCircleVisualCache
-	key := progressDeclarationKey{color: CircleAccent, size: CircleMedium}
-	cache.resolve(active, key)
+	active := new(theme.Light())
+	var cache progressCircleStyleCache
+	key := progressStyleKey{color: BarAccent, size: BarMedium}
+	cache.Resolve(active, key, benchmarkCircleDefaults)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = cache.resolve(active, key)
+		_ = cache.Resolve(active, key, benchmarkCircleDefaults)
 	}
 	b.StopTimer()
 	stats := cache.Stats()
@@ -137,15 +136,15 @@ func BenchmarkProgressCircleVisualCacheHit(b *testing.B) {
 }
 
 func BenchmarkProgressBarVisualCacheMiss(b *testing.B) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	b.ReportAllocs()
 	for index := 0; b.Loop(); index++ {
-		var cache progressBarVisualCache
-		key := progressDeclarationKey{color: BarAccent, size: BarMedium}
+		var cache progressBarStyleCache
+		key := progressStyleKey{color: BarAccent, size: BarMedium}
 		if index&1 != 0 {
 			key.color = BarSuccess
 		}
-		_ = cache.resolve(active, key)
+		_ = cache.Resolve(active, key, benchmarkBarDefaults)
 	}
 	b.StopTimer()
 	b.ReportMetric(0, "progress-visual-cache-hits/op")
@@ -154,15 +153,15 @@ func BenchmarkProgressBarVisualCacheMiss(b *testing.B) {
 }
 
 func BenchmarkProgressCircleVisualCacheMiss(b *testing.B) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	b.ReportAllocs()
 	for index := 0; b.Loop(); index++ {
-		var cache progressCircleVisualCache
-		key := progressDeclarationKey{color: CircleAccent, size: CircleMedium}
+		var cache progressCircleStyleCache
+		key := progressStyleKey{color: BarAccent, size: BarMedium}
 		if index&1 != 0 {
-			key.size = CircleLarge
+			key.size = BarLarge
 		}
-		_ = cache.resolve(active, key)
+		_ = cache.Resolve(active, key, benchmarkCircleDefaults)
 	}
 	b.StopTimer()
 	b.ReportMetric(0, "progress-visual-cache-hits/op")
@@ -171,19 +170,19 @@ func BenchmarkProgressCircleVisualCacheMiss(b *testing.B) {
 }
 
 func BenchmarkProgressBarVisualCacheThemeInvalidation(b *testing.B) {
-	active := testtheme.Behavior()
-	replacement := testtheme.Behavior()
-	var cache progressBarVisualCache
-	key := progressDeclarationKey{color: BarAccent, size: BarMedium}
-	cache.resolve(active, key)
+	active := new(theme.Light())
+	replacement := new(theme.Light())
+	var cache progressBarStyleCache
+	key := progressStyleKey{color: BarAccent, size: BarMedium}
+	cache.Resolve(active, key, benchmarkBarDefaults)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
 		if index&1 == 0 {
-			_ = cache.resolve(active, key)
+			_ = cache.Resolve(active, key, benchmarkBarDefaults)
 		} else {
-			_ = cache.resolve(replacement, key)
+			_ = cache.Resolve(replacement, key, benchmarkBarDefaults)
 		}
 	}
 	b.StopTimer()
@@ -193,19 +192,19 @@ func BenchmarkProgressBarVisualCacheThemeInvalidation(b *testing.B) {
 }
 
 func BenchmarkProgressCircleVisualCacheThemeInvalidation(b *testing.B) {
-	active := testtheme.Behavior()
-	replacement := testtheme.Behavior()
-	var cache progressCircleVisualCache
-	key := progressDeclarationKey{color: CircleAccent, size: CircleMedium}
-	cache.resolve(active, key)
+	active := new(theme.Light())
+	replacement := new(theme.Light())
+	var cache progressCircleStyleCache
+	key := progressStyleKey{color: BarAccent, size: BarMedium}
+	cache.Resolve(active, key, benchmarkCircleDefaults)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
 		if index&1 == 0 {
-			_ = cache.resolve(active, key)
+			_ = cache.Resolve(active, key, benchmarkCircleDefaults)
 		} else {
-			_ = cache.resolve(replacement, key)
+			_ = cache.Resolve(replacement, key, benchmarkCircleDefaults)
 		}
 	}
 	b.StopTimer()
@@ -214,4 +213,12 @@ func BenchmarkProgressCircleVisualCacheThemeInvalidation(b *testing.B) {
 	b.ReportMetric(0, "progress-visual-cache-key-invalidations/op")
 }
 
-var _ theme.ProgressBarColor = BarAccent
+func benchmarkBarDefaults() progressBarDefaults {
+	return Bar("benchmark", 0).defaultStyles(new(theme.Light()))
+}
+
+func benchmarkCircleDefaults() progressCircleDefaults {
+	return Circle("benchmark", 0).defaultStyles(new(theme.Light()))
+}
+
+var _ BarColor = BarAccent

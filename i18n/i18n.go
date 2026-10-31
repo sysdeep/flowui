@@ -21,6 +21,9 @@ const (
 	ActionPaste     Key = "action.paste"
 	ActionSelectAll Key = "action.select_all"
 	ActionClose     Key = "action.close"
+	CodeCopy        Key = "code.copy"
+	CodeCopySource  Key = "code.copy_source"
+	CodeCopied      Key = "code.copied"
 
 	DatePickerChooseDate      Key = "datepicker.choose_date"
 	DatePickerChooseDateRange Key = "datepicker.choose_date_range"
@@ -115,6 +118,7 @@ const (
 	SliderMinimum          Key = "slider.minimum"
 	SliderMaximum          Key = "slider.maximum"
 	ToolbarDefault         Key = "toolbar.default"
+	ToolbarMore            Key = "toolbar.more"
 	WorkbenchNextTab       Key = "workbench.next_tab"
 	WorkbenchPreviousTab   Key = "workbench.previous_tab"
 	WorkbenchCloseTab      Key = "workbench.close_tab"

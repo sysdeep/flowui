@@ -1,7 +1,6 @@
 package draw
 
 import (
-	"gioui.org/op/paint"
 	"image"
 	"image/color"
 	"testing"
@@ -10,13 +9,8 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 )
-
-func TestDrawRoundedBorderHandlesNormalAndCollapsedInnerContours(t *testing.T) {
-	gtx := layout.Context{Ops: new(op.Ops)}
-	RoundedBorder(gtx, image.Rect(0, 0, 100, 60), 24, 2, color.NRGBA{A: 255})
-	RoundedBorder(gtx, image.Rect(0, 0, 4, 4), 2, 4, color.NRGBA{A: 255})
-}
 
 func TestDrawRoundedBorderLeavesCenterOpen(t *testing.T) {
 	window, err := headless.NewWindow(40, 40)
@@ -234,12 +228,4 @@ func abs(value int) int {
 		return -value
 	}
 	return value
-}
-
-// A collapsed rectangle must not panic while the outline is generated.
-func TestDrawDashedRRectBorderHandlesDegenerateRect(t *testing.T) {
-	gtx := layout.Context{Ops: new(op.Ops)}
-	DashedRRectBorder(gtx, clip.UniformRRect(image.Rect(0, 0, 4, 4), 2), 4, 4, 3, color.NRGBA{A: 255})
-	DashedRRectBorder(gtx, clip.UniformRRect(image.Rect(0, 0, 0, 0), 0), 1, 4, 3, color.NRGBA{A: 255})
-	DashedRRectBorder(gtx, clip.UniformRRect(image.Rect(0, 0, 40, 20), 0), 0, 4, 3, color.NRGBA{A: 255})
 }

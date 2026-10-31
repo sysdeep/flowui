@@ -48,3 +48,11 @@ func Mix(a, b color.NRGBA, amount float64) color.NRGBA {
 	}
 	return color.NRGBA{R: lerp(a.R, b.R), G: lerp(a.G, b.G), B: lerp(a.B, b.B), A: a.A}
 }
+
+// ColorOr returns fallback when value is unset.
+func ColorOr(value, fallback color.NRGBA) color.NRGBA {
+	if value.A == 0 {
+		return fallback
+	}
+	return value
+}

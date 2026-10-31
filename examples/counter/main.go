@@ -5,7 +5,8 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
@@ -58,6 +59,6 @@ func main() {
 	ui.Run(ui.NewProgram(Model{},
 		Update, View), window.Title("FlowUI Counter"),
 		window.Size(900, 600),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 }

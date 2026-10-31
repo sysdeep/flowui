@@ -13,16 +13,16 @@ import (
 func TestCustomizeThemeOptionQueuesThemeMutation(t *testing.T) {
 	want := color.NRGBA{R: 0x11, G: 0x22, B: 0x33, A: 0xff}
 	cfg := Resolve(CustomizeTheme(func(current *theme.Theme) {
-		current.Palette.Accent = want
+		current.Colors.Tones[theme.TonePrimary].Fill = want
 	}))
 	if len(cfg.ThemeOps) != 1 {
 		t.Fatalf("theme option count = %d, want 1", len(cfg.ThemeOps))
 	}
-	active := theme.NeutralTheme()
+	active := theme.Light()
 	for _, apply := range cfg.ThemeOps {
 		apply(&active)
 	}
-	if active.Palette.Accent != want {
-		t.Fatalf("accent = %v, want the option value %v", active.Palette.Accent, want)
+	if active.Colors.Tones[theme.TonePrimary].Fill != want {
+		t.Fatalf("accent = %v, want the option value %v", active.Colors.Tones[theme.TonePrimary].Fill, want)
 	}
 }

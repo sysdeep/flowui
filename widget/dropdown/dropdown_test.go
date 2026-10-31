@@ -14,7 +14,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
@@ -47,7 +46,7 @@ func (p *layoutProbe) Layout(_ *core.Context, gtx layout.Context) layout.Dimensi
 }
 
 func dropdownTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func dropdownTestWidget(items []Item) Widget {
@@ -67,9 +66,8 @@ func TestDropdownOptionsUseValueSemantics(t *testing.T) {
 		Offset(8).
 		ShouldFlip(false).
 		AvoidOverflow(false).
-		CloseOnSelect(false).
 		Disabled(true).
-		Width(256)
+		Menu(menupkg.New("actions:menu", nil).CloseOnSelect(false).Width(256))
 	if base.hasOpen || base.disabled || base.hasOffset || base.triggerMode != TriggerPress {
 		t.Fatalf("base dropdown mutated: %#v", base)
 	}
@@ -85,9 +83,7 @@ func TestDropdownExtendedOptionsUseValueSemantics(t *testing.T) {
 	base := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}})
 	var event OpenChangeEvent
 	configured := base.
-		AutoWidth().
-		MinWidth(160).
-		MaxWidth(320).
+		Menu(menupkg.New("actions:menu", nil).AutoWidth().MinWidth(160).MaxWidth(320)).
 		MatchTriggerWidth(true).
 		Arrow(true).
 		HoverOpenDelay(20 * time.Millisecond).
@@ -109,12 +105,12 @@ func TestDropdownExtendedOptionsUseValueSemantics(t *testing.T) {
 func TestDropdownForwardsMenuConfiguration(t *testing.T) {
 	checked := func(string, bool) {}
 	radio := func(string, string) {}
-	configured := dropdownTestWidget(nil).
+	configured := dropdownTestWidget(nil).Menu(menupkg.New("actions:menu", nil).
 		AutoSeparateSections(false).
 		DataVersion(3).
 		OnCheckedChange(checked).
 		OnRadioChange(radio).
-		Compact(true)
+		Compact(true))
 	expected := menupkg.New("actions:menu", nil).
 		AutoSeparateSections(false).
 		DataVersion(3).
@@ -176,9 +172,8 @@ func TestDropdownButtonUsesIndependentDropdownState(t *testing.T) {
 	configured := base.
 		Variant(button.Danger).
 		Size(button.Small).
-		AutoWidth().
+		Menu(menupkg.New("split:dropdown:menu", nil).AutoWidth()).
 		Placement(core.PopoverBottomEnd).
-		OnActionEvent(func(ActionEvent) {}).
 		OnOpenChangeEvent(func(OpenChangeEvent) {})
 	if configured.key != "split" || configured.dropdown.key != "split:dropdown" || configured.dropdown.placement != core.PopoverBottomEnd || reflect.DeepEqual(base.dropdown, configured.dropdown) {
 		t.Fatalf("dropdown button configuration = %#v", configured)
@@ -203,28 +198,17 @@ func TestDropdownMenuStyleTargetsPopupOnly(t *testing.T) {
 	accent := style.RGBA(0x12345680)
 	base := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}})
 	configured := base.StyleMenu(style.Style{}.Background(accent))
-	if configured.menuOverride == nil {
-		t.Fatal("StyledMenu did not configure the dropdown popup menu")
-	}
-	resolved := style.Cascade(style.State{}, configured.menuOverride.Declaration)
+	resolved := style.Cascade(style.State{}, configured.menuStyle)
 	if resolved.Paint == nil || resolved.Paint.Background != accent {
 		t.Fatalf("popup menu style = %#v, want %#v", resolved.Paint, accent)
 	}
 }
 
-func TestDropdownUsesMenuThemeAndKeepsOnlyTriggerTokens(t *testing.T) {
-	activeTheme := testtheme.Behavior()
-	provider, err := theme.ComponentProvider(activeTheme)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dropdownVisual := provider.Dropdown(activeTheme, theme.DropdownRequest{})
-	menuTokens := activeTheme.Components.Menu
-	if dropdownVisual.PanelGap != 4 || dropdownVisual.TriggerPressedScale != 0.97 || dropdownVisual.TriggerFocus == nil {
-		t.Fatalf("dropdown visual plan = %#v", dropdownVisual)
-	}
-	if menuTokens.Width != 220 || menuTokens.Padding != 8 || menuTokens.ItemMinHeight != 32 || menuTokens.ItemRadius != 4 || menuTokens.ShortcutTextSize != 14 {
-		t.Fatalf("dropdown menu tokens = %#v", menuTokens)
+func TestDropdownDefaultsOwnTheirTriggerTokens(t *testing.T) {
+	activeTheme := new(theme.Light())
+	defaults := buildDropdown(activeTheme)
+	if defaults.PanelGap != 4 || defaults.TriggerPressedScale != 1 || defaults.Focus.Width <= 0 {
+		t.Fatalf("dropdown defaults = %#v", defaults)
 	}
 }
 
@@ -312,7 +296,7 @@ func TestDropdownLongPressTrigger(t *testing.T) {
 	router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Touch, PointerID: 7, Position: f32.Pt(20, 20)})
 	layoutDropdownFrame(ctx, router, widget, start.Add(time.Millisecond))
 	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
-	if state == nil || !state.touchTracking {
+	if state == nil || !state.gesture.Holding() {
 		t.Fatalf("long press did not start tracking: %#v", state)
 	}
 	layoutDropdownFrame(ctx, router, widget, start.Add(dropdownLongPress+2*time.Millisecond))
@@ -333,8 +317,27 @@ func TestDropdownLongPressMovementCancelsOpen(t *testing.T) {
 	layoutDropdownFrame(ctx, router, widget, start.Add(2*time.Millisecond))
 	layoutDropdownFrame(ctx, router, widget, start.Add(dropdownLongPress+3*time.Millisecond))
 	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
-	if state == nil || state.open || state.touchTracking {
+	if state == nil || state.open || state.gesture.Holding() {
 		t.Fatalf("moved long press state = %#v", state)
+	}
+}
+
+func TestDropdownTriggerModeChangeCancelsLongPress(t *testing.T) {
+	ctx := dropdownTestContext()
+	router := new(input.Router)
+	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).TriggerMode(TriggerLongPress)
+	start := time.Unix(1, 0)
+	layoutDropdownFrame(ctx, router, widget, start)
+	router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Touch, PointerID: 7, Position: f32.Pt(20, 20)})
+	layoutDropdownFrame(ctx, router, widget, start.Add(time.Millisecond))
+	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
+	if !state.gesture.Holding() {
+		t.Fatal("long press did not start")
+	}
+	layoutDropdownFrame(ctx, router, widget.TriggerMode(TriggerPress), start.Add(2*time.Millisecond))
+	layoutDropdownFrame(ctx, router, widget, start.Add(dropdownLongPress+3*time.Millisecond))
+	if state.open || state.gesture.Holding() {
+		t.Fatalf("previous gesture resumed after mode change: open = %v, holding = %v", state.open, state.gesture.Holding())
 	}
 }
 
@@ -394,7 +397,7 @@ func TestDropdownMenuActionClosesAndRestoresTriggerFocus(t *testing.T) {
 	ctx := dropdownTestContext()
 	router := new(input.Router)
 	action := ""
-	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).OnActionEvent(func(event ActionEvent) { action = event.Key })
+	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "open", Label: "Open"}}).OnActionEvent(func(event ActionEvent) { action = event.Key }))
 	start := openDropdownForTest(ctx, router, widget)
 	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
 	clickFirstDropdownItem(ctx, router, widget, start)
@@ -431,10 +434,32 @@ func TestDropdownOutsidePressClosesImmediately(t *testing.T) {
 	}
 }
 
+func TestDropdownEscapeClosesAndRestoresKeyboardFocus(t *testing.T) {
+	ctx := dropdownTestContext()
+	router := new(input.Router)
+	events := []OpenChangeEvent{}
+	value := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).
+		OnOpenChangeEvent(func(event OpenChangeEvent) { events = append(events, event) })
+	start := openDropdownForTest(ctx, router, value)
+	events = events[:0]
+	router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	layoutDropdownFrame(ctx, router, value, start.Add(time.Millisecond))
+	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
+	if state.open || !router.Source().Focused(&state.trigger) {
+		t.Fatalf("after Escape: open=%v trigger focused=%v", state.open, router.Source().Focused(&state.trigger))
+	}
+	if !core.FocusVisible(ctx, &state.trigger, true) {
+		t.Fatal("Escape did not restore keyboard-visible trigger focus")
+	}
+	if len(events) != 1 || events[0].Open || events[0].Source != OpenChangeKeyboard {
+		t.Fatalf("Escape open-change events = %v", events)
+	}
+}
+
 func TestDropdownCloseOnSelectIsDelegatedToMenu(t *testing.T) {
 	ctx := dropdownTestContext()
 	router := new(input.Router)
-	widget := dropdownTestWidget([]Item{{Key: "one", Label: "One"}}).CloseOnSelect(false)
+	widget := dropdownTestWidget([]Item{{Key: "one", Label: "One"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "one", Label: "One"}}).CloseOnSelect(false))
 	start := openDropdownForTest(ctx, router, widget)
 	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
 	clickFirstDropdownItem(ctx, router, widget, start)
@@ -448,7 +473,7 @@ func TestDropdownCustomPopoverContentIsLaidOutByMenu(t *testing.T) {
 	router := new(input.Router)
 	before := new(layoutProbe)
 	after := new(layoutProbe)
-	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).BeforeContent(before).AfterContent(after)
+	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "open", Label: "Open"}}).BeforeContent(before).AfterContent(after))
 	openDropdownForTest(ctx, router, widget)
 	if before.count == 0 || after.count == 0 {
 		t.Fatalf("custom Menu content layouts = before %d after %d", before.count, after.count)
@@ -458,16 +483,16 @@ func TestDropdownCustomPopoverContentIsLaidOutByMenu(t *testing.T) {
 func TestDropdownUsesMenuRootBackground(t *testing.T) {
 	ctx := dropdownTestContext()
 	router := new(input.Router)
-	got := core.ActiveTheme(ctx).Palette.Background
-	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).
+	got := core.ActiveTheme(ctx).Colors.Background
+	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "open", Label: "Open"}}).
 		BeforeContent(core.WidgetFunc(func(ctx *core.Context, _ layout.Context) layout.Dimensions {
 			got = ctx.BackgroundColor()
 			return layout.Dimensions{}
-		}))
+		})))
 
 	openDropdownForTest(ctx, router, widget)
 	activeTheme := core.ActiveTheme(ctx)
-	if want := theme.ColorOr(activeTheme.Components.Menu.BackgroundColor, activeTheme.Palette.OverlayColor()); got != want {
+	if want := activeTheme.Semantic().Overlay; got != want {
 		t.Fatalf("dropdown background = %#v, want %#v", got, want)
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/menu"
 )
 
@@ -69,8 +68,8 @@ type OpenChangeEvent struct {
 }
 
 type Widget struct {
-	override           *theme.DropdownOverride
-	menuOverride       *theme.MenuOverride
+	style              style.Style
+	menuStyle          style.Style
 	key                string
 	trigger            core.Widget
 	menu               menu.Widget
@@ -96,8 +95,6 @@ type Widget struct {
 	hasLongPressDelay  bool
 	disabled           bool
 	onOpenChangeEvent  func(OpenChangeEvent)
-	preparedState      *dropdownState
-	preparedVisual     *theme.DropdownVisual
 }
 
 func New(key string, trigger core.Widget, items []Item) Widget {
@@ -118,6 +115,13 @@ func NewSections(key string, trigger core.Widget, sections []Section) Widget {
 	}
 }
 
+// Menu replaces the popup menu configuration. Configure selection, actions,
+// sizing, and content on menu.Widget instead of mirroring the Menu API here.
+func (d Widget) Menu(value menu.Widget) Widget {
+	d.menu = value
+	return d
+}
+
 func Separator() Item {
 	return menu.Separator()
 }
@@ -125,88 +129,6 @@ func Separator() Item {
 // GroupLabel returns a non-selectable heading for a dropdown section.
 func GroupLabel(label string) Item {
 	return menu.GroupLabel(label)
-}
-
-func (d Widget) Sections(sections []Section) Widget {
-	d.menu = d.menu.Sections(sections).AutoSeparateSections(false)
-	return d
-}
-
-// AutoSeparateSections controls whether section groups receive automatic
-// separators. Explicit separators remain available through Separator.
-func (d Widget) AutoSeparateSections(enabled bool) Widget {
-	d.menu = d.menu.AutoSeparateSections(enabled)
-	return d
-}
-
-func (d Widget) BeforeContent(content core.Widget) Widget {
-	d.menu = d.menu.BeforeContent(content)
-	return d
-}
-
-func (d Widget) AfterContent(content core.Widget) Widget {
-	d.menu = d.menu.AfterContent(content)
-	return d
-}
-
-func (d Widget) EmptyText(text string) Widget {
-	d.menu = d.menu.EmptyText(text)
-	return d
-}
-
-// DataVersion lets Menu reuse flattened entries and AutoWidth measurements
-// until the supplied version changes.
-func (d Widget) DataVersion(version uint64) Widget {
-	d.menu = d.menu.DataVersion(version)
-	return d
-}
-
-func (d Widget) SelectionMode(mode SelectionMode) Widget {
-	d.menu = d.menu.SelectionMode(mode)
-	return d
-}
-
-func (d Widget) SelectedKey(key string) Widget {
-	d.menu = d.menu.SelectedKey(key)
-	return d
-}
-
-func (d Widget) SelectedKeys(keys []string) Widget {
-	d.menu = d.menu.SelectedKeys(keys)
-	return d
-}
-
-func (d Widget) DisabledKeys(keys []string) Widget {
-	d.menu = d.menu.DisabledKeys(keys)
-	return d
-}
-
-// OnActionEvent reports the complete activated item and its submenu path.
-func (d Widget) OnActionEvent(fn func(ActionEvent)) Widget {
-	d.menu = d.menu.OnActionEvent(fn)
-	return d
-}
-
-func (d Widget) OnChange(fn func(string)) Widget {
-	d.menu = d.menu.OnChange(fn)
-	return d
-}
-
-func (d Widget) OnSelectionChange(fn func([]string)) Widget {
-	d.menu = d.menu.OnSelectionChange(fn)
-	return d
-}
-
-// OnCheckedChange reports checkbox item changes from the popup menu.
-func (d Widget) OnCheckedChange(fn func(string, bool)) Widget {
-	d.menu = d.menu.OnCheckedChange(fn)
-	return d
-}
-
-// OnRadioChange reports radio item changes from the popup menu.
-func (d Widget) OnRadioChange(fn func(string, string)) Widget {
-	d.menu = d.menu.OnRadioChange(fn)
-	return d
 }
 
 func (d Widget) Open(open bool) Widget {
@@ -276,43 +198,9 @@ func (d Widget) AvoidOverflow(avoid bool) Widget {
 	return d
 }
 
-func (d Widget) CloseOnSelect(close bool) Widget {
-	d.menu = d.menu.CloseOnSelect(close)
-	return d
-}
-
 func (d Widget) Disabled(disabled bool) Widget {
 	d.disabled = disabled
 	d.menu = d.menu.Disabled(disabled)
-	return d
-}
-
-// Compact applies the menu's compact density to the popup.
-func (d Widget) Compact(compact bool) Widget {
-	d.menu = d.menu.Compact(compact)
-	return d
-}
-
-func (d Widget) Width(dp int) Widget {
-	d.menu = d.menu.Width(dp)
-	return d
-}
-
-// AutoWidth sizes the popup to its content, subject to MinWidth and MaxWidth.
-func (d Widget) AutoWidth() Widget {
-	d.menu = d.menu.AutoWidth()
-	return d
-}
-
-// MinWidth sets the minimum popup width when AutoWidth is enabled.
-func (d Widget) MinWidth(dp int) Widget {
-	d.menu = d.menu.MinWidth(dp)
-	return d
-}
-
-// MaxWidth limits the popup width when AutoWidth is enabled.
-func (d Widget) MaxWidth(dp int) Widget {
-	d.menu = d.menu.MaxWidth(dp)
 	return d
 }
 
@@ -329,11 +217,7 @@ func (d Widget) Arrow(show bool) Widget {
 }
 
 func (d Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return d.layoutWithOverrides(ctx, gtx, d.override, d.menuOverride)
-}
-
-func (d Widget) layoutWithOverrides(ctx *core.Context, gtx layout.Context, dropdownOverride *theme.DropdownOverride, menuOverride *theme.MenuOverride) layout.Dimensions {
-	return d.layoutRoot(ctx, gtx, dropdownOverride, menuOverride)
+	return d.layoutRoot(ctx, gtx)
 }
 
 func (d Widget) flipEnabled() bool {
@@ -344,23 +228,17 @@ func (d Widget) overflowAvoidanceEnabled() bool {
 	return !d.hasAvoidOverflow || d.avoidOverflow
 }
 
-// Style merges instance declarations into the trigger.
+// Style merges instance declarations into the trigger. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (d Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if d.override == nil {
-		d.override = &theme.DropdownOverride{}
-	}
-	d.override.Declaration = style.Join(d.override.Declaration, declaration)
+	d.style = style.Join(d.style, style.Join(values...))
 	return d
 }
 
 // StyleMenu merges instance declarations into the popup menu.
 func (d Widget) StyleMenu(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if d.menuOverride == nil {
-		d.menuOverride = &theme.MenuOverride{}
-	}
-	d.menuOverride.Declaration = style.Join(d.menuOverride.Declaration, declaration)
+	d.menuStyle = style.Join(d.menuStyle, style.Join(values...))
 	return d
 }
 

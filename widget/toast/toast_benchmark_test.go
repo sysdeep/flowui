@@ -9,44 +9,45 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/button"
 )
 
 func BenchmarkToastComponentTree(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
-	provider := New("bench", []Item{
+	host := New("bench", []Item{
 		NewItem("one", "Saved").Description("A persisted notification").Timeout(0),
 		NewItem("two", "Uploading").Loading(true).Timeout(0),
 		NewItem("three", "Warning").Variant(Warning).Timeout(0),
 	}).Placement(BottomEnd)
 	now := time.Unix(1, 0)
-	layoutToastFrame(ctx, router, provider, now, image.Pt(900, 600))
-	baseline := provider.visualCache.stats()
+	layoutToastFrame(ctx, router, host, now, image.Pt(900, 600))
+	baseline := host.visualCache.stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		layoutToastFrame(ctx, router, provider, now.Add(time.Duration(i)*time.Millisecond), image.Pt(900, 600))
+		layoutToastFrame(ctx, router, host, now.Add(time.Duration(i)*time.Millisecond), image.Pt(900, 600))
 	}
 	b.StopTimer()
-	reportToastVisualCacheStats(b, provider.visualCache.stats(), baseline)
+	reportToastVisualCacheStats(b, host.visualCache.stats(), baseline)
 }
 
 func BenchmarkToastVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
-	provider := New("bench", nil)
-	provider.visualWithCache(ctx, Success, nil)
-	baseline := provider.visualCache.stats()
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+	host := New("bench", nil)
+	host.visualWithCache(ctx, Success, button.Ghost)
+	baseline := host.visualCache.stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		provider.visualWithCache(ctx, Success, nil)
+		host.visualWithCache(ctx, Success, button.Ghost)
 	}
 	b.StopTimer()
-	reportToastVisualCacheStats(b, provider.visualCache.stats(), baseline)
+	reportToastVisualCacheStats(b, host.visualCache.stats(), baseline)
 }
 
-func reportToastVisualCacheStats(b *testing.B, after, before computed.ProviderCacheStats) {
+func reportToastVisualCacheStats(b *testing.B, after, before computed.VisualCacheStats) {
 	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "toast-visual-cache-hits/op")
 	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "toast-visual-cache-misses/op")
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "toast-visual-cache-theme-invalidations/op")
@@ -54,28 +55,28 @@ func reportToastVisualCacheStats(b *testing.B, after, before computed.ProviderCa
 }
 
 func BenchmarkToastVisualCacheInvalidation(b *testing.B) {
-	first := testtheme.Behavior()
-	second := testtheme.Behavior()
+	first := new(theme.Light())
+	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
-	provider := New("bench", nil)
-	provider.visualWithCache(firstContext, Success, nil)
-	baseline := provider.visualCache.stats()
+	host := New("bench", nil)
+	host.visualWithCache(firstContext, Success, button.Ghost)
+	baseline := host.visualCache.stats()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
 		switch index & 3 {
 		case 0:
-			provider.visualWithCache(firstContext, Success, nil)
+			host.visualWithCache(firstContext, Success, button.Ghost)
 		case 1:
-			provider.visualWithCache(firstContext, Warning, nil)
+			host.visualWithCache(firstContext, Warning, button.Ghost)
 		case 2:
-			provider.visualWithCache(secondContext, Warning, nil)
+			host.visualWithCache(secondContext, Warning, button.Ghost)
 		default:
-			provider.visualWithCache(secondContext, Success, nil)
+			host.visualWithCache(secondContext, Success, button.Ghost)
 		}
 	}
 	b.StopTimer()
-	reportToastVisualCacheStats(b, provider.visualCache.stats(), baseline)
+	reportToastVisualCacheStats(b, host.visualCache.stats(), baseline)
 }

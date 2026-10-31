@@ -16,7 +16,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/chart"
@@ -42,36 +41,36 @@ func TestLineChartCopiesMutableInputs(t *testing.T) {
 }
 
 func TestLineChartLegendDataRetainsHiddenSeries(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
-	data := resolveChartDataWithVisual(New("chart", []Series{
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
+	data := resolveChartDataWithDefaults(New("chart", []Series{
 		Values("visible", "Visible", []float64{1, 2}),
 		Values("hidden", "Hidden", []float64{3, 4}).Hidden(true),
-	}), visual, testDp)
+	}), defaults, testDp)
 	if len(data.series) != 1 || len(data.legend) != 2 || !data.legend[1].hidden {
 		t.Fatalf("LineChart hidden legend data = %#v", data)
 	}
 }
 
 func TestLineChartDataVersionCachesResolvedData(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
 	cache := new(chartDataCache)
 	metric := unit.Metric{PxPerDp: 1, PxPerSp: 1}
-	first := cache.resolveWithVisual(New("chart", []Series{Values("series", "Series", []float64{1})}).DataVersion(1), &activeTheme, visual, metric)
-	second := cache.resolveWithVisual(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(1), &activeTheme, visual, metric)
+	first := cache.resolveWithDefaults(New("chart", []Series{Values("series", "Series", []float64{1})}).DataVersion(1), &activeTheme, defaults, metric)
+	second := cache.resolveWithDefaults(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(1), &activeTheme, defaults, metric)
 	if first.generation == 0 || second.generation != first.generation || second.series[0].points[0].Y != 1 {
 		t.Fatalf("same-version LineChart data was not reused: first %#v second %#v", first, second)
 	}
-	third := cache.resolveWithVisual(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(2), &activeTheme, visual, metric)
+	third := cache.resolveWithDefaults(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(2), &activeTheme, defaults, metric)
 	if third.generation == second.generation || third.series[0].points[0].Y != 99 {
 		t.Fatalf("new-version LineChart data was not resolved: %#v", third)
 	}
-	scaled := cache.resolveWithVisual(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(2), &activeTheme, visual, unit.Metric{PxPerDp: 2, PxPerSp: 2})
+	scaled := cache.resolveWithDefaults(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(2), &activeTheme, defaults, unit.Metric{PxPerDp: 2, PxPerSp: 2})
 	if scaled.generation == third.generation {
 		t.Fatal("LineChart cache ignored a metric change")
 	}
-	uncached := cache.resolveWithVisual(New("chart", []Series{Values("series", "Series", []float64{7})}), &activeTheme, visual, metric)
+	uncached := cache.resolveWithDefaults(New("chart", []Series{Values("series", "Series", []float64{7})}), &activeTheme, defaults, metric)
 	if uncached.generation != 0 || uncached.series[0].points[0].Y != 7 {
 		t.Fatalf("unversioned LineChart data was cached: %#v", uncached)
 	}
@@ -83,8 +82,8 @@ func BenchmarkLineChartDataVersion(b *testing.B) {
 		values[index] = float64(index)
 	}
 	widget := New("chart", []Series{Values("series", "Series", values)})
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
 	metric := unit.Metric{PxPerDp: 1, PxPerSp: 1}
 	for _, benchmark := range []struct {
 		name   string
@@ -97,45 +96,9 @@ func BenchmarkLineChartDataVersion(b *testing.B) {
 			cache := new(chartDataCache)
 			b.ReportAllocs()
 			for b.Loop() {
-				data := cache.resolveWithVisual(benchmark.widget, &activeTheme, visual, metric)
+				data := cache.resolveWithDefaults(benchmark.widget, &activeTheme, defaults, metric)
 				runtime.KeepAlive(data)
 			}
-		})
-	}
-}
-
-func TestLineChartRejectsInvalidConfiguration(t *testing.T) {
-	tests := []struct {
-		name string
-		run  func()
-	}{
-		{"series width", func() { Values("a", "A", nil).Width(0) }},
-		{"point size", func() { Values("a", "A", nil).PointSize(0) }},
-		{"step mode", func() { Values("a", "A", nil).Step(StepMode(9)) }},
-		{"line style", func() { Values("a", "A", nil).LineStyle(LineStyle(9)) }},
-		{"sampling mode", func() { Values("a", "A", nil).Sampling(SamplingMode(9)) }},
-		{"height", func() { New("chart", nil).Height(0) }},
-		{"X range", func() { New("chart", nil).XRange(2, 1) }},
-		{"Y range", func() { New("chart", nil).YRange(math.NaN(), 1) }},
-		{"X ticks", func() { New("chart", nil).XTicks(1) }},
-		{"Y ticks", func() { New("chart", nil).YTicks(0) }},
-		{"negative smoothness", func() { Values("a", "A", nil).Smoothness(-0.1) }},
-		{"large smoothness", func() { Values("a", "A", nil).Smoothness(1.1) }},
-		{"NaN smoothness", func() { Values("a", "A", nil).Smoothness(float32(math.NaN())) }},
-		{"animation duration", func() { New("chart", nil).AnimationDuration(-time.Millisecond) }},
-		{"update animation duration", func() { New("chart", nil).UpdateAnimationDuration(-time.Millisecond) }},
-		{"animation easing", func() { New("chart", nil).AnimationEasing(nil) }},
-		{"update animation easing", func() { New("chart", nil).UpdateAnimationEasing(nil) }},
-		{"data window", func() { New("chart", nil).DataWindow(0.8, 0.2) }},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			defer func() {
-				if recover() == nil {
-					t.Fatal("invalid LineChart configuration did not panic")
-				}
-			}()
-			test.run()
 		})
 	}
 }
@@ -189,12 +152,12 @@ func TestLineChartVisibleMinMaxSamplingRetainsExtrema(t *testing.T) {
 }
 
 func TestLineChartDataWindowConstrainsXScale(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
 	widget := New("chart", []Series{Values("values", "Values", []float64{1, 2, 3, 4, 5})}).
 		Categories([]string{"A", "B", "C", "D", "E"}).
 		DataWindow(0.25, 0.75)
-	data := resolveChartDataWithVisual(widget, visual, testDp)
+	data := resolveChartDataWithDefaults(widget, defaults, testDp)
 	scale := widget.resolveXScale(data)
 	if scale.Minimum != 1 || scale.Maximum != 3 {
 		t.Fatalf("LineChart windowed X scale = %#v", scale)
@@ -218,11 +181,11 @@ func TestLineChartAnnotationGeometryUsesVisibleScales(t *testing.T) {
 }
 
 func TestLineChartAnimationInterpolatesPointGeometry(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
-	target := resolveChartDataWithVisual(New("chart", []Series{
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
+	target := resolveChartDataWithDefaults(New("chart", []Series{
 		Values("series", "Series", []float64{10, 20}),
-	}), visual, testDp)
+	}), defaults, testDp)
 	from := lineBaselineData(target, 0)
 	midpoint := interpolateLineData(from, target, 0.5, 0)
 	if midpoint.series[0].points[0].Y != 5 || midpoint.series[0].points[1].Y != 10 {
@@ -234,14 +197,14 @@ func TestLineChartAnimationInterpolatesPointGeometry(t *testing.T) {
 }
 
 func TestLineChartUpdateAnimationStartsFromDisplayedData(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
-	previous := resolveChartDataWithVisual(New("chart", []Series{
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
+	previous := resolveChartDataWithDefaults(New("chart", []Series{
 		Values("series", "Series", []float64{4, 8}),
-	}), visual, testDp)
-	target := resolveChartDataWithVisual(New("chart", []Series{
+	}), defaults, testDp)
+	target := resolveChartDataWithDefaults(New("chart", []Series{
 		Values("series", "Series", []float64{10, 20}),
-	}), visual, testDp)
+	}), defaults, testDp)
 	from := lineTransitionFrom(previous, target, 0)
 	if from.series[0].points[0].Y != 4 || from.series[0].points[1].Y != 8 {
 		t.Fatalf("LineChart update start = %#v", from.series[0].points)
@@ -249,10 +212,10 @@ func TestLineChartUpdateAnimationStartsFromDisplayedData(t *testing.T) {
 }
 
 func TestLineChartAnimationBaselineUsesVisibleYRange(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
 	widget := New("chart", []Series{Values("series", "Series", []float64{10, 20})}).IncludeZero(false)
-	target := resolveChartDataWithVisual(widget, visual, testDp)
+	target := resolveChartDataWithDefaults(widget, defaults, testDp)
 	baseline := widget.animationBaseline(target)
 	if baseline != widget.resolveYScale(target).Minimum || baseline == 0 {
 		t.Fatalf("non-zero animation baseline = %v", baseline)
@@ -260,12 +223,12 @@ func TestLineChartAnimationBaselineUsesVisibleYRange(t *testing.T) {
 }
 
 func TestResolveChartDataHandlesCategoryValuesAndInvalidPoints(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
-	data := resolveChartDataWithVisual(New("chart", []Series{
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
+	data := resolveChartDataWithDefaults(New("chart", []Series{
 		Values("values", "Values", []float64{4, math.NaN(), 8}),
 		XY("xy", "XY", []Point{{X: -2, Y: 3}, {X: math.Inf(1), Y: 9}}),
-	}).Categories([]string{"A", "B", "C"}), visual, testDp)
+	}).Categories([]string{"A", "B", "C"}), defaults, testDp)
 	if len(data.series) != 2 || len(data.series[0].points) != 3 || data.series[0].points[1].valid {
 		t.Fatalf("resolved LineChart data = %#v", data)
 	}
@@ -284,8 +247,8 @@ func TestResolveChartDataHandlesCategoryValuesAndInvalidPoints(t *testing.T) {
 }
 
 func TestResolveChartDataRejectsSeriesKeys(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
 	for _, series := range [][]Series{
 		{Values("", "Empty", nil)},
 		{Values("same", "First", nil), Values("same", "Second", nil)},
@@ -296,7 +259,7 @@ func TestResolveChartDataRejectsSeriesKeys(t *testing.T) {
 					t.Fatal("invalid LineChart series keys did not panic")
 				}
 			}()
-			resolveChartDataWithVisual(New("chart", series), visual, testDp)
+			resolveChartDataWithDefaults(New("chart", series), defaults, testDp)
 		}()
 	}
 }
@@ -427,13 +390,13 @@ func pointInsideBounds(point, first, second f32.Point) bool {
 }
 
 func TestLineChartSelectionUsesSharedNearestX(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	visual := lineChartTestVisual(&activeTheme)
+	activeTheme := theme.Light()
+	defaults := lineChartTestDefaults(&activeTheme)
 	widget := New("chart", []Series{
 		XY("first", "First", []Point{{X: 0, Y: 10}, {X: 1, Y: 20}}),
 		XY("second", "Second", []Point{{X: 0, Y: 12}, {X: 1, Y: 24}}),
 	})
-	data := resolveChartDataWithVisual(widget, visual, testDp)
+	data := resolveChartDataWithDefaults(widget, defaults, testDp)
 	geometry := chartGeometry{
 		plot:   image.Rect(0, 0, 100, 100),
 		xScale: chart.NewLinearScale(0, 1, 2, false, true),
@@ -683,18 +646,12 @@ func testDp(value unit.Dp) int {
 	return int(value)
 }
 
-func lineChartTestVisual(active *theme.Theme) theme.LineChartVisual {
-	provider, err := theme.ComponentProvider(active)
-	if err != nil {
-		panic(err)
-	}
-	visual := provider.LineChart(active, theme.LineChartRequest{})
-	theme.ValidateLineChartVisual(visual)
-	return visual
+func lineChartTestDefaults(active *theme.Theme) lineChartDefaults {
+	return buildLineChart(active)
 }
 
 func lineChartTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func layoutLineChartFrame(ctx *core.Context, router *input.Router, widget Widget, now time.Time) layout.Dimensions {

@@ -4,11 +4,12 @@ package commandpalette
 import (
 	"strings"
 
-	"gioui.org/io/key"
+	"gioui.org/io/event"
 	giolayout "gioui.org/layout"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/layout"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/command"
 	"github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/listbox"
@@ -37,6 +38,7 @@ func (p Widget) EmptyText(value string) Widget     { p.emptyText = value; return
 func (p Widget) OnOpenChange(fn func(bool)) Widget { p.onOpenChange = fn; return p }
 
 type paletteState struct {
+	navigation        base.CollectionNavigation
 	query, selected   string
 	open, focusSearch bool
 }
@@ -55,23 +57,23 @@ func (p Widget) Layout(ctx *core.Context, gtx giolayout.Context) giolayout.Dimen
 		items := p.matches(ctx, state.query)
 		state.ensureSelection(items)
 		searchTag := core.FieldFocusTag(ctx, core.FullKey(ctx, searchKey))
-		if searchTag != nil && p.open && gtx.Enabled() {
-			for {
-				event, ok := gtx.Event(
-					key.Filter{Focus: searchTag, Name: key.NameUpArrow},
-					key.Filter{Focus: searchTag, Name: key.NameDownArrow},
-				)
-				if !ok {
+		if searchTag != nil && p.open {
+			selected := -1
+			for i, item := range items {
+				if item.Key == state.selected {
+					selected = i
 					break
 				}
-				if event, ok := event.(key.Event); ok && event.State == key.Press {
-					delta := 1
-					if event.Name == key.NameUpArrow {
-						delta = -1
-					}
-					state.move(items, delta)
-				}
 			}
+			rows := base.Collection{
+				Count:    len(items),
+				Key:      func(i int) string { return items[i].Key },
+				Disabled: func(i int) bool { return items[i].Disabled },
+				Targets:  func(yield func(int, event.Tag) bool) { yield(selected, searchTag) },
+			}
+			state.navigation.Update(gtx, rows, selected,
+				base.CollectionPolicy{Wrap: true, PreserveHomeEnd: true},
+				func(key string) { state.selected = key }, nil)
 		}
 		activate := func(selected string) {
 			if !p.open || !gtx.Enabled() {
@@ -92,7 +94,7 @@ func (p Widget) Layout(ctx *core.Context, gtx giolayout.Context) giolayout.Dimen
 		if placeholder == "" {
 			placeholder = ctx.Text(i18n.CommandPaletteSearch)
 		}
-		field := input.New(state.query).Key(searchKey).Placeholder(placeholder).Label(placeholder).FullWidth().
+		field := input.New(state.query).Key(searchKey).Placeholder(placeholder).Label(placeholder).FillWidth().
 			OnChange(func(value string) { state.query, state.selected = value, "" }).
 			OnSubmit(func(value string) {
 				state.query = value
@@ -119,7 +121,7 @@ func (p Widget) Layout(ctx *core.Context, gtx giolayout.Context) giolayout.Dimen
 				empty = ctx.Text(i18n.CommandPaletteEmpty)
 			}
 			return listbox.New(rows).Key(core.DerivedKey(ctx, owner, "results")).SelectedKey(state.selected).
-				FullWidth().MaxHeight(320).HideIndicator().EmptyText(empty).ScrollToKey(state.selected).
+				FillWidth().MaxHeight(320).HideIndicator().EmptyText(empty).ScrollToKey(state.selected).
 				OnChange(func(value string) { state.selected = value }).OnAction(activate).Layout(ctx, gtx)
 		})
 		dims := layout.Column(field, list).Gap(12).Layout(ctx, gtx)
@@ -179,23 +181,6 @@ func (s *paletteState) ensureSelection(items []menu.Item) {
 	for _, item := range items {
 		if !item.Disabled {
 			s.selected = item.Key
-			return
-		}
-	}
-}
-
-func (s *paletteState) move(items []menu.Item, delta int) {
-	current := -1
-	for index, item := range items {
-		if item.Key == s.selected {
-			current = index
-			break
-		}
-	}
-	for step := 1; step <= len(items); step++ {
-		index := (current + delta*step + len(items)*2) % len(items)
-		if !items[index].Disabled {
-			s.selected = items[index].Key
 			return
 		}
 	}

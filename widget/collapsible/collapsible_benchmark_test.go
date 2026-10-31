@@ -12,7 +12,7 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -25,7 +25,7 @@ type collapsibleBenchmarkFrame struct {
 }
 
 func newCollapsibleBenchmarkFrame(count int) *collapsibleBenchmarkFrame {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	frame := &collapsibleBenchmarkFrame{ctx: core.New(nil, &active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(640, 480)},
@@ -134,8 +134,8 @@ func BenchmarkCollapsibleComponentTreeVisualCacheMiss(b *testing.B) {
 	frame.layoutTree()
 	before := [4]uint64{}
 	before[0], before[1], before[2], before[3] = frame.cacheStats()
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {

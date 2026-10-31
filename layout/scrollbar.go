@@ -5,6 +5,7 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/qianniancn/flowui/internal/computed"
@@ -13,131 +14,47 @@ import (
 	"github.com/qianniancn/flowui/theme"
 )
 
-const (
-	stateSlotScrollbar    = "scrollbar"
-	stateSlotScrollbarBar = "bar"
-)
+const stateSlotScrollbarBar = "bar"
 
-type ScrollbarWidget struct {
-	key           string
-	child         Widget
-	axis          layout.Axis
-	align         layout.Alignment
-	disabled      bool
-	stickToEnd    bool
-	scrollAnyAxis bool
-	overlay       bool
-	customStyle   style.Style
+type scrollbarMetrics struct {
+	TrackWidth     unit.Dp
+	ThumbWidth     unit.Dp
+	ContentGap     unit.Dp
+	MinThumbLength unit.Dp
+	MajorPadding   unit.Dp
+	Radius         unit.Dp
+	ThumbOpacity   float32
+	HoverOpacity   float32
+}
+
+var defaultScrollbarMetrics = scrollbarMetrics{
+	TrackWidth: 10, ThumbWidth: 6, ContentGap: 4, MinThumbLength: 32,
+	MajorPadding: 2, Radius: 3, ThumbOpacity: .15, HoverOpacity: .28,
 }
 
 type scrollbarState struct {
-	list         layout.List
-	bar          widget.Scrollbar
-	visualOutset VisualOutsetState
+	bar           widget.Scrollbar
+	defaultsCache computed.VisualCache[scrollbarDeclarationKey, style.Style]
 }
 
-// Scrollbar creates a viewport with a visible scrollbar.
-func Scrollbar(child Widget) ScrollbarWidget {
-	return ScrollbarWidget{key: core.AutoKey(), child: child, axis: layout.Vertical}
-}
-
-// Key sets an explicit identity for the scrollbar state.
-func (s ScrollbarWidget) Key(key string) ScrollbarWidget {
-	s.key = key
-	return s
-}
-
-func (s ScrollbarWidget) Vertical() ScrollbarWidget {
-	s.axis = layout.Vertical
-	return s
-}
-
-func (s ScrollbarWidget) Horizontal() ScrollbarWidget {
-	s.axis = layout.Horizontal
-	return s
-}
-
-func (s ScrollbarWidget) Disabled(disabled bool) ScrollbarWidget {
-	s.disabled = disabled
-	return s
-}
-
-func (s ScrollbarWidget) AlignStart() ScrollbarWidget {
-	s.align = layout.Start
-	return s
-}
-
-func (s ScrollbarWidget) AlignMiddle() ScrollbarWidget {
-	s.align = layout.Middle
-	return s
-}
-
-func (s ScrollbarWidget) AlignEnd() ScrollbarWidget {
-	s.align = layout.End
-	return s
-}
-
-func (s ScrollbarWidget) StickToEnd() ScrollbarWidget {
-	s.stickToEnd = true
-	return s
-}
-
-func (s ScrollbarWidget) ScrollAnyAxis() ScrollbarWidget {
-	s.scrollAnyAxis = true
-	return s
-}
-
-func (s ScrollbarWidget) Overlay() ScrollbarWidget {
-	s.overlay = true
-	return s
-}
-
-// Style replaces the scrollbar's instance style with the given declarations
-// joined in order.
-func (s ScrollbarWidget) Style(values ...style.Style) ScrollbarWidget {
-	s.customStyle = style.Join(values...)
-	return s
-}
-
-func (s ScrollbarWidget) Layout(ctx *Context, gtx layout.Context) layout.Dimensions {
-	prepareFieldAssociations(ctx, s.child)
-	key := core.ClaimKey(ctx, core.KindScrollbar, s.key)
-	state := core.UseState[scrollbarState](ctx, key, stateSlotScrollbar)
-	state.list.Axis = s.axis
-	state.list.Gap = 0
-	state.list.Alignment = s.align
-	state.list.ScrollToEnd = s.stickToEnd
-	state.list.ScrollAnyAxis = s.scrollAnyAxis
-	if s.disabled {
-		gtx = gtx.Disabled()
-	}
-	styleState := scrollbarStyleState(&state.bar, s.disabled)
-	return Styled(ctx, gtx, key, styleState, s.customStyle, WidgetFunc(func(_ *Context, gtx layout.Context) layout.Dimensions {
-		return layoutScrollbarList(ctx, gtx, key, &state.list, &state.bar, &state.visualOutset, 1, s.disabled, s.overlay, s.customStyle, func(gtx layout.Context, _ int) layout.Dimensions {
-			return s.child.Layout(ctx, gtx)
-		})
-	}))
-}
-
-func derivedScrollbarState(ctx *Context, owner string) *widget.Scrollbar {
+func derivedScrollbarState(ctx *Context, owner string) *scrollbarState {
 	key := core.ClaimDerivedKey(ctx, core.KindScrollbar, owner, "bar")
-	return core.UseState[widget.Scrollbar](ctx, key, stateSlotScrollbarBar)
+	return core.UseState[scrollbarState](ctx, key, stateSlotScrollbarBar)
 }
 
-func layoutScrollbarList(ctx *Context, gtx layout.Context, key string, list *layout.List, bar *widget.Scrollbar, visual *VisualOutsetState, count int, disabled, overlay bool, custom style.Style, item layout.ListElement) layout.Dimensions {
+func layoutScrollbarList(ctx *Context, gtx layout.Context, key string, list *layout.List, bar *widget.Scrollbar, visual *VisualOutsetState, count int, disabled, overlay bool, custom style.Style, defaultsCache *computed.VisualCache[scrollbarDeclarationKey, style.Style], showBar bool, item layout.ListElement) layout.Dimensions {
 	if disabled {
 		gtx = gtx.Disabled()
 	}
-	activeTheme := core.ActiveTheme(ctx)
-	var defaultsCache *computed.DeclarationCache[scrollbarDeclarationKey, style.Style]
-	if visual != nil {
-		defaultsCache = &visual.scrollbarDefaultsCache
+	if !showBar {
+		return layoutVisualOutsetList(ctx, gtx, list, count, visual, item)
 	}
+	disabled = disabled || !gtx.Enabled()
 	style := resolvedScrollbarStyle(ctx, gtx, key, bar, disabled, custom, defaultsCache)
 	axis := list.Axis
 	originalConstraints := gtx.Constraints
 	barWidth := gtx.Dp(style.Width())
-	reservedWidth := barWidth + gtx.Dp(max(activeTheme.Components.Scrollbar.ContentGap, 0))
+	reservedWidth := barWidth + gtx.Dp(max(defaultScrollbarMetrics.ContentGap, 0))
 	majorAxisLimit := axis.Convert(originalConstraints.Max).X
 	// ponytail: overflow changes settle on the next frame to avoid laying out interactive children twice.
 	reserveScrollbar := !overlay && count > 0 && list.Position.Length > majorAxisLimit
@@ -188,14 +105,14 @@ func layoutScrollbarList(ctx *Context, gtx layout.Context, key string, list *lay
 
 // TrackedScrollbar lays out a Gio list with FlowUI's scrollbar style.
 func TrackedScrollbar(ctx *Context, gtx layout.Context, list *layout.List, bar *widget.Scrollbar, count int, disabled, overlay bool, item layout.ListElement) layout.Dimensions {
-	return layoutScrollbarList(ctx, gtx, "", list, bar, nil, count, disabled, overlay, style.Style{}, item)
+	return layoutScrollbarList(ctx, gtx, "", list, bar, nil, count, disabled, overlay, style.Style{}, nil, true, item)
 }
 
 // TrackedScrollbarWithVisualOutset lays out a Gio list with a persistent
 // visual-outset state. Composite components use it when they clip arbitrary
 // child content inside their own viewport.
 func TrackedScrollbarWithVisualOutset(ctx *Context, gtx layout.Context, list *layout.List, bar *widget.Scrollbar, visual *VisualOutsetState, count int, disabled, overlay bool, item layout.ListElement) layout.Dimensions {
-	return layoutScrollbarList(ctx, gtx, "", list, bar, visual, count, disabled, overlay, style.Style{}, item)
+	return layoutScrollbarList(ctx, gtx, "", list, bar, visual, count, disabled, overlay, style.Style{}, nil, true, item)
 }
 
 type scrollbarDeclarationKey struct {
@@ -203,23 +120,19 @@ type scrollbarDeclarationKey struct {
 	dragging bool
 }
 
-func resolvedScrollbarStyle(ctx *Context, gtx layout.Context, key string, bar *widget.Scrollbar, disabled bool, custom style.Style, caches ...*computed.DeclarationCache[scrollbarDeclarationKey, style.Style]) material.ScrollbarStyle {
+func resolvedScrollbarStyle(ctx *Context, gtx layout.Context, key string, bar *widget.Scrollbar, disabled bool, custom style.Style, caches ...*computed.VisualCache[scrollbarDeclarationKey, style.Style]) material.ScrollbarStyle {
 	activeTheme := core.ActiveTheme(ctx)
-	tokens := activeTheme.Components.Scrollbar
+	tokens := defaultScrollbarMetrics
 	base := scrollbarStyleFor(activeTheme, bar, disabled)
 	state := scrollbarStyleState(bar, disabled)
 	declarationKey := scrollbarDeclarationKey{disabled: disabled, dragging: bar.Dragging()}
-	var defaults style.Style
-	if len(caches) > 0 && caches[0] != nil {
-		if cached, ok := caches[0].Load(activeTheme, declarationKey); ok {
-			defaults = cached
-		} else {
-			defaults = scrollbarDefaults(tokens, base)
-			caches[0].Store(activeTheme, declarationKey, defaults)
-		}
-	} else {
-		defaults = scrollbarDefaults(tokens, base)
+	var cache *computed.VisualCache[scrollbarDeclarationKey, style.Style]
+	if len(caches) > 0 {
+		cache = caches[0]
 	}
+	defaults := cache.Resolve(activeTheme, declarationKey, func() style.Style {
+		return scrollbarDefaults(tokens, base)
+	})
 
 	track := resolveScrollbarPart(ctx, gtx, key, style.PartTrack, state, defaults, custom)
 	thumb := resolveScrollbarPart(ctx, gtx, key, style.PartThumb, state, defaults, custom)
@@ -251,7 +164,7 @@ func resolvedScrollbarStyle(ctx *Context, gtx layout.Context, key string, bar *w
 	return base
 }
 
-func scrollbarDefaults(tokens theme.ScrollbarTheme, base material.ScrollbarStyle) style.Style {
+func scrollbarDefaults(tokens scrollbarMetrics, base material.ScrollbarStyle) style.Style {
 	return style.Style{}.
 		Part(style.PartTrack, style.Style{}.
 			Width(tokens.TrackWidth).
@@ -276,7 +189,7 @@ func resolveScrollbarPart(ctx *Context, gtx layout.Context, key string, part sty
 
 func scrollbarStyleFor(activeTheme *theme.Theme, state *widget.Scrollbar, disabled bool) material.ScrollbarStyle {
 	sem := activeTheme.Semantic()
-	tokens := activeTheme.Components.Scrollbar
+	tokens := defaultScrollbarMetrics
 	style := material.Scrollbar(theme.MaterialOf(activeTheme), state)
 	style.Track.MajorPadding = tokens.MajorPadding
 	style.Track.MinorPadding = max((tokens.TrackWidth-tokens.ThumbWidth)/2, 0)

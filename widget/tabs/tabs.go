@@ -5,10 +5,10 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/unit"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type TabItem struct {
@@ -107,7 +107,6 @@ const (
 )
 
 type Widget struct {
-	override            *theme.TabsOverride
 	key                 string
 	selectedKey         string
 	hasSelectedKey      bool
@@ -150,7 +149,8 @@ type Widget struct {
 	animationSet        bool
 	animationDuration   time.Duration
 	indicatorDuration   time.Duration
-	visualCache         *tabsVisualCache
+	style               style.Style
+	visualCache         *tabsDefaultsCache
 }
 
 // New creates a tabs widget. When selectedKey is non-empty, it starts in
@@ -164,14 +164,14 @@ func New(key, selectedKey string, items []TabItem) Widget {
 			selectedKey:    selectedKey,
 			hasSelectedKey: true,
 			items:          items,
-			visualCache:    &tabsVisualCache{},
+			visualCache:    &tabsDefaultsCache{},
 		}
 	}
 	// empty selectedKey → uncontrolled mode
 	return Widget{
 		key:         key,
 		items:       items,
-		visualCache: &tabsVisualCache{},
+		visualCache: &tabsDefaultsCache{},
 	}
 }
 
@@ -455,15 +455,10 @@ func (t Widget) IndicatorAnimationDuration(duration time.Duration) Widget {
 }
 
 func (t Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return t.layoutWithOverride(ctx, gtx, t.override)
+	return t.layoutWithDefaults(ctx, gtx, t.defaultsWithCache(ctx))
 }
 
-func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.TabsOverride) layout.Dimensions {
-	visual := t.visualWithCache(ctx, override, t.visualCache)
-	return t.layoutWithVisual(ctx, gtx, visual)
-}
-
-func (t Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual theme.TabsVisual) layout.Dimensions {
+func (t Widget) layoutWithDefaults(ctx *core.Context, gtx layout.Context, defaults tabsDefaults) layout.Dimensions {
 	rootKey := core.FullKey(ctx, t.key)
 	state := tabsStateFor(ctx, t.key)
 	state.beginFrame()
@@ -528,14 +523,16 @@ func (t Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual t
 
 	state.syncSelection(t.items, selectedKey)
 	disabled := t.disabled || !gtx.Enabled()
-	if !disabled {
-		if selectionKey, focusKey, ok := state.updateKeys(gtx, t.items, selectedKey, t.orientation, t.activation); ok {
-			if selectionKey != "" {
-				selectedKey = state.requestSelectedKey(t, selectionKey)
-			}
-			if focusKey != "" {
-				core.RequestFocus(ctx, &state.item(focusKey).clickable)
-			}
+	keyGtx := gtx
+	if disabled {
+		keyGtx = keyGtx.Disabled()
+	}
+	if selectionKey, focusKey, ok := state.updateKeys(keyGtx, t.items, selectedKey, t.orientation, t.activation); ok {
+		if selectionKey != "" {
+			selectedKey = state.requestSelectedKey(t, selectionKey)
+		}
+		if focusKey != "" {
+			core.RequestFocus(ctx, &state.item(focusKey).clickable)
 		}
 	}
 	hovered, pressed, focused := false, false, false
@@ -545,14 +542,15 @@ func (t Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual t
 		pressed = pressed || itemState.clickable.Pressed()
 		focused = focused || gtx.Focused(&itemState.clickable)
 	}
-	return layoutui.Styled(ctx, gtx, rootKey, style.State{
+	root := computed.Resolve(ctx, gtx, rootKey, style.State{
 		Hovered:  hovered,
 		Pressed:  pressed,
 		Focused:  focused,
 		Disabled: disabled,
 		Selected: selectedKey != "",
-	}, style.Join(visual.Root, visual.Override), core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return t.layout(ctx, gtx, state, selectedKey, disabled, visual)
+	}, defaults.root, style.Style{}, style.Style{}, t.style)
+	return layoutui.Resolved(ctx, gtx, root, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return t.layout(ctx, gtx, state, selectedKey, disabled, defaults)
 	}))
 }
 
@@ -572,34 +570,34 @@ func (t Widget) animationEnabled() bool {
 	return !t.animationSet || t.animated
 }
 
-func (t Widget) selectionDuration(ctx *core.Context, visual theme.TabsVisual) time.Duration {
+func (t Widget) selectionDuration(ctx *core.Context, defaults tabsDefaults) time.Duration {
 	if !t.animationEnabled() {
 		return 0
 	}
 	if t.animationDuration > 0 {
 		return t.animationDuration
 	}
-	return visual.Metrics.ColorDuration
+	return defaults.timings.color
 }
 
-func (t Widget) indicatorAnimationDuration(ctx *core.Context, visual theme.TabsVisual) time.Duration {
+func (t Widget) indicatorAnimationDuration(ctx *core.Context, defaults tabsDefaults) time.Duration {
 	if !t.animationEnabled() {
 		return 0
 	}
 	if t.indicatorDuration > 0 {
 		return t.indicatorDuration
 	}
-	return visual.Metrics.IndicatorDuration
+	return defaults.timings.indicator
 }
 
-func (t Widget) panelAnimationDuration(ctx *core.Context, visual theme.TabsVisual) time.Duration {
+func (t Widget) panelAnimationDuration(ctx *core.Context, defaults tabsDefaults) time.Duration {
 	if !t.animationEnabled() || t.panelTransition == PanelNone {
 		return 0
 	}
 	if t.panelDuration > 0 {
 		return t.panelDuration
 	}
-	return visual.Metrics.PanelDuration
+	return defaults.timings.panel
 }
 
 func maxDuration(duration time.Duration) time.Duration {
@@ -622,17 +620,14 @@ func (t Widget) usesIntrinsicTabWidths() bool {
 	return t.fit || t.centered
 }
 
-func (t Widget) closeButtonMetrics(visual theme.TabsVisual) (unit.Dp, unit.Dp) {
-	return visual.Metrics.CloseButtonSize, visual.Metrics.CloseButtonGap
+func (t Widget) closeButtonMetrics(defaults tabsDefaults) (unit.Dp, unit.Dp) {
+	return defaults.geometry.closeButtonSize, defaults.geometry.closeButtonGap
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.TabsOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the built-in tabs appearance. The
+// declaration is resolved as the last cascade layer at layout time, so Style
+// can sit anywhere in the chain.
+func (t Widget) Style(values ...style.Style) Widget {
+	t.style = style.Join(t.style, style.Join(values...))
+	return t
 }

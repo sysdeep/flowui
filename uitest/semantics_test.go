@@ -8,7 +8,8 @@ import (
 	"gioui.org/io/input"
 	"gioui.org/io/semantic"
 	"github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
 	"github.com/qianniancn/flowui/widget/tabs"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestSemanticTreeQueriesFindReportedState(t *testing.T) {
-	harness := uitest.New(image.Pt(240, 160), base.Light())
+	harness := uitest.New(image.Pt(240, 160), theme.Light())
 	clicks := 0
 	root := layout.Column(
 		layout.Box(text.New("Save")).Key("save").Label("Save file").OnClick(func() { clicks++ }),
@@ -100,7 +101,7 @@ func TestWalkSemanticsVisitsDepthFirstAndStops(t *testing.T) {
 }
 
 func TestTouchInputDrivesControls(t *testing.T) {
-	harness := uitest.New(image.Pt(240, 160), base.Light())
+	harness := uitest.New(image.Pt(240, 160), theme.Light())
 	taps := 0
 	root := layout.Box(text.New("Tap")).Key("tap").Label("Tap target").OnClick(func() { taps++ })
 	harness.Frame(root)
@@ -125,7 +126,7 @@ func TestTouchInputDrivesControls(t *testing.T) {
 }
 
 func TestTouchAndMouseKeepDistinctPointerIdentity(t *testing.T) {
-	harness := uitest.New(image.Pt(240, 160), base.Light())
+	harness := uitest.New(image.Pt(240, 160), theme.Light())
 	clicks := 0
 	root := layout.Box(text.New("Mixed")).Key("mixed").Label("Mixed input").OnClick(func() { clicks++ })
 	harness.Frame(root)
@@ -141,7 +142,7 @@ func TestTouchAndMouseKeepDistinctPointerIdentity(t *testing.T) {
 }
 
 func TestRelationsExposeTabPanelLinks(t *testing.T) {
-	harness := uitest.New(image.Pt(320, 200), base.Light())
+	harness := uitest.New(image.Pt(320, 200), theme.Light())
 	root := tabs.New("tabs", "a", []tabs.TabItem{
 		{Key: "a", Label: "A", Panel: text.New("Panel A")},
 		{Key: "b", Label: "B", Panel: text.New("Panel B")},

@@ -5,20 +5,23 @@ import (
 	"testing"
 	"time"
 
+	"gioui.org/io/event"
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
+	"github.com/qianniancn/flowui/widget/command"
 )
 
 func TestToolbarLayoutSpacing(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	horizontal := New(probe{size: image.Pt(20, 10)}, probe{size: image.Pt(30, 12)})
 	if dims := layoutToolbarFrame(ctx, new(input.Router), horizontal, time.Unix(1, 0)); dims.Size != image.Pt(58, 12) {
 		t.Fatalf("horizontal Toolbar size = %v, want (58,12)", dims.Size)
@@ -36,8 +39,52 @@ func TestToolbarLayoutSpacing(t *testing.T) {
 	}
 }
 
+func TestCommandVisibleCountReservesOverflowTrigger(t *testing.T) {
+	tests := []struct {
+		name      string
+		widths    []int
+		available int
+		want      int
+	}{
+		{name: "all fit", widths: []int{40, 40}, available: 100, want: 2},
+		{name: "reserve more", widths: []int{40, 40}, available: 80, want: 1},
+		{name: "no command fits", widths: []int{40}, available: 20, want: 0},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := commandVisibleCount(test.widths, test.available, 8, 32); got != test.want {
+				t.Fatalf("visible commands = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+func TestCommandToolbarLaysOutOverflowTriggerAtNarrowWidth(t *testing.T) {
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+	router := new(input.Router)
+	commands := Commands("file-tools",
+		command.New("open", "Open").OnExecute(func() {}),
+		command.New("save", "Save changes").OnExecute(func() {}),
+		command.New("export", "Export document").OnExecute(func() {}),
+	)
+	layoutToolbarFrameWithConstraints(ctx, router, commands, time.Unix(1, 0), layout.Exact(image.Pt(100, 48)))
+	nodes := router.AppendSemantics(nil)
+	if !semanticTreeHasLabel(nodes, "More") {
+		t.Fatal("narrow command toolbar did not expose its overflow trigger")
+	}
+}
+
+func semanticTreeHasLabel(nodes []input.SemanticNode, label string) bool {
+	for _, node := range nodes {
+		if node.Desc.Label == label || semanticTreeHasLabel(node.Children, label) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestToolbarKeyboardNavigation(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
 	toolbar := New(
 		button.New("").Key("first").Content(probe{size: image.Pt(8, 8)}).Size(button.Small).IconOnly(),
@@ -66,8 +113,61 @@ func TestToolbarKeyboardNavigation(t *testing.T) {
 	}
 }
 
+func TestToolbarVerticalNavigationWithChildFocusTargets(t *testing.T) {
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
+	router := new(input.Router)
+	first := &focusProbe{key: "first"}
+	last := &focusProbe{key: "last"}
+	view := New(first, last).Orientation(Vertical).LoopFocus(false)
+	now := time.Unix(1, 0)
+	layoutToolbarFrame(ctx, router, view, now)
+	router.Source().Execute(key.FocusCmd{Tag: first})
+	layoutToolbarFrame(ctx, router, view, now.Add(time.Millisecond))
+	router.Queue(key.Event{Name: key.NameEnd, State: key.Press})
+	layoutToolbarFrame(ctx, router, view, now.Add(2*time.Millisecond))
+	if !router.Source().Focused(last) {
+		t.Fatal("End did not focus the child's non-clickable target")
+	}
+	router.Queue(
+		key.Event{Name: key.NameDownArrow, State: key.Press},
+		key.Event{Name: key.NameReturn, State: key.Press},
+	)
+	layoutToolbarFrame(ctx, router, view, now.Add(3*time.Millisecond))
+	if !router.Source().Focused(last) || last.actions != 1 || first.actions != 0 {
+		t.Fatalf("edge/child activation = focused %v actions %d/%d", router.Source().Focused(last), first.actions, last.actions)
+	}
+	router.Queue(key.Event{Name: key.NameHome, State: key.Press})
+	layoutToolbarFrame(ctx, router, view, now.Add(4*time.Millisecond))
+	if !router.Source().Focused(first) {
+		t.Fatal("Home did not focus the first child")
+	}
+}
+
+type focusProbe struct {
+	key     string
+	actions int
+}
+
+func (p *focusProbe) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	core.RegisterFieldFocus(ctx, p.key, p, gtx.Enabled())
+	core.RegisterFocusGroupItem(ctx, p, gtx.Enabled())
+	for {
+		e, ok := gtx.Event(key.FocusFilter{Target: p}, key.Filter{Focus: p, Name: key.NameReturn})
+		if !ok {
+			break
+		}
+		if e, ok := e.(key.Event); ok && e.State == key.Press {
+			p.actions++
+		}
+	}
+	area := clip.Rect{Max: image.Pt(40, 20)}.Push(gtx.Ops)
+	event.Op(gtx.Ops, p)
+	area.Pop()
+	return layout.Dimensions{Size: image.Pt(40, 20)}
+}
+
 func TestToolbarSeparatorOrientation(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	if dims := layoutToolbarFrame(ctx, new(input.Router), New(Separator()), time.Unix(5, 0)); dims.Size != image.Pt(1, 20) {
 		t.Fatalf("horizontal Toolbar separator = %v, want (1,20)", dims.Size)
 	}
@@ -77,7 +177,7 @@ func TestToolbarSeparatorOrientation(t *testing.T) {
 }
 
 func TestToolbarOwnsTransitioningSeparatorIdentity(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	transitioning := func() SeparatorWidget {
 		return Separator()
 	}

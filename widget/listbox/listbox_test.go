@@ -1,9 +1,7 @@
 package listbox
 
 import (
-	"errors"
 	"image"
-	"image/color"
 	"testing"
 	"time"
 
@@ -12,70 +10,20 @@ import (
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/navigation"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
-func listBoxItemColors(foreground, description, indicator color.NRGBA) theme.ListBoxItemColorsResolver {
-	return func(style.ResolvedStyle) theme.ListBoxItemColors {
-		return theme.ListBoxItemColors{Foreground: foreground, Description: description, Indicator: indicator}
-	}
-}
-
-func listBoxTestItemDeclaration(foreground color.NRGBA) style.Style {
-	return style.Style{}.
-		MinHeight(40).
-		PaddingX(4).
-		PaddingY(4).
-		Radius(4).
-		Background(style.RGBA(0x00000000)).
-		BorderWidth(1).
-		BorderColor(style.RGBA(0x00000000)).
-		Opacity(1).
-		Scale(1).
-		TextColor(style.Solid(foreground))
-}
-
-func listBoxTestItemDeclarationWithout(omission string) style.Style {
-	item := style.Style{}.
-		MinHeight(40).
-		TextColor(style.Solid(color.NRGBA{A: 255}))
-	if omission != "padding" {
-		item = item.PaddingX(4).PaddingY(4)
-	}
-	if omission != "radius" {
-		item = item.Radius(4)
-	}
-	if omission != "background" {
-		item = item.Background(style.RGBA(0x00000000))
-	}
-	if omission != "border" {
-		item = item.BorderWidth(1).BorderColor(style.RGBA(0x00000000))
-	}
-	if omission != "opacity" {
-		item = item.Opacity(1)
-	}
-	if omission == "focus" {
-		return item.On(style.FocusVisible, style.Style{}.BorderWidth(0))
-	}
-	return item.On(style.FocusVisible, style.Style{}.BorderWidth(1).BorderColor(style.Solid(color.NRGBA{B: 0xff, A: 0xff})))
-}
-
 func newContext(_ any) *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func newContextWithTheme(_ any, value *theme.Theme) *core.Context {
 	clone := *value
-	if clone.VisualProvider == nil {
-		clone.VisualProvider = testtheme.Behavior().VisualProvider
-	}
 	return core.New(nil, &clone, locale.LanguageEnglish)
 }
 
@@ -117,7 +65,7 @@ func TestListBoxOptions(t *testing.T) {
 		SelectionMode(SelectionNone).
 		DisabledKeys([]string{"rust"}).
 		Disabled(true).
-		FullWidth().
+		FillWidth().
 		AllowEmptySelection().
 		HideIndicator().
 		MaxHeight(120)
@@ -136,169 +84,39 @@ func TestListBoxOptions(t *testing.T) {
 	}
 }
 
-type testListBoxVisualProvider struct {
-	theme.ComponentVisualProvider
-	visual theme.ListBoxVisual
-}
-
-func (provider testListBoxVisualProvider) ListBox(_ *theme.Theme, request theme.ListBoxRequest) theme.ListBoxVisual {
-	visual := provider.visual
-	visual.Override = theme.ListBoxOverrideStyle(request)
-	return visual
-}
-
-func TestListBoxUsesActiveVisualProvider(t *testing.T) {
-	active := testtheme.Behavior()
-	base := active.VisualProvider.(theme.ComponentVisualProvider)
-	configured := base.ListBox(active, theme.ListBoxRequest{})
-	configured.Metrics.ItemMinHeight = 91
-	active.VisualProvider = testListBoxVisualProvider{ComponentVisualProvider: base, visual: configured}
-	ctx := core.New(nil, active, locale.LanguageEnglish)
-	state := new(listBoxState)
-	visual := state.listBoxVisualFor(ctx)
-	if visual.Metrics.ItemMinHeight != 91 || visual.Item == nil {
-		t.Fatalf("provider visual = %#v", visual)
+func TestListBoxInstanceStyleIsLastCascadeLayer(t *testing.T) {
+	active := new(theme.Light())
+	ctx := newContextWithTheme(nil, active)
+	base := WithPadding(New([]Item{{Key: "one", Label: "One"}}).Key("styled").SelectedKey("one"), 0)
+	measure := func(widget Widget) image.Point {
+		gtx := testLayoutContext()
+		core.BeginFrameWithViewport(ctx, gtx.Constraints.Max)
+		dims := widget.Layout(ctx, gtx)
+		core.EndFrame(ctx)
+		return dims.Size
 	}
-	if cached := state.listBoxVisualFor(ctx); cached.Metrics.ItemMinHeight != 91 {
-		t.Fatalf("cached provider visual = %#v", cached)
+	baseline := measure(base)
+	styled := measure(base.Style(style.Style{}.Part(style.PartItem, style.Style{}.MinHeight(64))))
+	if styled.Y <= baseline.Y {
+		t.Fatalf("styled item height = %d, baseline %d", styled.Y, baseline.Y)
 	}
-}
-
-func TestListBoxVisualCacheTracksHitsAndThemeInvalidation(t *testing.T) {
-	firstTheme := testtheme.Behavior()
-	firstContext := core.New(nil, firstTheme, locale.LanguageEnglish)
-	state := new(listBoxState)
-	state.listBoxVisualFor(firstContext)
-	state.listBoxVisualFor(firstContext)
-	stats := state.visualCache.stats()
-	if stats.Hits != 1 || stats.Misses != 1 {
-		t.Fatalf("visual cache stats = %#v, want one hit and one miss", stats)
-	}
-
-	secondTheme := testtheme.Behavior()
-	secondContext := core.New(nil, secondTheme, locale.LanguageEnglish)
-	state.listBoxVisualFor(secondContext)
-	stats = state.visualCache.stats()
-	if stats.Misses != 2 || stats.ThemeInvalidations != 1 {
-		t.Fatalf("visual cache theme stats = %#v, want second miss and one invalidation", stats)
-	}
-}
-
-func TestListBoxVisualOverrideBypassesBaseCache(t *testing.T) {
-	active := testtheme.Behavior()
-	base := active.VisualProvider.(theme.ComponentVisualProvider)
-	provider := &recordingListBoxVisualProvider{ComponentVisualProvider: base}
-	active.VisualProvider = provider
-	ctx := core.New(nil, active, locale.LanguageEnglish)
-	state := new(listBoxState)
-	state.listBoxVisualFor(ctx)
-	if len(provider.requests) != 1 {
-		t.Fatalf("base visual calls = %d, want 1", len(provider.requests))
-	}
-	state.listBoxVisualForRequest(ctx, theme.ListBoxRequest{
-		Override: &theme.ListBoxOverride{Declaration: style.Style{}.MinHeight(72)},
-	})
-	stats := state.visualCache.stats()
-	if stats.Hits != 0 || stats.Misses != 1 {
-		t.Fatalf("override changed base cache stats = %#v, want one base miss", stats)
-	}
-	if len(provider.requests) != 2 {
-		t.Fatalf("override visual calls = %d, want 2 total", len(provider.requests))
-	}
-	state.listBoxVisualFor(ctx)
-	stats = state.visualCache.stats()
-	if stats.Hits != 1 || stats.Misses != 1 {
-		t.Fatalf("base cache after override = %#v, want one hit and one miss", stats)
-	}
-}
-
-func TestListBoxItemVisualCacheTracksThemeAndState(t *testing.T) {
-	state := new(listBoxState)
-	active := testtheme.Behavior()
-	calls := 0
-	visual := theme.ListBoxVisual{Item: func(request theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-		calls++
-		return theme.ListBoxItemVisual{
-			Defaults: style.Style{}.Part(style.PartItem, listBoxTestItemDeclaration(color.NRGBA{A: 255})),
-			Colors:   listBoxItemColors(color.NRGBA{R: byte(calls), A: 255}, color.NRGBA{R: byte(calls), A: 255}, color.NRGBA{R: byte(calls), A: 255}),
-		}
-	}}
-	request := theme.ListBoxItemRequest{}
-	first := state.itemVisualFor(active, visual, request)
-	second := state.itemVisualFor(active, visual, request)
-	firstColors := first.Colors(style.ResolvedStyle{})
-	secondColors := second.Colors(style.ResolvedStyle{})
-	if calls != 1 || firstColors.Foreground != secondColors.Foreground {
-		t.Fatalf("same request calls=%d, first=%#v second=%#v", calls, first, second)
-	}
-	stats := state.itemVisualCache.Stats()
-	if stats.Hits != 1 || stats.Misses != 1 {
-		t.Fatalf("cache stats after hit = %#v, want one hit and one miss", stats)
-	}
-	request.State.Hovered = true
-	state.itemVisualFor(active, visual, request)
-	if calls != 2 {
-		t.Fatalf("state change calls=%d, want 2", calls)
-	}
-	stats = state.itemVisualCache.Stats()
-	if stats.Misses != 2 {
-		t.Fatalf("cache misses after state change = %d, want 2", stats.Misses)
-	}
-	nextTheme := testtheme.Behavior()
-	state.itemVisualFor(nextTheme, visual, theme.ListBoxItemRequest{})
-	if calls != 3 {
-		t.Fatalf("theme change calls=%d, want 3", calls)
-	}
-	stats = state.itemVisualCache.Stats()
-	if stats.ThemeInvalidations != 1 || stats.Size != 1 {
-		t.Fatalf("theme invalidation stats = %#v, cache size = %d", stats, stats.Size)
-	}
-}
-
-func TestListBoxItemVisualCacheIsBoundedAndEvictsLeastRecentlyUsed(t *testing.T) {
-	state := new(listBoxState)
-	active := testtheme.Behavior()
-	calls := 0
-	visual := theme.ListBoxVisual{Item: func(theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-		calls++
-		return theme.ListBoxItemVisual{
-			Defaults: style.Style{}.Part(style.PartItem, listBoxTestItemDeclaration(color.NRGBA{A: 255})),
-			Colors:   listBoxItemColors(color.NRGBA{R: byte(calls), A: 255}, color.NRGBA{R: byte(calls), A: 255}, color.NRGBA{R: byte(calls), A: 255}),
-		}
-	}}
-	first := theme.ListBoxItemRequest{Variant: 1}
-	state.itemVisualFor(active, visual, first)
-	for i := range listBoxItemVisualCacheCapacity - 1 {
-		state.itemVisualFor(active, visual, theme.ListBoxItemRequest{Variant: uint8(i + 2)})
-	}
-	state.itemVisualFor(active, visual, first)
-	for i := range listBoxItemVisualCacheCapacity {
-		state.itemVisualFor(active, visual, theme.ListBoxItemRequest{Variant: uint8(i + listBoxItemVisualCacheCapacity + 2)})
-	}
-	stats := state.itemVisualCache.Stats()
-	if got := stats.Size; got != listBoxItemVisualCacheCapacity {
-		t.Fatalf("cache size = %d, want %d", got, listBoxItemVisualCacheCapacity)
-	}
-	if stats.Evictions == 0 {
-		t.Fatal("cache did not record an eviction")
-	}
-	state.itemVisualFor(active, visual, first)
-	if calls <= listBoxItemVisualCacheCapacity {
-		t.Fatalf("first request was unexpectedly retained after pressure, calls=%d", calls)
+	stats := testComponentState[listBoxState](ctx, "styled", stateSlotListBox).defaultsCache.Stats()
+	if stats.Misses != 1 {
+		t.Fatalf("instance style entered the defaults cache key: %#v", stats)
 	}
 }
 
 func TestListBoxResolvedPartCacheTracksScopeAndTheme(t *testing.T) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
 	state := new(listBoxState)
-	visual := state.listBoxVisualFor(ctx)
-	state.resolvedPartCache.prepare(ctx, active, visual.Override)
-	request := theme.ListBoxItemRequest{State: style.State{Hovered: true}}
-	itemVisual := state.itemVisualFor(active, visual, request)
+	defaults := state.defaultsFor(ctx)
+	itemDefaults := defaults.item(ItemDefault)
+	rowState := style.State{Hovered: true}
 	gtx := testLayoutContext()
-	state.resolvedItemPart(ctx, gtx, active, "item-transition", request, itemVisual, visual.Override)
-	state.resolvedItemPart(ctx, gtx, active, "item-transition", request, itemVisual, visual.Override)
+	state.resolvedPartCache.prepare(ctx, active, style.Style{})
+	state.resolvedItemPart(ctx, gtx, active, "item-transition", ItemDefault, rowState, itemDefaults, style.Style{})
+	state.resolvedItemPart(ctx, gtx, active, "item-transition", ItemDefault, rowState, itemDefaults, style.Style{})
 
 	stats := state.resolvedPartCache.stats()
 	if stats.Hits != 1 || stats.Misses != 1 || stats.Size != 1 {
@@ -306,17 +124,17 @@ func TestListBoxResolvedPartCacheTracksScopeAndTheme(t *testing.T) {
 	}
 
 	restore := core.PushStyle(ctx, style.Style{}.Padding(1))
-	state.resolvedPartCache.prepare(ctx, active, visual.Override)
-	state.resolvedItemPart(ctx, gtx, active, "item-transition", request, itemVisual, visual.Override)
+	state.resolvedPartCache.prepare(ctx, active, style.Style{})
+	state.resolvedItemPart(ctx, gtx, active, "item-transition", ItemDefault, rowState, itemDefaults, style.Style{})
 	restore()
 	stats = state.resolvedPartCache.stats()
 	if stats.ScopeInvalidations != 1 || stats.Misses != 2 {
 		t.Fatalf("scope invalidation stats = %#v, want one invalidation and two misses", stats)
 	}
-	state.resolvedPartCache.prepare(ctx, active, visual.Override)
+	state.resolvedPartCache.prepare(ctx, active, style.Style{})
 	instanceStyle := style.Style{}.Padding(1)
 	state.resolvedPartCache.prepare(ctx, active, instanceStyle)
-	state.resolvedItemPart(ctx, gtx, active, "item-transition", request, itemVisual, instanceStyle)
+	state.resolvedItemPart(ctx, gtx, active, "item-transition", ItemDefault, rowState, itemDefaults, instanceStyle)
 	stats = state.resolvedPartCache.stats()
 	if stats.OverrideInvalidations != 1 || stats.ScopeInvalidations != 2 || stats.Misses != 3 {
 		t.Fatalf("override invalidation stats = %#v, want one override/two scope invalidations and three misses", stats)
@@ -325,11 +143,10 @@ func TestListBoxResolvedPartCacheTracksScopeAndTheme(t *testing.T) {
 	replaced := *active
 	core.ReplaceTheme(ctx, replaced)
 	next := core.ActiveTheme(ctx)
-	nextVisual := state.listBoxVisualFor(ctx)
-	state.resolvedPartCache.prepare(ctx, next, nextVisual.Override)
-	nextRequest := theme.ListBoxItemRequest{State: style.State{Hovered: true}}
-	nextItemVisual := state.itemVisualFor(next, nextVisual, nextRequest)
-	state.resolvedItemPart(ctx, gtx, next, "item-transition", nextRequest, nextItemVisual, nextVisual.Override)
+	nextDefaults := state.defaultsFor(ctx)
+	state.resolvedPartCache.prepare(ctx, next, style.Style{})
+	nextRowState := style.State{Hovered: true}
+	state.resolvedItemPart(ctx, gtx, next, "item-transition", ItemDefault, nextRowState, nextDefaults.item(ItemDefault), style.Style{})
 	stats = state.resolvedPartCache.stats()
 	if stats.ThemeInvalidations != 1 || stats.Misses != 4 {
 		t.Fatalf("theme invalidation stats = %#v, want one invalidation and four misses", stats)
@@ -337,7 +154,7 @@ func TestListBoxResolvedPartCacheTracksScopeAndTheme(t *testing.T) {
 }
 
 func TestListBoxResolvedPartCacheBypassesUnsafeDeclarations(t *testing.T) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
 	state := new(listBoxState)
 	unsafeStyle := style.Style{}.Transition(style.PropOpacity, time.Second,
@@ -347,174 +164,11 @@ func TestListBoxResolvedPartCacheBypassesUnsafeDeclarations(t *testing.T) {
 		t.Fatal("custom easing unexpectedly enabled the resolved part cache")
 	}
 
-	visual := theme.ListBoxVisual{Item: func(theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-		return theme.ListBoxItemVisual{
-			Defaults: style.Style{}.Part(style.PartItem,
-				listBoxTestItemDeclaration(color.NRGBA{A: 255}).Transition(
-					style.PropOpacity,
-					time.Second,
-					style.TransitionEase(func(progress float32) float32 { return progress }),
-				)),
-			Colors: listBoxItemColors(
-				color.NRGBA{A: 255},
-				color.NRGBA{A: 255},
-				color.NRGBA{A: 255},
-			),
-		}
-	}}
-	request := theme.ListBoxItemRequest{}
-	itemVisual := state.itemVisualFor(active, visual, request)
-	if !itemVisual.CacheUnsafe {
-		t.Fatal("unsafe item declaration was not normalized in the visual cache")
-	}
-	state.resolvedPartCache.prepare(ctx, active, style.Style{})
-	state.resolvedItemPart(ctx, testLayoutContext(), active, "unsafe-item", request, itemVisual, style.Style{})
+	defaults := state.defaultsFor(ctx)
+	state.resolvedItemPart(ctx, testLayoutContext(), active, "unsafe-item", ItemDefault, style.State{}, defaults.item(ItemDefault), unsafeStyle)
 	if stats := state.resolvedPartCache.stats(); stats.Misses != 0 {
-		t.Fatalf("unsafe item declaration populated resolved cache: %#v", stats)
+		t.Fatalf("unsafe instance declaration populated resolved cache: %#v", stats)
 	}
-}
-
-func TestListBoxMissingProviderPanics(t *testing.T) {
-	active := theme.New(theme.DefaultSeed())
-	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	defer func() {
-		recovered := recover()
-		if recovered != theme.ErrMissingVisualProvider {
-			t.Fatalf("missing provider panic = %v, want %v", recovered, theme.ErrMissingVisualProvider)
-		}
-	}()
-	New([]Item{{Key: "item", Label: "Item"}}).Key("neutral").
-		Layout(ctx, testLayoutContext())
-}
-
-func TestListBoxIncompleteVisualProviderPanics(t *testing.T) {
-	for _, test := range []struct {
-		name   string
-		remove func(*theme.ListBoxVisual)
-	}{
-		{name: "item", remove: func(visual *theme.ListBoxVisual) { visual.Item = nil }},
-		{name: "indicator", remove: func(visual *theme.ListBoxVisual) { visual.Indicator = nil }},
-		{name: "text", remove: func(visual *theme.ListBoxVisual) { visual.Text = nil }},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			active := testtheme.Behavior()
-			base := active.VisualProvider.(theme.ComponentVisualProvider)
-			visual := base.ListBox(active, theme.ListBoxRequest{})
-			test.remove(&visual)
-			active.VisualProvider = testListBoxVisualProvider{
-				ComponentVisualProvider: base,
-				visual:                  visual,
-			}
-			ctx := core.New(nil, active, locale.LanguageEnglish)
-			defer func() {
-				recovered := recover()
-				if recoveredErr, ok := recovered.(error); !ok || !errors.Is(recoveredErr, theme.ErrIncompleteVisualProvider) {
-					t.Fatalf("incomplete visual panic = %v, want %v", recovered, theme.ErrIncompleteVisualProvider)
-				}
-			}()
-			New([]Item{{Key: "item", Label: "Item"}}).Key("incomplete").
-				Layout(ctx, testLayoutContext())
-		})
-	}
-}
-
-func TestListBoxIncompleteItemVisualIsNotCached(t *testing.T) {
-	active := testtheme.Behavior()
-	base := active.VisualProvider.(theme.ComponentVisualProvider)
-	visual := base.ListBox(active, theme.ListBoxRequest{})
-	visual.Item = func(theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-		return theme.ListBoxItemVisual{}
-	}
-	state := new(listBoxState)
-	root := visual
-
-	defer func() {
-		recovered := recover()
-		if recoveredErr, ok := recovered.(error); !ok || !errors.Is(recoveredErr, theme.ErrIncompleteVisualProvider) {
-			t.Fatalf("incomplete item visual panic = %v, want %v", recovered, theme.ErrIncompleteVisualProvider)
-		}
-		if stats := state.itemVisualCache.Stats(); stats.Size != 0 {
-			t.Fatalf("incomplete item visual entered cache: %#v", stats)
-		}
-	}()
-	state.itemVisualFor(active, root, theme.ListBoxItemRequest{})
-}
-
-func TestListBoxIncompleteItemDeclarationIsNotCached(t *testing.T) {
-	for _, test := range []struct {
-		name    string
-		request theme.ListBoxItemRequest
-	}{
-		{name: "padding"},
-		{name: "background"},
-		{name: "border"},
-		{name: "radius"},
-		{name: "opacity"},
-		{name: "focus", request: theme.ListBoxItemRequest{State: style.State{FocusVisible: true}}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			active := testtheme.Behavior()
-			state := new(listBoxState)
-			visual := theme.ListBoxVisual{Item: func(theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-				return theme.ListBoxItemVisual{
-					Defaults: style.Style{}.Part(style.PartItem, listBoxTestItemDeclarationWithout(test.name)),
-					Colors:   listBoxItemColors(color.NRGBA{A: 255}, color.NRGBA{A: 255}, color.NRGBA{A: 255}),
-				}
-			}}
-			defer func() {
-				recovered := recover()
-				if recoveredErr, ok := recovered.(error); !ok || !errors.Is(recoveredErr, theme.ErrIncompleteVisualProvider) {
-					t.Fatalf("incomplete item declaration panic = %v, want %v", recovered, theme.ErrIncompleteVisualProvider)
-				}
-				if stats := state.itemVisualCache.Stats(); stats.Size != 0 {
-					t.Fatalf("incomplete item declaration entered cache: %#v", stats)
-				}
-			}()
-			state.itemVisualFor(active, visual, test.request)
-		})
-	}
-}
-
-func TestListBoxVisualValidationRejectsIncompleteStateDeclaration(t *testing.T) {
-	active := testtheme.Behavior()
-	base := active.VisualProvider.(theme.ComponentVisualProvider)
-	visual := base.ListBox(active, theme.ListBoxRequest{})
-	baseItem := visual.Item
-	visual.Item = func(request theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-		if request.State.FocusVisible {
-			return theme.ListBoxItemVisual{
-				Defaults: style.Style{}.Part(style.PartItem, listBoxTestItemDeclarationWithout("focus")),
-				Colors:   listBoxItemColors(color.NRGBA{A: 255}, color.NRGBA{A: 255}, color.NRGBA{A: 255}),
-			}
-		}
-		return baseItem(request)
-	}
-	active.VisualProvider = testListBoxVisualProvider{ComponentVisualProvider: base, visual: visual}
-	ctx := core.New(nil, active, locale.LanguageEnglish)
-	state := new(listBoxState)
-	defer func() {
-		recovered := recover()
-		if recoveredErr, ok := recovered.(error); !ok || !errors.Is(recoveredErr, theme.ErrIncompleteVisualProvider) {
-			t.Fatalf("incomplete state declaration panic = %v, want %v", recovered, theme.ErrIncompleteVisualProvider)
-		}
-		if stats := state.visualCache.stats(); stats.Size != 0 {
-			t.Fatalf("incomplete visual entered root cache: %#v", stats)
-		}
-	}()
-	state.listBoxVisualFor(ctx)
-}
-
-func TestListBoxStrictContextRejectsProviderMutation(t *testing.T) {
-	active := testtheme.Behavior()
-	ctx, err := core.NewWithCatalogStrict(nil, active, locale.LanguageEnglish, i18n.Catalog{})
-	if err != nil {
-		t.Fatalf("strict context construction failed: %v", err)
-	}
-	core.ActiveTheme(ctx).VisualProvider = nil
-	mustPanic(t, func() {
-		New([]Item{{Key: "item", Label: "Item"}}).Key("strict").
-			Layout(ctx, testLayoutContext())
-	})
 }
 
 func TestMultipleConstructor(t *testing.T) {
@@ -601,7 +255,7 @@ func TestListBoxPointerClickDoesNotShowKeyboardFocus(t *testing.T) {
 	selected := "go"
 	widget := func() Widget {
 		return New(listBoxTestItems()).Key("languages").SelectedKey(selected).
-			FullWidth().
+			FillWidth().
 			OnChange(func(key string) { selected = key })
 	}
 	layoutFrame := func(now time.Time) {
@@ -907,21 +561,6 @@ func TestListBoxTypeaheadSkipsDisabledAndWraps(t *testing.T) {
 	}
 }
 
-func TestListBoxTypeaheadBufferExpires(t *testing.T) {
-	state := new(listBoxState)
-	start := time.Unix(1, 0)
-	if got := state.appendTypeahead(start, "n"); got != "n" {
-		t.Fatalf("first typeahead = %q, want n", got)
-	}
-	if got := state.appendTypeahead(start.Add(100*time.Millisecond), "e"); got != "ne" {
-		t.Fatalf("continued typeahead = %q, want ne", got)
-	}
-	expired := start.Add(100*time.Millisecond + listBoxTypeaheadTimeout + time.Millisecond)
-	if got := state.appendTypeahead(expired, "g"); got != "g" {
-		t.Fatalf("expired typeahead = %q, want g", got)
-	}
-}
-
 func TestListBoxLayoutKeepsState(t *testing.T) {
 	ctx := newContext(nil)
 	dims := New(listBoxTestItems()).Key("languages").SelectedKey("go").Layout(ctx, testLayoutContext())
@@ -960,9 +599,9 @@ func TestListBoxDataVersionCachesEntries(t *testing.T) {
 	}
 }
 
-func TestListBoxFullWidth(t *testing.T) {
+func TestListBoxFillWidth(t *testing.T) {
 	dims := New(listBoxTestItems()).Key("languages").SelectedKey("go").
-		FullWidth().
+		FillWidth().
 		Layout(newContext(nil), testLayoutContext())
 
 	if dims.Size.X != 300 {
@@ -985,54 +624,22 @@ func TestListBoxMaxHeight(t *testing.T) {
 	}
 }
 
-func TestListBoxThemeControlsItemHeight(t *testing.T) {
-	active := testtheme.Behavior()
-	base := active.VisualProvider.(theme.ComponentVisualProvider)
-	visual := base.ListBox(active, theme.ListBoxRequest{})
-	visual.Metrics.Padding = 0
-	visual.Metrics.ItemMinHeight = 72
-	item := visual.Item
-	visual.Item = func(request theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-		value := item(request)
-		value.Defaults = style.Join(value.Defaults, style.Style{}.
-			Part(style.PartItem, style.Style{}.MinHeight(72)))
-		return value
-	}
-	active.VisualProvider = testListBoxVisualProvider{ComponentVisualProvider: base, visual: visual}
+func TestListBoxStyleControlsItemHeight(t *testing.T) {
+	active := new(theme.Light())
 	ctx := newContextWithTheme(nil, active)
-
 	dims := New([]Item{{Key: "go", Label: "Go"}}).Key("languages").SelectedKey("go").
-		Layout(ctx, testLayoutContext())
-
+		Style(style.Style{}.Part(style.PartItem, style.Style{}.MinHeight(72))).Layout(ctx, testLayoutContext())
 	if dims.Size.Y < 72 {
 		t.Fatalf("height = %d, want at least 72", dims.Size.Y)
 	}
 }
 
 func TestListBoxPartItemResolvesPerItemState(t *testing.T) {
-	active := testtheme.Behavior()
-	base := active.VisualProvider.(theme.ComponentVisualProvider)
-	visual := base.ListBox(active, theme.ListBoxRequest{})
-	visual.Metrics.Padding = 0
-	visual.Metrics.Gap = 0
-	visual.Item = func(theme.ListBoxItemRequest) theme.ListBoxItemVisual {
-		return theme.ListBoxItemVisual{
-			Defaults: style.Style{}.Part(style.PartItem, listBoxTestItemDeclaration(color.NRGBA{A: 255})),
-			Colors:   listBoxItemColors(color.NRGBA{A: 255}, color.NRGBA{A: 255}, color.NRGBA{A: 255}),
-		}
-	}
-	active.VisualProvider = testListBoxVisualProvider{ComponentVisualProvider: base, visual: visual}
+	active := new(theme.Light())
+	box := WithPadding(New([]Item{{Key: "go", Label: "Go"}, {Key: "rust", Label: "Rust"}}), 0)
 	ctx := newContextWithTheme(nil, active)
-	declaration := style.Style{}.
-		Part(style.PartItem, style.Style{}.
-			Height(44).
-			On(style.Selected, style.Style{}.Height(64)))
-
-	dims := (New([]Item{
-		{Key: "go", Label: "Go"},
-		{Key: "rust", Label: "Rust"},
-	}).Key("languages").SelectedKey("go")).Style(declaration).Layout(ctx, testLayoutContext())
-
+	declaration := style.Style{}.Part(style.PartItem, style.Style{}.Height(44).On(style.Selected, style.Style{}.Height(64)))
+	dims := box.Key("languages").SelectedKey("go").Style(declaration).Layout(ctx, testLayoutContext())
 	if dims.Size.Y != 108 {
 		t.Fatalf("listbox height = %d, want selected 64 + default 44", dims.Size.Y)
 	}
@@ -1058,7 +665,7 @@ func TestListBoxIndicatorVisibility(t *testing.T) {
 func TestListBoxCustomIndicatorReceivesSelectedState(t *testing.T) {
 	ctx := newContext(nil)
 	state := new(listBoxState)
-	visual := state.listBoxVisualFor(ctx)
+	defaults := state.defaultsFor(ctx)
 	gotSelected := false
 	item := Item{
 		Key:   "custom",
@@ -1070,7 +677,7 @@ func TestListBoxCustomIndicatorReceivesSelectedState(t *testing.T) {
 	}
 
 	New([]Item{item}).Key("custom").SelectedKey("custom").
-		layoutIndicator(ctx, testLayoutContext(), item, theme.ListBoxItemColors{}, 0, true, visual)
+		layoutIndicator(ctx, testLayoutContext(), defaults, item, listBoxPalette{}, 0, true)
 
 	if !gotSelected {
 		t.Fatal("custom indicator did not receive selected=true")
@@ -1079,9 +686,9 @@ func TestListBoxCustomIndicatorReceivesSelectedState(t *testing.T) {
 
 func TestListBoxSelectionAnimation(t *testing.T) {
 	state := new(listBoxItemState)
-	active := testtheme.Behavior()
-	visual := active.VisualProvider.(theme.ListBoxProvider).ListBox(active, theme.ListBoxRequest{})
-	duration := visual.Metrics.SelectionDuration
+	active := new(theme.Light())
+	defaults := buildListBoxDefaults(active)
+	duration := defaults.selectionDuration
 	start := time.Unix(1, 0)
 	gtx := testLayoutContext()
 	gtx.Now = start

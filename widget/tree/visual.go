@@ -6,15 +6,15 @@ import (
 )
 
 type treeVisualKey struct {
-	Variant theme.TreeVariant
-	Size    theme.TreeSize
+	Variant Variant
+	Size    Size
 }
 
 type treeVisualCache struct {
-	cache computed.ProviderCacheMap[treeVisualKey, theme.TreeVisual]
+	cache computed.VisualCacheMap[treeVisualKey, treeDefaults]
 }
 
-type treeVisualCacheStats = computed.ProviderCacheStats
+type treeVisualCacheStats = computed.VisualCacheStats
 
 func (c *treeVisualCache) Stats() treeVisualCacheStats {
 	if c == nil {
@@ -23,30 +23,14 @@ func (c *treeVisualCache) Stats() treeVisualCacheStats {
 	return c.cache.Stats()
 }
 
-func (c *treeVisualCache) resolve(active *theme.Theme, request theme.TreeRequest) theme.TreeVisual {
-	if request.Override != nil || c == nil {
-		return resolveTreeVisual(active, request)
+// resolve returns the theme-derived defaults for key. The instance style is
+// resolved separately as the last cascade layer and is deliberately not part
+// of the cache key.
+func (c *treeVisualCache) resolve(active *theme.Theme, key treeVisualKey) treeDefaults {
+	if c == nil {
+		return buildTreeDefaults(active, key)
 	}
-	key := treeVisualKey{Variant: request.Variant, Size: request.Size}
-	return c.cache.Resolve(active, key, func() theme.TreeVisual {
-		return resolveTreeVisual(active, theme.TreeRequest{Variant: request.Variant, Size: request.Size})
+	return c.cache.Resolve(active, key, func() treeDefaults {
+		return buildTreeDefaults(active, key)
 	})
-}
-
-func resolveTreeVisual(active *theme.Theme, request theme.TreeRequest) theme.TreeVisual {
-	return theme.ResolveVisual(active, request, theme.ComponentVisualProvider.Tree, theme.ValidateTreeVisual)
-}
-
-func treeThemeVariant(value Variant) theme.TreeVariant {
-	if value == VariantSurface {
-		return theme.TreeVariantSurface
-	}
-	return theme.TreeVariantDefault
-}
-
-func treeThemeSize(value Size) theme.TreeSize {
-	if value == SizeSmall {
-		return theme.TreeSizeSmall
-	}
-	return theme.TreeSizeMedium
 }

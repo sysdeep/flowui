@@ -1,6 +1,7 @@
 package spinner
 
 import (
+	"github.com/qianniancn/flowui/internal/computed"
 	"image"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type spinnerBenchmarkFrame struct {
@@ -22,7 +23,7 @@ type spinnerBenchmarkFrame struct {
 }
 
 func newSpinnerBenchmarkFrame(maximum image.Point) *spinnerBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &spinnerBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -60,44 +61,44 @@ func BenchmarkSpinnerLayoutSteadyState(b *testing.B) {
 }
 
 func BenchmarkSpinnerVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New().Color(Success).Size(Medium)
-	value.visualWithCache(ctx, nil)
+	value.visualDefaults(ctx)
 	baseline := value.visualCache.Stats()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		value.visualWithCache(ctx, nil)
+		value.visualDefaults(ctx)
 	}
 	b.StopTimer()
 	reportSpinnerVisualCacheStats(b, value.visualCache.Stats(), baseline)
 }
 
 func BenchmarkSpinnerVisualCacheInvalidation(b *testing.B) {
-	first := testtheme.Behavior()
-	second := testtheme.Behavior()
+	first := new(theme.Light())
+	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
 	value := New().Color(Accent).Size(Medium)
-	value.visualWithCache(firstContext, nil)
+	value.visualDefaults(firstContext)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
 		switch index & 7 {
 		case 0, 1:
-			value.visualWithCache(firstContext, nil)
+			value.visualDefaults(firstContext)
 		case 2, 3:
-			value.visualWithCache(secondContext, nil)
+			value.visualDefaults(secondContext)
 		case 4, 5:
-			value.Color(Success).visualWithCache(secondContext, nil)
+			value.Color(Success).visualDefaults(secondContext)
 		case 6, 7:
-			value.Size(Large).visualWithCache(secondContext, nil)
+			value.Size(Large).visualDefaults(secondContext)
 		}
 	}
 	b.StopTimer()
-	reportSpinnerVisualCacheStats(b, value.visualCache.Stats(), SpinnerVisualCacheStats{})
+	reportSpinnerVisualCacheStats(b, value.visualCache.Stats(), computed.VisualCacheStats{})
 }
 
 func BenchmarkSpinnerComponentTreeSteadyState(b *testing.B) {
@@ -128,8 +129,8 @@ func BenchmarkSpinnerComponentTreeSteadyState(b *testing.B) {
 }
 
 func BenchmarkSpinnerComponentTreeThemeSwitch(b *testing.B) {
-	first := testtheme.Behavior()
-	second := testtheme.Behavior()
+	first := new(theme.Light())
+	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
 	active := firstContext
@@ -164,7 +165,7 @@ func BenchmarkSpinnerComponentTreeThemeSwitch(b *testing.B) {
 		layoutSpinnerTree(active, &gtx, value)
 	}
 	b.StopTimer()
-	reportSpinnerVisualCacheStats(b, spinnerCacheStats(values), SpinnerVisualCacheStats{})
+	reportSpinnerVisualCacheStats(b, spinnerCacheStats(values), computed.VisualCacheStats{})
 }
 
 func layoutSpinnerTree(ctx *core.Context, gtx *layout.Context, value core.Widget) {
@@ -175,7 +176,7 @@ func layoutSpinnerTree(ctx *core.Context, gtx *layout.Context, value core.Widget
 	core.EndFrame(ctx)
 }
 
-func spinnerCacheStats(values []Widget) (total SpinnerVisualCacheStats) {
+func spinnerCacheStats(values []Widget) (total computed.VisualCacheStats) {
 	for _, value := range values {
 		stats := value.visualCache.Stats()
 		total.Hits += stats.Hits
@@ -186,7 +187,7 @@ func spinnerCacheStats(values []Widget) (total SpinnerVisualCacheStats) {
 	return total
 }
 
-func reportSpinnerVisualCacheStats(b *testing.B, after, before SpinnerVisualCacheStats) {
+func reportSpinnerVisualCacheStats(b *testing.B, after, before computed.VisualCacheStats) {
 	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "spinner-visual-cache-hits/op")
 	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "spinner-visual-cache-misses/op")
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "spinner-visual-cache-theme-invalidations/op")

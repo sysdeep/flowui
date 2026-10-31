@@ -13,10 +13,11 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/animation"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 )
 
 type ColorSwatchPickerWidget struct {
-	override       *theme.ColorPickerOverride
+	style          style.Style
 	key            string
 	value          color.NRGBA
 	colors         []color.NRGBA
@@ -37,9 +38,9 @@ type ColorSwatchPickerWidget struct {
 }
 
 type colorSwatchPickerState struct {
-	items       map[colorSwatchItemKey]*colorSwatchItemState
-	frameItems  map[colorSwatchItemKey]struct{}
-	visualCache colorPickerVisualCache
+	items         map[colorSwatchItemKey]*colorSwatchItemState
+	frameItems    map[colorSwatchItemKey]struct{}
+	defaultsCache colorSwatchPickerDefaultsCache
 }
 
 type colorSwatchItemKey struct {
@@ -102,13 +103,13 @@ func (picker ColorSwatchPickerWidget) DisabledColors(values []color.NRGBA) Color
 }
 
 func (picker ColorSwatchPickerWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return picker.layoutWithOverride(ctx, gtx, picker.override)
+	return picker.layoutWithStyle(ctx, gtx)
 }
 
-func (picker ColorSwatchPickerWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ColorPickerOverride) layout.Dimensions {
+func (picker ColorSwatchPickerWidget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	key := core.ClaimKey(ctx, core.KindColorSwatchPicker, picker.key)
 	pickerState := core.UseState[colorSwatchPickerState](ctx, key, stateSlotColorSwatchPicker)
-	visual := pickerState.visualCache.resolve(core.ActiveTheme(ctx), colorPickerRequest(override))
+	defaults := colorSwatchPickerDefaultsFor(ctx, &pickerState.defaultsCache)
 	if pickerState.items == nil {
 		pickerState.items = make(map[colorSwatchItemKey]*colorSwatchItemState)
 	}
@@ -125,7 +126,7 @@ func (picker ColorSwatchPickerWidget) layoutWithOverride(ctx *core.Context, gtx 
 		}
 	}()
 
-	gap := max(gtx.Dp(visual.SwatchPicker.Gap), 0)
+	gap := max(gtx.Dp(defaults.Gap), 0)
 	recorded := make([]recordedColorSwatch, 0, len(picker.colors))
 	hovered, pressed := false, false
 	for index, value := range picker.colors {
@@ -136,36 +137,43 @@ func (picker ColorSwatchPickerWidget) layoutWithOverride(ctx *core.Context, gtx 
 			itemState = new(colorSwatchItemState)
 			pickerState.items[itemKey] = itemState
 		}
-		recorded = append(recorded, picker.recordItem(ctx, gtx, itemState, visual, value, picker.colorDisabled(value)))
+		recorded = append(recorded, picker.recordItem(ctx, gtx, itemState, defaults, value, picker.colorDisabled(value)))
 		hovered = hovered || itemState.clickable.Hovered()
 		pressed = pressed || itemState.clickable.Pressed()
 	}
-	return layoutui.Styled(ctx, gtx, key, style.State{
+	state := style.State{
 		Hovered:  hovered,
 		Pressed:  pressed,
 		Focused:  false,
 		Disabled: picker.disabled || !gtx.Enabled(),
 		Selected: slices.Contains(picker.colors, picker.value),
-	}, visual.Override, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
+	}
+	resolved := computed.Resolve(
+		ctx,
+		gtx,
+		key,
+		state,
+		defaults.Defaults,
+		style.Style{},
+		style.Style{},
+		picker.style,
+	)
+	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 		return picker.layoutItems(gtx, recorded, gap)
 	}))
 }
 
-func (picker ColorSwatchPickerWidget) recordItem(ctx *core.Context, gtx layout.Context, itemState *colorSwatchItemState, visual theme.ColorPickerVisual, value color.NRGBA, disabled bool) recordedColorSwatch {
+func (picker ColorSwatchPickerWidget) recordItem(ctx *core.Context, gtx layout.Context, itemState *colorSwatchItemState, defaults colorSwatchPickerDefaults, value color.NRGBA, disabled bool) recordedColorSwatch {
 	enabled := gtx.Enabled() && !picker.disabled && !disabled
-	presses := core.ActivePresses(itemState.clickable.History())
-	if enabled {
-		for itemState.clickable.Clicked(gtx) {
-			if value != picker.value && picker.onChange != nil {
-				picker.onChange(value)
-			}
+	base.RowInteraction(ctx, gtx, &itemState.clickable, !enabled, func() {
+		if value != picker.value && picker.onChange != nil {
+			picker.onChange(value)
 		}
-		core.FocusOnPress(ctx, &itemState.clickable, itemState.clickable.History(), presses)
-	}
+	})
 
 	macro := op.Record(gtx.Ops)
 	itemGtx := gtx
-	side := min(max(colorSwatchPixels(itemGtx, visual.Swatch, picker.size), 0), min(itemGtx.Constraints.Max.X, itemGtx.Constraints.Max.Y))
+	side := min(max(colorSwatchPixels(itemGtx, defaults.Swatch, picker.size), 0), min(itemGtx.Constraints.Max.X, itemGtx.Constraints.Max.Y))
 	itemSize := image.Pt(side, side)
 	itemGtx.Constraints = layout.Exact(itemSize)
 	if !enabled {
@@ -181,23 +189,25 @@ func (picker ColorSwatchPickerWidget) recordItem(ctx *core.Context, gtx layout.C
 		semantic.LabelOp(formatHexColor(value, value.A != 255)).Add(gtx.Ops)
 		semantic.SelectedOp(value == picker.value).Add(gtx.Ops)
 		semantic.EnabledOp(enabled).Add(gtx.Ops)
-		motion := visual.Motion
-		selection := itemState.selection.Value(gtx, boolFloat(value == picker.value), visual.Metrics.SwatchSelectionDuration, animation.EaseSmoothstep, motion)
-		check := itemState.check.Value(gtx, boolFloat(value == picker.value), visual.Metrics.SwatchCheckDuration, animation.EaseSmoothstep, motion)
-		hover := itemState.hover.Value(gtx, boolFloat(itemState.clickable.Hovered() && enabled), visual.Metrics.SwatchHoverDuration, animation.EaseSmoothstep, motion)
+		selection := itemState.selection.Value(gtx, boolFloat(value == picker.value), defaults.SelectionDuration, animation.EaseSmoothstep, defaults.Motion)
+		check := itemState.check.Value(gtx, boolFloat(value == picker.value), defaults.CheckDuration, animation.EaseSmoothstep, defaults.Motion)
+		hover := itemState.hover.Value(gtx, boolFloat(itemState.clickable.Hovered() && enabled), defaults.HoverDuration, animation.EaseSmoothstep, defaults.Motion)
 		focusVisible := core.FocusVisible(ctx, &itemState.clickable, gtx.Focused(&itemState.clickable))
-		focus := itemState.focus.Opacity(gtx, focusVisible && enabled, motion)
-		opacity := paint.PushOpacity(gtx.Ops, func() float32 {
-			if enabled {
-				return 1
-			}
-			return visual.DisabledOpacity
-		}())
-		visual.SwatchPicker.Render(gtx, theme.ColorSwatchPickerItemRequest{
-			Size: itemSize, Value: value, Background: ctx.BackgroundColor(), SwatchSize: uint8(picker.size),
-			Shape: theme.ColorSwatchShape(picker.shape), Selection: selection,
-			Check: check, Hover: hover, Focus: focus,
-		})
+		focus := itemState.focus.Opacity(gtx, focusVisible && enabled, defaults.Motion)
+		opacity := paint.PushOpacity(gtx.Ops, colorControlOpacity(enabled, defaults.DisabledOpacity))
+		colorDrawColorSwatchPickerItem(
+			gtx,
+			defaults,
+			itemSize,
+			value,
+			ctx.BackgroundColor(),
+			uint8(picker.size),
+			picker.shape,
+			selection,
+			check,
+			hover,
+			focus,
+		)
 		opacity.Pop()
 		return layout.Dimensions{Size: itemSize}
 	})
@@ -243,13 +253,9 @@ func boolFloat(value bool) float32 {
 	return 0
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w ColorSwatchPickerWidget) Style(values ...style.Style) ColorSwatchPickerWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ColorPickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

@@ -17,7 +17,6 @@ import (
 	flowlayout "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/uitest"
 )
 
@@ -102,7 +101,7 @@ func TestPickerContextMenuDoesNotFlicker(t *testing.T) {
 // given semantic label, and waits for the edit menu to become visible.
 func openPickerWithContextMenu(t *testing.T, target string) (*uitest.Harness, core.Widget, image.Rectangle) {
 	t.Helper()
-	active := base.New(theme.DefaultSeed())
+	active := theme.New(theme.DefaultSeed())
 	h := uitest.NewWithConfig(uitest.Config{
 		Size:   image.Pt(720, 900),
 		Theme:  &active,

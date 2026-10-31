@@ -1,16 +1,15 @@
 package heatmap
 
 import (
-	"errors"
 	"image"
 	"image/color"
 	"testing"
 	"time"
 
 	"gioui.org/f32"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -29,8 +28,8 @@ func TestHeatmapBuildsCalendarWeekGrid(t *testing.T) {
 func TestHeatmapCalendarLabelsFollowWindowLanguage(t *testing.T) {
 	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	widget := New("calendar-labels", start, start.AddDate(0, 0, 6), nil)
-	english, englishWeekdays := widget.calendarLabels(core.New(nil, testtheme.Behavior(), locale.LanguageEnglish))
-	chinese, chineseWeekdays := widget.calendarLabels(core.New(nil, testtheme.Behavior(), locale.LanguageChinese))
+	english, englishWeekdays := widget.calendarLabels(core.New(nil, new(theme.Light()), locale.LanguageEnglish))
+	chinese, chineseWeekdays := widget.calendarLabels(core.New(nil, new(theme.Light()), locale.LanguageChinese))
 	if english[0] != "Jan" || englishWeekdays[int(time.Monday)] != "Mon" {
 		t.Fatalf("English labels = %q, %q", english[0], englishWeekdays[int(time.Monday)])
 	}
@@ -84,13 +83,13 @@ func TestHeatmapValueRangeOverridesData(t *testing.T) {
 }
 
 func TestHeatmapVisualCacheTracksThemeLifecycle(t *testing.T) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	value := New("cache", time.Unix(1, 0), time.Unix(2, 0), nil)
 
-	value.resolveVisual(active, nil)
-	value.resolveVisual(active, nil)
+	value.resolveVisual(active)
+	value.resolveVisual(active)
 	replacement := *active
-	value.resolveVisual(&replacement, nil)
+	value.resolveVisual(&replacement)
 
 	stats := value.visualCache.Stats()
 	if stats.Hits != 1 || stats.Misses != 2 || stats.ThemeInvalidations != 1 || stats.KeyInvalidations != 0 {
@@ -98,83 +97,87 @@ func TestHeatmapVisualCacheTracksThemeLifecycle(t *testing.T) {
 	}
 }
 
-type incompleteHeatmapProvider struct{ theme.ComponentVisualProvider }
+func TestHeatmapDefaultsUseComponentDefaults(t *testing.T) {
+	active := new(theme.Light())
 
-func (incompleteHeatmapProvider) Heatmap(*theme.Theme, theme.HeatmapRequest) theme.HeatmapVisual {
-	return theme.HeatmapVisual{}
-}
-
-func TestHeatmapIncompleteVisualDoesNotPolluteCache(t *testing.T) {
-	active := *testtheme.Behavior()
-	active.VisualProvider = incompleteHeatmapProvider{ComponentVisualProvider: testtheme.BehaviorProvider()}
-	value := New("invalid-cache", time.Unix(1, 0), time.Unix(2, 0), nil)
-
-	deferred := func() (recovered any) {
-		defer func() { recovered = recover() }()
-		value.resolveVisual(&active, nil)
-		return nil
-	}()
-	if recoveredErr, ok := deferred.(error); !ok || !errors.Is(recoveredErr, theme.ErrIncompleteVisualProvider) {
-		t.Fatalf("panic = %v, want %v", deferred, theme.ErrIncompleteVisualProvider)
+	value := New("token-theme", time.Unix(1, 0), time.Unix(2, 0), nil)
+	visual := value.resolveVisual(active)
+	if visual.metrics.Height != defaultHeatmapMetrics.Height {
+		t.Fatalf("heatmap height = %v, want %v", visual.metrics.Height, defaultHeatmapMetrics.Height)
 	}
-	if stats := value.visualCache.Stats(); stats.Hits != 0 || stats.Misses != 0 {
-		t.Fatalf("incomplete heatmap visual polluted cache: %#v", stats)
+	if visual.colors.Min != (color.NRGBA{R: 0xe8, G: 0xf1, B: 0xff, A: 0xff}) ||
+		visual.colors.Max != (color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 0xff}) {
+		t.Fatalf("heatmap colors = %#v/%#v, want component palette defaults", visual.colors.Min, visual.colors.Max)
 	}
-
-	active.VisualProvider = testtheme.BehaviorProvider()
-	value.resolveVisual(&active, nil)
-	if stats := value.visualCache.Stats(); stats.Misses != 1 || stats.Hits != 0 {
-		t.Fatalf("valid heatmap visual did not replace failed load: %#v", stats)
+	root := style.Cascade(style.State{}, visual.defaults)
+	if root.Box == nil || root.Box.FillWidth == nil || !*root.Box.FillWidth {
+		t.Fatalf("heatmap defaults do not fill their width: %#v", root.Box)
 	}
 }
 
-func TestHeatmapInstanceOverrideBypassesVisualCache(t *testing.T) {
-	active := testtheme.Behavior()
-	value := New("override", time.Unix(1, 0), time.Unix(2, 0), nil)
-	override := &theme.HeatmapOverride{}
+func TestHeatmapStyleIsLastCascadeLayer(t *testing.T) {
+	active := new(theme.Light())
+	ctx := core.New(nil, active, locale.LanguageEnglish)
+	value := New("styled", time.Unix(1, 0), time.Unix(2, 0), nil).
+		Style(style.Style{}.Padding(9))
+	visual := value.resolveVisual(active)
 
-	value.resolveVisual(active, override)
-	value.resolveVisual(active, override)
+	resolved := computed.ResolveStatic(ctx, style.State{}, visual.defaults, style.Style{}, style.Style{}, value.style)
+	if resolved.Box == nil || resolved.Box.Padding == nil || resolved.Box.Padding.Left != 9 {
+		t.Fatalf("instance style did not reach the root cascade: %#v", resolved.Box)
+	}
 
-	stats := value.visualCache.Stats()
-	if stats.Hits != 0 || stats.Misses != 0 {
-		t.Fatalf("override unexpectedly populated heatmap cache: %#v", stats)
+	plain := New("styled", time.Unix(1, 0), time.Unix(2, 0), nil).resolveVisual(active)
+	if visual.defaults.Hash64() != plain.defaults.Hash64() {
+		t.Fatal("instance style leaked into the cached theme defaults")
 	}
 }
 
-func TestHeatmapColorOverridesAreAppliedByProvider(t *testing.T) {
-	active := testtheme.Behavior()
+func TestHeatmapStyleDoesNotChangeDefaultsCacheKey(t *testing.T) {
+	active := new(theme.Light())
+	value := New("style-cache", time.Unix(1, 0), time.Unix(2, 0), nil)
+	value.resolveVisual(active)
+
+	styled := value.Style(style.Style{}.Padding(9))
+	styled.resolveVisual(active)
+
+	stats := styled.visualCache.Stats()
+	if stats.Hits != 1 || stats.Misses != 1 || stats.KeyInvalidations != 0 {
+		t.Fatalf("instance style changed the defaults cache: %#v", stats)
+	}
+}
+
+func TestHeatmapColorOverrides(t *testing.T) {
+	active := new(theme.Light())
 	minColor := color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff}
 	maxColor := color.NRGBA{R: 0xd0, G: 0xe0, B: 0xf0, A: 0xff}
 	value := New("colors", time.Unix(1, 0), time.Unix(2, 0), nil).
 		MinColor(minColor).
 		MaxColor(maxColor)
 
-	visual := value.resolveVisual(active, nil)
-	if visual.Colors.Min != minColor || visual.Colors.Max != maxColor {
-		t.Fatalf("heatmap colors = %#v, %#v; want %#v, %#v", visual.Colors.Min, visual.Colors.Max, minColor, maxColor)
+	visual := value.resolveVisual(active)
+	if visual.colors.Min != minColor || visual.colors.Max != maxColor {
+		t.Fatalf("heatmap colors = %#v, %#v; want %#v, %#v", visual.colors.Min, visual.colors.Max, minColor, maxColor)
 	}
-	if stats := value.visualCache.Stats(); stats.Hits != 0 || stats.Misses != 0 {
-		t.Fatalf("instance colors unexpectedly populated visual cache: %#v", stats)
+	if stats := value.visualCache.Stats(); stats.Hits != 0 || stats.Misses != 1 {
+		t.Fatalf("heatmap defaults cache = %#v, want one miss", stats)
+	}
+
+	// The overrides are applied to the resolved copy, so the cached theme
+	// defaults must stay untouched.
+	plain := value
+	plain.hasMinColor, plain.hasMaxColor = false, false
+	defaults := plain.resolveVisual(active)
+	if defaults.colors.Min != (color.NRGBA{R: 0xe8, G: 0xf1, B: 0xff, A: 0xff}) ||
+		defaults.colors.Max != (color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 0xff}) {
+		t.Fatalf("instance colors leaked into the cached defaults: %#v", defaults.colors)
+	}
+	if stats := value.visualCache.Stats(); stats.Hits != 1 || stats.Misses != 1 {
+		t.Fatalf("resolving other instance colors changed the defaults cache key: %#v", stats)
 	}
 }
 
-func TestHeatmapStyledDeclarationComposesWithColorOverride(t *testing.T) {
-	active := testtheme.Behavior()
-	minColor := color.NRGBA{R: 0x11, G: 0x22, B: 0x33, A: 0xff}
-	value := New("styled-colors", time.Unix(1, 0), time.Unix(2, 0), nil).MinColor(minColor)
-	declaration := style.Style{}.PaddingX(9)
-
-	visual := value.resolveVisual(active, &theme.HeatmapOverride{Declaration: declaration})
-	if visual.Colors.Min != minColor {
-		t.Fatalf("composed heatmap min color = %#v, want %#v", visual.Colors.Min, minColor)
-	}
-	if visual.Override.Hash64() != declaration.Hash64() {
-		t.Fatalf("composed heatmap override = %#v, want %#v", visual.Override, declaration)
-	}
-}
-
-func TestHeatmapSelectionUsesProviderColorScale(t *testing.T) {
+func TestHeatmapSelectionUsesColorScale(t *testing.T) {
 	value := New("scale", time.Unix(1, 0), time.Unix(2, 0), nil)
 	value.values = [][]float64{{5}}
 	value.cellLabels = [][]string{{"cell"}}
@@ -189,9 +192,9 @@ func TestHeatmapSelectionUsesProviderColorScale(t *testing.T) {
 	}
 	selection := value.selection(f32.Pt(5, 5), true, image.Rect(0, 0, 10, 10), 10, 10, 1, 1, 0, 10, scale)
 	if !selection.valid || selection.color != want {
-		t.Fatalf("selection = %#v, want provider color %#v", selection, want)
+		t.Fatalf("selection = %#v, want visual color %#v", selection, want)
 	}
 	if calls != 1 {
-		t.Fatalf("provider scale calls = %d, want 1", calls)
+		t.Fatalf("scale calls = %d, want 1", calls)
 	}
 }

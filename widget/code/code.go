@@ -8,9 +8,8 @@
 //
 // Drawing is split from geometry on purpose. Gio's text shaper only shapes, so a
 // caller that fills glyph outlines itself must reproduce the shaper's layout
-// exactly. Instead this widget measures the text once to learn glyph rectangles
-// for hit testing, then draws each line with styledtext, the same renderer the
-// rest of FlowUI uses.
+// exactly. This widget measures the text for hit testing, then uses Gio labels
+// to draw each already-wrapped span, including native bitmap glyphs.
 package code
 
 import (
@@ -25,7 +24,6 @@ import (
 	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/io/clipboard"
-	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
@@ -34,13 +32,15 @@ import (
 	"gioui.org/op/paint"
 	giotext "gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/x/styledtext"
+	"gioui.org/widget"
+	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/highlight"
 	flowlayout "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/button"
+	"github.com/qianniancn/flowui/widget/code/internal/highlight"
 	"github.com/qianniancn/flowui/widget/text"
 	"golang.org/x/image/math/fixed"
 )
@@ -65,7 +65,7 @@ type Widget struct {
 	sizeSet        bool
 	lineNumbers    bool
 	lineNumbersSet bool
-	override       *theme.CodeOverride
+	style          style.Style
 }
 
 // New creates a code block for source. lang selects a Chroma lexer; an empty or
@@ -112,7 +112,7 @@ func expandTabs(source string) string {
 }
 
 // Highlighter overrides the tokenizer. The default understands Go.
-// Size overrides the monospace text size in sp. Without it the provider's
+// Size overrides the monospace text size in sp. Without it the recipe's
 // default applies.
 func (w Widget) Size(sp unit.Sp) Widget {
 	if sp > 0 {
@@ -132,11 +132,7 @@ func (w Widget) LineNumbers(show bool) Widget {
 
 // Style merges instance declarations into the block surface.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.CodeOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }
 
@@ -153,21 +149,18 @@ func (w Widget) lineHeight() unit.Sp { return w.size * 3 / 2 }
 // language and offers a copy button.
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	active := ctx.Theme()
-	visual := theme.ResolveVisual(&active, theme.CodeRequest{Language: w.lang, Override: w.override},
-		theme.ComponentVisualProvider.Code, theme.ValidateCodeVisual)
+	visual := buildCodeVisual(&active)
 	if !w.sizeSet && visual.Metrics.TextSize > 0 {
 		w.size = visual.Metrics.TextSize
 	}
 	owner := core.ClaimKey(ctx, core.KindCustom, w.key)
-	behaviour := core.UseStateWith(ctx, owner, stateSlot, func() *blockState {
-		return &blockState{anchor: -1, caret: -1}
-	})
+	behaviour := core.UseState[blockState](ctx, owner, stateSlot)
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		return w.layoutContent(ctx, gtx, behaviour, active, visual.Metrics)
 	})
 	header := w.header(ctx, gtx, behaviour, active)
 	return flowlayout.Box(flowlayout.Column(header, content).Gap(int(visual.Metrics.HeaderGap))).
-		Style(visual.Root, visual.Override).Layout(ctx, gtx)
+		Style(visual.Root, w.style).Layout(ctx, gtx)
 }
 
 // copiedHold is how long the copy button reports the result.
@@ -180,11 +173,11 @@ func (w Widget) header(ctx *core.Context, gtx layout.Context, s *blockState, act
 	if copied {
 		ctx.Invalidate()
 	}
-	label := w.sourceName()
+	label := w.sourceName(ctx)
 	ink := active.Semantic().MutedForeground
 	if copied {
-		label = "已复制"
-		ink = active.Palette.Success
+		label = ctx.Text(i18n.CodeCopied)
+		ink = active.Colors.Tones[theme.ToneSuccess].Fill
 	}
 	children := []core.Widget{
 		core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -207,19 +200,17 @@ func (w Widget) header(ctx *core.Context, gtx layout.Context, s *blockState, act
 }
 
 // sourceName is the accessible name of the copy action.
-func (w Widget) sourceName() string {
+func (w Widget) sourceName(ctx *core.Context) string {
 	if w.lang == "" {
-		return "复制代码"
+		return ctx.Text(i18n.CodeCopy)
 	}
-	return "复制代码（" + w.lang + "）"
+	return ctx.Textf(i18n.CodeCopySource, w.lang)
 }
 
 // blockState is the transient selection state of one block. It holds
 // no application data: source and language stay on the Widget value.
 type blockState struct {
-	drag   bool
-	anchor int
-	caret  int
+	selectionState base.TextSelection
 
 	// copyRequested is set by the header button and served by the next layout,
 	// which is the first place that can reach the clipboard.
@@ -242,13 +233,7 @@ type blockState struct {
 }
 
 func (s *blockState) selection() (int, int, bool) {
-	if s.anchor < 0 || s.caret < 0 || s.anchor == s.caret {
-		return 0, 0, false
-	}
-	if s.anchor < s.caret {
-		return s.anchor, s.caret, true
-	}
-	return s.caret, s.anchor, true
+	return s.selectionState.Range()
 }
 
 // segment is a run of one source line sharing a token kind.
@@ -280,7 +265,7 @@ func (w Widget) layoutContent(
 	gtx layout.Context,
 	s *blockState,
 	active theme.Theme,
-	metrics theme.CodeMetrics,
+	metrics codeMetrics,
 ) layout.Dimensions {
 	width := gtx.Constraints.Max.X
 	shaper := ctx.TextShaper()
@@ -339,7 +324,7 @@ func (w Widget) layoutContent(
 	}
 
 	viewport := image.Rect(0, 0, width, contentHeight)
-	w.handleInput(gtx, s, rows, runes, viewport, gutter)
+	w.handleInput(ctx, gtx, s, rows, runes, viewport, gutter)
 
 	restoreClip := clip.Rect(viewport).Push(gtx.Ops)
 	defer restoreClip.Pop()
@@ -347,7 +332,7 @@ func (w Widget) layoutContent(
 	semantic.LabelOp(w.source).Add(gtx.Ops)
 
 	if start, stop, ok := s.selection(); ok {
-		paintSelection(gtx, rows, start, stop, active.Palette.AccentSoft, gutter)
+		paintSelection(gtx, rows, start, stop, active.Colors.Tones[theme.TonePrimary].Soft, gutter)
 	}
 	if gutter > 0 {
 		w.drawLineNumbers(gtx, shaper, rows, tops, gutter, lineNumberGap, active)
@@ -406,12 +391,13 @@ func (w Widget) measure(
 		return nil, nil, nil, 0
 	}
 	params := giotext.Parameters{
-		Font:       mono(active),
-		PxPerEm:    fixed.I(pixels),
-		MaxWidth:   width,
-		Locale:     gtx.Locale,
-		WrapPolicy: giotext.WrapGraphemes,
-		LineHeight: fixed.I(lineHeight),
+		Font:             mono(active),
+		PxPerEm:          fixed.I(pixels),
+		MaxWidth:         width,
+		Locale:           gtx.Locale,
+		WrapPolicy:       giotext.WrapGraphemes,
+		LineHeight:       fixed.I(lineHeight),
+		DisableSpaceTrim: true,
 	}
 	runeIndex := 0
 	cursorY := 0
@@ -492,8 +478,8 @@ func (w Widget) measure(
 	return lineSpans, rows, tops, cursorY
 }
 
-// drawLines paints one styledtext block per visual row. Each row already fits the
-// width that measure used, so the painted glyphs land where selection expects.
+// drawLines paints already-wrapped spans without asking another text renderer
+// to wrap them again. Label supports both vector and native bitmap glyphs.
 func (w Widget) drawLines(
 	gtx layout.Context,
 	shaper *giotext.Shaper,
@@ -507,27 +493,30 @@ func (w Widget) drawLines(
 	lineGtx.Constraints.Min = image.Point{}
 	lineGtx.Constraints.Max = image.Pt(1<<20, 1<<20)
 	for index, line := range lineSpans {
-		spans := make([]styledtext.SpanStyle, 0, len(line))
+		if index >= len(tops) {
+			continue
+		}
+		x := gutter
 		for _, seg := range line {
 			if seg.text == "" {
 				continue
 			}
-			spans = append(spans, styledtext.SpanStyle{
-				Font:    face,
-				Size:    w.size,
-				Color:   kindColor(seg.kind, active),
-				Content: seg.text,
-			})
+			material := op.Record(gtx.Ops)
+			paint.ColorOp{Color: kindColor(seg.kind, active)}.Add(gtx.Ops)
+			ink := material.Stop()
+			offset := op.Offset(image.Pt(x, tops[index])).Push(gtx.Ops)
+			widget.Label{}.Layout(lineGtx, shaper, face, w.size, seg.text, ink)
+			offset.Pop()
+			shaper.LayoutString(giotext.Parameters{
+				Font: face, PxPerEm: fixed.I(gtx.Sp(w.size)),
+				MaxWidth: 1 << 20, Locale: gtx.Locale, DisableSpaceTrim: true,
+			}, seg.text)
+			var advance fixed.Int26_6
+			for glyph, ok := shaper.NextGlyph(); ok; glyph, ok = shaper.NextGlyph() {
+				advance += glyph.Advance
+			}
+			x += advance.Round()
 		}
-		if len(spans) == 0 || index >= len(tops) {
-			continue
-		}
-		body := styledtext.Text(shaper, spans...)
-		body.WrapPolicy = styledtext.WrapGraphemes
-		body.LineHeight = w.lineHeight()
-		restore := op.Offset(image.Pt(gutter, tops[index])).Push(gtx.Ops)
-		body.Layout(lineGtx, nil)
-		restore.Pop()
 	}
 }
 
@@ -553,16 +542,11 @@ func (w Widget) drawLineNumbers(
 		if !line.first || index >= len(tops) {
 			continue
 		}
-		body := styledtext.Text(shaper, styledtext.SpanStyle{
-			Font:    face,
-			Size:    w.size,
-			Color:   ink,
-			Content: strconv.Itoa(line.line),
-		})
-		body.WrapPolicy = styledtext.WrapGraphemes
-		body.LineHeight = w.lineHeight()
+		material := op.Record(gtx.Ops)
+		paint.ColorOp{Color: ink}.Add(gtx.Ops)
+		foreground := material.Stop()
 		macro := op.Record(gtx.Ops)
-		dims := body.Layout(lineGtx, nil)
+		dims := widget.Label{}.Layout(lineGtx, shaper, face, w.size, strconv.Itoa(line.line), foreground)
 		call := macro.Stop()
 		x := max(gutter-gap-dims.Size.X, 0)
 		offset := op.Offset(image.Pt(x, tops[index])).Push(gtx.Ops)
@@ -572,6 +556,7 @@ func (w Widget) drawLineNumbers(
 }
 
 func (w Widget) handleInput(
+	ctx *core.Context,
 	gtx layout.Context,
 	s *blockState,
 	rows []row,
@@ -579,61 +564,11 @@ func (w Widget) handleInput(
 	viewport image.Rectangle,
 	gutter int,
 ) {
-	target := s
-	core.AddPointerArea(gtx, target, viewport, pointer.CursorText)
-	for {
-		value, ok := core.NextPointerEvent(gtx, target,
-			pointer.Press|pointer.Drag|pointer.Release)
-		if !ok {
-			break
-		}
-		position := value.Position
-		if gutter > 0 {
-			if position.X < float32(gutter) {
-				position.X = 0
-			} else {
-				position.X -= float32(gutter)
-			}
-		}
-		switch value.Kind {
-		case pointer.Press:
-			if !core.IsPrimaryPointerPress(value) {
-				continue
-			}
-			core.GrabPointer(gtx, target, value)
-			s.drag = true
-			s.anchor = hitTest(rows, position)
-			s.caret = s.anchor
-		case pointer.Drag:
-			if !s.drag {
-				continue
-			}
-			s.caret = hitTest(rows, position)
-		case pointer.Release:
-			s.drag = false
-		}
-	}
-
-	// Only a block holding a selection listens for the copy shortcut, so several
-	// blocks on one page cannot all respond to the same key press.
-	if _, _, hasSelection := s.selection(); hasSelection {
-		for {
-			value, ok := gtx.Event(key.Filter{Name: "C", Required: key.ModShortcut})
-			if !ok {
-				break
-			}
-			press, ok := value.(key.Event)
-			if !ok || press.State != key.Press {
-				continue
-			}
-			start, stop, _ := s.selection()
-			source := string(runes[start:stop])
-			gtx.Execute(clipboard.WriteCmd{
-				Type: "application/text",
-				Data: io.NopCloser(strings.NewReader(source)),
-			})
-		}
-	}
+	core.AddPointerArea(gtx, s, viewport, pointer.CursorText)
+	s.selectionState.Update(ctx, gtx, s, runes, func(position f32.Point) int {
+		position.X = max(position.X-float32(gutter), 0)
+		return hitTest(rows, position)
+	})
 }
 
 // hitTest maps a content-space position to a source rune index.

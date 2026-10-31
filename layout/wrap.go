@@ -63,19 +63,27 @@ func (w WrapWidget) Layout(ctx *Context, gtx layout.Context) layout.Dimensions {
 	prepareFieldAssociations(ctx, w.children...)
 	gap := max(gtx.Dp(w.gap), 0)
 	lineGap := max(gtx.Dp(w.lineGap), 0)
+	return layoutWrap(ctx, gtx, gap, lineGap, w.align, len(w.children), func(gtx layout.Context, index int) layout.Dimensions {
+		return w.children[index].Layout(ctx, gtx)
+	})
+}
+
+// layoutWrap consumes physical-pixel gaps, records each child once and places
+// both paint and overlay anchors after row sizes are known.
+func layoutWrap(ctx *Context, gtx layout.Context, gap, lineGap int, align layout.Alignment, count int, item layout.ListElement) layout.Dimensions {
 	var inlineChildren [16]wrapChild
 	children := inlineChildren[:0]
-	if len(w.children) > len(inlineChildren) {
-		children = make([]wrapChild, 0, len(w.children))
+	if count > len(inlineChildren) {
+		children = make([]wrapChild, 0, count)
 	}
 	maxWidth := gtx.Constraints.Max.X
 	childGtx := gtx
 	childGtx.Constraints.Min = image.Point{}
 
 	var x, y, rowHeight, width, rowIndex int
-	for _, child := range w.children {
+	for index := range count {
 		macro := op.Record(gtx.Ops)
-		dims, placement := core.TrackWidgetPlacement(ctx, childGtx, child)
+		dims, placement := core.TrackOverlayPlacement(ctx, func() layout.Dimensions { return item(childGtx, index) })
 		call := macro.Stop()
 
 		if x > 0 && x+gap+dims.Size.X > maxWidth {
@@ -107,7 +115,7 @@ func (w WrapWidget) Layout(ctx *Context, gtx layout.Context) layout.Dimensions {
 		}
 		last := children[end-1]
 		rowWidth := last.pos.X + last.size.X
-		offset := alignmentOffset(w.align, size.X-rowWidth)
+		offset := alignmentOffset(align, size.X-rowWidth)
 		for _, child := range children[start:end] {
 			pos := child.pos.Add(image.Pt(offset, 0))
 			child.placement.PlaceOffset(pos)

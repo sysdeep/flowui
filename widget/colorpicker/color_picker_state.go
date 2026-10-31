@@ -8,13 +8,13 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/io/key"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/widget/disclosure"
+	"github.com/qianniancn/flowui/widget/base"
+	"github.com/qianniancn/flowui/widget/internal/binding"
 )
 
 const stateSlotColorPicker = "color-picker"
@@ -25,16 +25,15 @@ func colorPickerStateFor(ctx *core.Context, key string) (string, *colorPickerSta
 }
 
 type colorPickerState struct {
-	disclosure        disclosure.Binding[color.NRGBA]
+	valueBinding      binding.Binding[color.NRGBA]
 	trigger           widget.Clickable
 	triggerFocus      animation.FocusAnimation
-	dialog            core.ClickArea
-	dismiss           [16]core.ClickArea
+	popup             base.PopupInteraction
 	open              bool
 	popoverTransition animation.FloatTransition
 	panelList         layout.List
 	color             colorValueState
-	visualCache       colorPickerVisualCache
+	defaultsCache     colorPickerDefaultsCache
 	history           []color.NRGBA
 }
 
@@ -61,9 +60,8 @@ func (pickerState *colorPickerState) pushHistory(value color.NRGBA, limit int) {
 }
 
 type colorControlState struct {
-	dragging bool
-	pointer  pointer.ID
-	focus    animation.FocusAnimation
+	base.DragInteraction
+	focus animation.FocusAnimation
 }
 
 func (pickerState *colorPickerState) popoverProgress(gtx layout.Context, open bool, motion theme.MotionTheme, enter, exit time.Duration) float32 {
@@ -76,91 +74,20 @@ func (pickerState *colorPickerState) popoverProgress(gtx layout.Context, open bo
 	return pickerState.popoverTransition.Value(gtx, target, duration, animation.EaseSmoothstep, motion)
 }
 
-func (pickerState *colorPickerState) handleOverlayEvents(ctx *core.Context, gtx layout.Context, historyLimit int, recordHistory bool) {
-	for pickerState.dialog.Clicked(gtx) {
-	}
-	if pickerState.dialog.TakePressed() {
-		core.PreserveFocus(ctx)
-	}
-	for i := range pickerState.dismiss {
-		closed := false
-		for pickerState.dismiss[i].Clicked(gtx) {
-			closed = true
-		}
-		if pickerState.dismiss[i].TakePressed() {
-			closed = true
-		}
-		if closed {
-			if recordHistory {
-				pickerState.pushHistory(pickerState.color.syncedColor, historyLimit)
-			}
-			pickerState.open = false
-		}
-	}
-}
-
-func (pickerState *colorPickerState) escapePressed(gtx layout.Context) bool {
-	for {
-		value, ok := gtx.Event(key.Filter{Name: key.NameEscape})
-		if !ok {
-			return false
-		}
-		if eventValue, ok := value.(key.Event); ok && eventValue.State == key.Press {
-			return true
-		}
-	}
-}
-
 func (control *colorControlState) updateArea(ctx *core.Context, gtx layout.Context, size image.Point, current hsvColor, enabled bool) (hsvColor, bool) {
 	next := current
 	changed := false
-	if !enabled {
-		control.dragging = false
-	}
-	for {
-		eventValue, ok := core.NextPointerEvent(gtx, control, pointer.Press|pointer.Drag|pointer.Release|pointer.Cancel)
-		if !ok {
-			break
-		}
-		if !enabled {
-			continue
-		}
-		switch eventValue.Kind {
-		case pointer.Press:
-			if !core.IsPrimaryPointerPress(eventValue) {
-				continue
-			}
-			core.PreserveFocus(ctx)
-			control.dragging = true
-			control.pointer = eventValue.PointerID
-			core.RequestFocusVisible(ctx, control, false)
-			core.GrabPointer(gtx, control, eventValue)
-			next.s, next.v = colorAreaPosition(eventValue.Position, size)
-			changed = true
-		case pointer.Drag:
-			if control.dragging && eventValue.PointerID == control.pointer {
-				next.s, next.v = colorAreaPosition(eventValue.Position, size)
-				changed = true
-			}
-		case pointer.Release:
-			if eventValue.PointerID == control.pointer {
-				next.s, next.v = colorAreaPosition(eventValue.Position, size)
-				control.dragging = false
-				changed = true
-			}
-		case pointer.Cancel:
-			if eventValue.PointerID == control.pointer {
-				control.dragging = false
-			}
-		}
-	}
+	control.DragInteraction.Update(ctx, gtx, control, enabled, func(position f32.Point, _ bool) {
+		next.s, next.v = colorAreaPosition(position, size)
+		changed = true
+	})
 
 	for {
 		value, ok := gtx.Event(
-			key.Filter{Focus: control, Name: key.NameLeftArrow},
-			key.Filter{Focus: control, Name: key.NameRightArrow},
-			key.Filter{Focus: control, Name: key.NameUpArrow},
-			key.Filter{Focus: control, Name: key.NameDownArrow},
+			key.Filter{Focus: control, Name: key.NameLeftArrow, Optional: key.ModShift},
+			key.Filter{Focus: control, Name: key.NameRightArrow, Optional: key.ModShift},
+			key.Filter{Focus: control, Name: key.NameUpArrow, Optional: key.ModShift},
+			key.Filter{Focus: control, Name: key.NameDownArrow, Optional: key.ModShift},
 		)
 		if !ok {
 			break
@@ -193,86 +120,24 @@ func (control *colorControlState) updateArea(ctx *core.Context, gtx layout.Conte
 func (control *colorControlState) updateAxis(ctx *core.Context, gtx layout.Context, size image.Point, current, keyboardStep float64, enabled bool) (float64, bool) {
 	next := current
 	changed := false
+	control.DragInteraction.Update(ctx, gtx, control, enabled, func(position f32.Point, _ bool) {
+		next = colorAxisPosition(position, size)
+		changed = true
+	})
+
+	keysGtx := gtx
 	if !enabled {
-		control.dragging = false
+		keysGtx = gtx.Disabled()
 	}
+	keys := base.SliderKeys{Min: 0, Max: 1, Step: keyboardStep, ShiftScale: 10}
 	for {
-		eventValue, ok := core.NextPointerEvent(gtx, control, pointer.Press|pointer.Drag|pointer.Release|pointer.Cancel)
+		value, ok := keys.Update(keysGtx, control, next)
 		if !ok {
 			break
 		}
-		if !enabled {
-			continue
-		}
-		switch eventValue.Kind {
-		case pointer.Press:
-			if !core.IsPrimaryPointerPress(eventValue) {
-				continue
-			}
-			core.PreserveFocus(ctx)
-			control.dragging = true
-			control.pointer = eventValue.PointerID
-			core.RequestFocusVisible(ctx, control, false)
-			core.GrabPointer(gtx, control, eventValue)
-			next = colorAxisPosition(eventValue.Position, size)
-			changed = true
-		case pointer.Drag:
-			if control.dragging && eventValue.PointerID == control.pointer {
-				next = colorAxisPosition(eventValue.Position, size)
-				changed = true
-			}
-		case pointer.Release:
-			if eventValue.PointerID == control.pointer {
-				next = colorAxisPosition(eventValue.Position, size)
-				control.dragging = false
-				changed = true
-			}
-		case pointer.Cancel:
-			if eventValue.PointerID == control.pointer {
-				control.dragging = false
-			}
-		}
+		next, changed = value, true
 	}
 
-	for {
-		value, ok := gtx.Event(
-			key.Filter{Focus: control, Name: key.NameLeftArrow},
-			key.Filter{Focus: control, Name: key.NameRightArrow},
-			key.Filter{Focus: control, Name: key.NameDownArrow},
-			key.Filter{Focus: control, Name: key.NameUpArrow},
-			key.Filter{Focus: control, Name: key.NameHome},
-			key.Filter{Focus: control, Name: key.NameEnd},
-			key.Filter{Focus: control, Name: key.NamePageDown},
-			key.Filter{Focus: control, Name: key.NamePageUp},
-		)
-		if !ok {
-			break
-		}
-		eventValue, ok := value.(key.Event)
-		if !ok || eventValue.State != key.Press || !enabled {
-			continue
-		}
-		step := keyboardStep
-		if eventValue.Modifiers&key.ModShift != 0 {
-			step *= 10
-		}
-		switch eventValue.Name {
-		case key.NameLeftArrow, key.NameDownArrow:
-			next -= step
-		case key.NameRightArrow, key.NameUpArrow:
-			next += step
-		case key.NameHome:
-			next = 0
-		case key.NameEnd:
-			next = 1
-		case key.NamePageDown:
-			next -= keyboardStep * 10
-		case key.NamePageUp:
-			next += keyboardStep * 10
-		}
-		next = clampUnit(next)
-		changed = true
-	}
 	return next, changed
 }
 
@@ -366,8 +231,8 @@ func clampUnit(value float64) float64 {
 }
 
 // Disclosure helpers
-func colorPickerDisclosureCfg(widget Widget) disclosure.Config[color.NRGBA] {
-	return disclosure.Config[color.NRGBA]{
+func colorPickerBindingConfig(widget Widget) binding.Config[color.NRGBA] {
+	return binding.Config[color.NRGBA]{
 		Controlled: widget.hasValue,
 		Value:      widget.value,
 		HasDefault: widget.hasDefault,
@@ -377,14 +242,14 @@ func colorPickerDisclosureCfg(widget Widget) disclosure.Config[color.NRGBA] {
 }
 
 func (s *colorPickerState) currentValue(widget Widget) color.NRGBA {
-	return s.disclosure.Current(colorPickerDisclosureCfg(widget))
+	return s.valueBinding.Current(colorPickerBindingConfig(widget))
 }
 
 func (s *colorPickerState) bind(widget Widget) {
-	s.disclosure.Bind(colorPickerDisclosureCfg(widget))
+	s.valueBinding.Bind(colorPickerBindingConfig(widget))
 }
 
 func (s *colorPickerState) requestValue(widget Widget, value color.NRGBA) color.NRGBA {
-	newValue, _ := s.disclosure.Request(colorPickerDisclosureCfg(widget), value)
+	newValue, _ := s.valueBinding.Request(colorPickerBindingConfig(widget), value)
 	return newValue
 }

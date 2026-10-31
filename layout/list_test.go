@@ -49,16 +49,6 @@ func TestListClampsNegativeGap(t *testing.T) {
 	}
 }
 
-func TestListDisabled(t *testing.T) {
-	l := List(1, func(int) core.Widget {
-		return Spacer(20, 20)
-	}).Disabled(true)
-
-	if !l.disabled {
-		t.Fatal("list was not disabled")
-	}
-}
-
 func TestListPassesDisabledContext(t *testing.T) {
 	probe := &enabledProbeWidget{}
 
@@ -77,7 +67,7 @@ func TestListScrollOptions(t *testing.T) {
 
 	List(1, func(int) core.Widget {
 		return Spacer(20, 20)
-	}).Key("items").AlignEnd().StickToEnd().ScrollAnyAxis().Layout(ctx, layout.Context{
+	}).Key("items").AlignEnd().FollowEnd().ScrollAnyAxis().Layout(ctx, layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(100, 100)},
 		Ops:         &ops,
 	})
@@ -91,6 +81,18 @@ func TestListScrollOptions(t *testing.T) {
 	}
 	if !state.ScrollAnyAxis {
 		t.Fatal("scroll-any-axis was not enabled")
+	}
+}
+
+func TestListFollowEndUsesGioEndFollowing(t *testing.T) {
+	ctx := newContext(nil)
+	List(1, func(int) core.Widget { return Spacer(20, 20) }).Key("follow").FollowEnd().Layout(ctx, layout.Context{
+		Constraints: layout.Constraints{Max: image.Pt(100, 100)},
+		Ops:         new(op.Ops),
+	})
+	state := testComponentState[layout.List](ctx, "follow", stateSlotList)
+	if !state.ScrollToEnd {
+		t.Fatal("follow-end did not enable Gio end following")
 	}
 }
 

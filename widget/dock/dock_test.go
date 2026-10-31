@@ -15,7 +15,7 @@ import (
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func TestDockLayoutRecursivelySplitsPanels(t *testing.T) {
@@ -327,7 +327,7 @@ func (p *dockProbe) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensi
 }
 
 func dockTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func layoutDockFrame(ctx *core.Context, router *input.Router, widget Widget, now time.Time, size image.Point) layout.Dimensions {

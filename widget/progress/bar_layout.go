@@ -13,21 +13,21 @@ import (
 	"github.com/qianniancn/flowui/widget/text"
 )
 
-func (p BarWidget) layout(ctx *core.Context, gtx layout.Context, style progressBarResolvedStyle, progress float32) layout.Dimensions {
+func (p BarWidget) layout(ctx *core.Context, gtx layout.Context, resolved progressBarResolvedStyle, progress float32) layout.Dimensions {
 	output := p.outputText()
 	hasHeader := p.label != "" || output != ""
 	if !hasHeader {
-		return p.layoutTrack(ctx, gtx, style.track, style.fill, progress, style.metrics, style.motion)
+		return p.layoutTrack(ctx, gtx, resolved.track, resolved.fill, progress, resolved.defaults)
 	}
 	return layout.Flex{
 		Axis: layout.Vertical,
-		Gap:  gtx.Dp(style.metrics.HeaderGap),
+		Gap:  gtx.Dp(resolved.defaults.headerGap),
 	}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.layoutHeader(ctx, gtx, style.label, output)
+			return p.layoutHeader(ctx, gtx, resolved.label, output)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return p.layoutTrack(ctx, gtx, style.track, style.fill, progress, style.metrics, style.motion)
+			return p.layoutTrack(ctx, gtx, resolved.track, resolved.fill, progress, resolved.defaults)
 		}),
 	)
 }
@@ -55,14 +55,14 @@ func (p BarWidget) layoutHeader(ctx *core.Context, gtx layout.Context, resolved 
 	}.Layout(gtx, children...)
 }
 
-func (p BarWidget) layoutTrack(ctx *core.Context, gtx layout.Context, track, fill style.ResolvedStyle, progress float32, metrics theme.ProgressBarMetrics, motion theme.MotionTheme) layout.Dimensions {
+func (p BarWidget) layoutTrack(ctx *core.Context, gtx layout.Context, track, fill style.ResolvedStyle, progress float32, defaults progressBarDefaults) layout.Dimensions {
 	period := time.Duration(0)
 	if !p.disabled {
-		period = theme.ResolveMotionDuration(motion, metrics.IndeterminatePeriod)
+		period = theme.ResolveMotionDuration(defaults.motion, defaults.indeterminatePeriod)
 	}
 	return layoutui.Resolved(ctx, gtx, track, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		size := gtx.Constraints.Constrain(gtx.Constraints.Min)
-		p.layoutFill(ctx, gtx, size, fill, progress, period, metrics.IndeterminateFillRate)
+		p.layoutFill(ctx, gtx, size, fill, progress, period, defaults.indeterminateFillRate)
 		return layout.Dimensions{Size: size}
 	}))
 }

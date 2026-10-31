@@ -3,16 +3,17 @@ package input
 import (
 	"gioui.org/io/key"
 	"gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/menu"
 )
 
 type Widget struct {
-	override                   *theme.InputOverride
+	style                      style.Style
 	key                        string
 	value                      string
 	hasValue                   bool
@@ -27,6 +28,7 @@ type Widget struct {
 	warning                    bool
 	size                       Size
 	fullWidth                  bool
+	width                      *unit.Dp
 	inputType                  Type
 	readOnly                   bool
 	maxLength                  int
@@ -36,43 +38,12 @@ type Widget struct {
 	defaultContextMenuDisabled bool
 }
 
-type Variant = field.Variant
-
-// Variants other than Primary and Secondary are exported through the field
-// alias, for example input.Filled, input.Borderless, and input.Underlined.
-const (
-	Primary    = field.Primary
-	Secondary  = field.Secondary
-	Filled     = field.Filled
-	Borderless = field.Borderless
-	Underlined = field.Underlined
-)
-
-// Size selects the field's visual geometry tier; the active Style Provider
-// owns the resulting height, typography, and spacing.
-type Size uint8
-
-const (
-	Medium Size = iota
-	Small
-	Large
-)
-
-type Type uint8
-
-const (
-	Text Type = iota
-	Email
-	Number
-	Password
-)
-
 const stateSlotInput = "input"
 
 // New creates a text input holding value.
 func New(value string) Widget {
 	return Widget{
-		key:      core.AutoKey(),
+		key:      core.AutoKey("input"),
 		value:    value,
 		hasValue: true,
 	}
@@ -143,8 +114,7 @@ func (i Widget) Warning(warning bool) Widget {
 	return i
 }
 
-// Size selects the visual geometry tier (Small/Medium/Large). The active Style
-// Provider resolves its concrete dimensions; Medium is the provider default.
+// Size selects the built-in geometry tier; Medium is the default.
 func (i Widget) Size(size Size) Widget {
 	i.size = size
 	return i
@@ -155,8 +125,15 @@ func (i Widget) Variant(variant Variant) Widget {
 	return i
 }
 
-func (i Widget) FullWidth() Widget {
+func (i Widget) FillWidth() Widget {
 	i.fullWidth = true
+	return i
+}
+
+// Width sets a fixed width in dp. It overrides FillWidth when both are set.
+func (i Widget) Width(dp int) Widget {
+	width := unit.Dp(max(dp, 0))
+	i.width = &width
 	return i
 }
 
@@ -197,20 +174,15 @@ func (i Widget) DefaultContextMenu(enabled bool) Widget {
 }
 
 func (i Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return i.layoutWithOverride(ctx, gtx, i.override)
-}
-
-func (i Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instanceOverride *theme.InputOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+	applyFixedWidth(&gtx, i.width)
 	state := inputStateFor(ctx, core.FullKey(ctx, i.key))
 
-	// Bind disclosure and get current value
 	state.bind(i)
 	currentValue := state.currentValue(i)
 
 	gtx, key, editor, enabled := i.prepareEditor(ctx, gtx, state, currentValue, i.disabled)
 	disabled := !enabled
-	state.State.Update(ctx, gtx, disabled, editor)
+	state.FieldInteraction.Update(ctx, gtx, disabled, editor)
 
 	focused := gtx.Focused(editor)
 	focusVisible := core.FocusVisible(ctx, editor, focused)
@@ -224,17 +196,15 @@ func (i Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instan
 		Warning:      i.warning,
 	}
 	activeTheme := core.ActiveTheme(ctx)
-	visual := state.visualDeclarations(i, activeTheme, instanceOverride)
 	root, placeholder, selection := resolveInputEditorStyles(inputEditorStyleResolution{
 		ctx:      ctx,
 		gtx:      gtx,
 		key:      key,
 		state:    styleState,
-		defaults: visual.Defaults,
-		custom:   visual.Override,
+		defaults: state.defaults(i, activeTheme),
+		custom:   i.style,
 	})
-	editorStyle := visual.EditorStyle(root, placeholder, selection)
-	editorLayout := i.editorLayoutWithStyle(ctx, key, enabled, editor, editorStyle)
+	editorLayout := i.editorLayoutWithStyle(ctx, key, enabled, editor, activeTheme, root, placeholder, selection)
 	frame := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		return i.layoutFrame(ctx, gtx, state, root, enabled, editorLayout)
 	})
@@ -246,45 +216,24 @@ func (i Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instan
 }
 
 func (i Widget) prepareEditor(ctx *core.Context, gtx layout.Context, state *inputState, currentValue string, disabled bool) (layout.Context, string, *widget.Editor, bool) {
-	key, editor := core.InputEditor(ctx, i.key)
+	fieldKey, editor := core.InputEditor(ctx, i.key)
 	enabled := gtx.Enabled() && !disabled
-	core.RegisterFieldFocus(ctx, key, editor, enabled)
-
-	editor.SingleLine = true
-	// Single-line editors must consume carriage returns even when callers do
-	// not need a submit callback; otherwise Gio replaces them with spaces.
-	editor.Submit = true
-	editor.ReadOnly = i.readOnly
-	editor.MaxLen = i.maxLength
-	editor.Mask, editor.InputHint, editor.Filter = inputTypeConfig(i.inputType)
+	mask, hint, filter := inputTypeConfig(i.inputType)
+	behavior := base.TextEditor{SingleLine: true, ReadOnly: i.readOnly, MaxLength: i.maxLength, Mask: mask, InputHint: hint, Filter: filter}
 	if !enabled {
 		gtx = gtx.Disabled()
 	}
-	// Context-menu edits must run before the update loop so their ChangeEvent
-	// surfaces through editor.Update like an ordinary keystroke; material's
-	// render pass runs its own Update and would swallow the flag otherwise.
-	if enabled {
-		state.takePendingEdit(gtx, editor, i.readOnly)
-	}
-
-	var events inputEvents
-	for {
-		event, ok := editor.Update(gtx)
-		if !ok {
-			break
-		}
-		events.add(event)
-	}
-	if events.changed || events.submitted {
-		i.dispatchEvents(state, editor, events)
-	} else if editor.Text() != currentValue {
-		editor.SetText(currentValue)
-	}
-	return gtx, key, editor, enabled
+	behavior.Update(ctx, gtx, base.TextEditorRequest{
+		FieldKey: fieldKey, Editor: editor, Value: currentValue,
+		BeforeUpdate: func(gtx layout.Context) { state.takePendingEdit(gtx, editor, i.readOnly) },
+		OnChange:     func(value string) { state.requestValue(i, value) },
+		OnSubmit:     i.onSubmit,
+	})
+	return gtx, fieldKey, editor, enabled
 }
 
-func (i Widget) editorLayoutWithStyle(ctx *core.Context, key string, enabled bool, editor *widget.Editor, resolved theme.InputEditorStyle) layout.Widget {
-	return i.withSemantics(ctx, key, enabled, editorLayoutFor(ctx, editor, i.hint, resolved))
+func (i Widget) editorLayoutWithStyle(ctx *core.Context, key string, enabled bool, editor *widget.Editor, active *theme.Theme, content, placeholder, selection style.ResolvedStyle) layout.Widget {
+	return i.withSemantics(ctx, key, enabled, editorLayoutFor(ctx, editor, i.hint, active, content, placeholder, selection))
 }
 
 func inputTypeConfig(inputType Type) (rune, key.InputHint, string) {
@@ -300,13 +249,10 @@ func inputTypeConfig(inputType Type) (rune, key.InputHint, string) {
 	}
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.InputOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (i Widget) Style(values ...style.Style) Widget {
+	i.style = style.Join(i.style, style.Join(values...))
+	return i
 }

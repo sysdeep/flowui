@@ -24,8 +24,8 @@ func TestWindowOptionsResolveInDeclarationOrder(t *testing.T) {
 		window.OnError(func(err error) { gotError = err }),
 		window.OnWindowCloseRequest(closeHandler),
 		window.RetainModelOnClose(),
-		window.Theme(theme.NeutralDarkTheme()),
-		window.CustomizeTheme(func(theme *theme.Theme) { theme.Palette.Background = theme.Palette.Surface }),
+		window.Theme(theme.Dark()),
+		window.CustomizeTheme(func(theme *theme.Theme) { theme.Colors.Background = theme.Colors.Surface }),
 	)
 
 	if len(cfg.Native) != 4 {
@@ -44,11 +44,11 @@ func TestWindowOptionsResolveInDeclarationOrder(t *testing.T) {
 		t.Fatal("window callbacks or theme options were not retained")
 	}
 
-	resolvedTheme := theme.NeutralTheme()
+	resolvedTheme := theme.Light()
 	for _, apply := range cfg.ThemeOps {
 		apply(&resolvedTheme)
 	}
-	if resolvedTheme.Palette.Background != resolvedTheme.Palette.Surface {
+	if resolvedTheme.Colors.Background != resolvedTheme.Colors.Surface {
 		t.Fatal("theme customization was not applied")
 	}
 

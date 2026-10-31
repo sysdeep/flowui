@@ -6,52 +6,46 @@ import (
 	"slices"
 
 	"gioui.org/f32"
-	"gioui.org/io/event"
-	"gioui.org/io/pointer"
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"github.com/qianniancn/flowui/draw"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
 	flowlayout "github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/input"
 )
 
-func (picker Widget) layoutTrigger(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, visual theme.ColorPickerVisual, enabled bool) layout.Dimensions {
-	presses := core.SnapshotPresses(pickerState.trigger.History())
-	if enabled {
-		for pickerState.trigger.Clicked(gtx) {
-			pickerState.open = !pickerState.open
-			core.RequestFocusVisible(ctx, &pickerState.trigger, presses.ClickFocusVisible(pickerState.trigger.History()))
-		}
-		core.FocusOnPress(ctx, &pickerState.trigger, pickerState.trigger.History(), presses.Active())
-	}
+func (picker Widget) layoutTrigger(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, defaults colorPickerDefaults, enabled bool) layout.Dimensions {
+	base.RowInteraction(ctx, gtx, &pickerState.trigger, !enabled, func() {
+		pickerState.open = !pickerState.open
+	})
 
 	return pickerState.trigger.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		semantic.Button.Add(gtx.Ops)
 		semantic.LabelOp(picker.semanticLabel(ctx)).Add(gtx.Ops)
 		semantic.EnabledOp(enabled).Add(gtx.Ops)
 		macro := op.Record(gtx.Ops)
-		dimensions := picker.layoutTriggerContent(ctx, gtx, visual)
+		dimensions := picker.layoutTriggerContent(ctx, gtx, defaults)
 		call := macro.Stop()
 		if !enabled {
-			opacity := paint.PushOpacity(gtx.Ops, visual.DisabledOpacity)
+			opacity := paint.PushOpacity(gtx.Ops, defaults.DisabledOpacity)
 			call.Add(gtx.Ops)
 			opacity.Pop()
 		} else {
 			call.Add(gtx.Ops)
 		}
 		focusVisible := core.FocusVisible(ctx, &pickerState.trigger, gtx.Focused(&pickerState.trigger))
-		focus := pickerState.triggerFocus.Opacity(gtx, focusVisible && enabled, visual.Motion)
-		visual.TriggerFocus(gtx, dimensions.Size, focus)
+		focus := pickerState.triggerFocus.Opacity(gtx, focusVisible && enabled, defaults.Motion)
+		colorPickerTriggerFocus(gtx, defaults, dimensions.Size, focus)
 		return dimensions
 	})
 }
 
-func (picker Widget) layoutTriggerContent(ctx *core.Context, gtx layout.Context, visual theme.ColorPickerVisual) layout.Dimensions {
+func (picker Widget) layoutTriggerContent(ctx *core.Context, gtx layout.Context, defaults colorPickerDefaults) layout.Dimensions {
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return ColorSwatch(picker.value).Size(ColorSwatchLarge).Layout(ctx, gtx)
@@ -59,17 +53,17 @@ func (picker Widget) layoutTriggerContent(ctx *core.Context, gtx layout.Context,
 	}
 	if picker.label != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return visual.TriggerLabel(gtx, picker.label)
+			return colorPickerTriggerLabel(gtx, defaults, picker.label)
 		}))
 	}
 	return layout.Flex{
 		Axis:      layout.Horizontal,
 		Alignment: layout.Middle,
-		Gap:       gtx.Dp(visual.Metrics.TriggerGap),
+		Gap:       gtx.Dp(defaults.TriggerGap),
 	}.Layout(gtx, children...)
 }
 
-func (picker Widget) layoutPopover(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, visual theme.ColorPickerVisual, key string, trigger layout.Dimensions, progress float32, naturallyDisabled bool) {
+func (picker Widget) layoutPopover(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, defaults colorPickerDefaults, key string, trigger layout.Dimensions, progress float32, naturallyDisabled bool) {
 	core.RegisterOverlay(ctx, core.OverlayRequest{
 		Key:       key,
 		Layer:     core.OverlayLayerPopup,
@@ -77,19 +71,20 @@ func (picker Widget) layoutPopover(ctx *core.Context, gtx layout.Context, picker
 		HasAnchor: true,
 		Disabled:  naturallyDisabled,
 		Layout: func(gtx layout.Context, anchor image.Rectangle, interactive bool) layout.Dimensions {
-			contentInteractive := interactive && pickerState.open && gtx.Enabled()
-			if contentInteractive {
-				pickerState.handleOverlayEvents(ctx, gtx, picker.historySize, picker.showHistory)
-				contentInteractive = pickerState.open
-			}
-			if contentInteractive && pickerState.escapePressed(gtx) {
+			intent := pickerState.popup.Update(ctx, gtx, base.PopupPolicy{
+				Open: pickerState.open, Interactive: interactive, DismissOutside: true,
+				DismissOnPress: true, DismissEscape: true,
+			})
+			if intent != base.PopupNotDismissed {
 				if picker.showHistory {
 					pickerState.pushHistory(pickerState.color.syncedColor, picker.historySize)
 				}
 				pickerState.open = false
-				core.RequestFocus(ctx, &pickerState.trigger)
-				contentInteractive = false
+				if intent == base.PopupDismissEscape {
+					core.RequestFocusVisible(ctx, &pickerState.trigger, true)
+				}
 			}
+
 			panelGtx := gtx
 			// Keep the open panel enabled even when a nested overlay (such as
 			// an input's context menu) owns policy input. Disabling it would
@@ -98,16 +93,16 @@ func (picker Widget) layoutPopover(ctx *core.Context, gtx layout.Context, picker
 			if !pickerState.open || !gtx.Enabled() {
 				panelGtx = panelGtx.Disabled()
 			}
-			return picker.layoutOverlay(ctx, gtx, panelGtx, pickerState, visual, anchor, progress)
+			return picker.layoutOverlay(ctx, gtx, panelGtx, pickerState, defaults, anchor, progress)
 		},
 	})
 }
 
-func (picker Widget) layoutOverlay(ctx *core.Context, gtx, panelGtx layout.Context, pickerState *colorPickerState, visual theme.ColorPickerVisual, anchor image.Rectangle, progress float32) layout.Dimensions {
+func (picker Widget) layoutOverlay(ctx *core.Context, gtx, panelGtx layout.Context, pickerState *colorPickerState, defaults colorPickerDefaults, anchor image.Rectangle, progress float32) layout.Dimensions {
 	viewport := gtx.Constraints.Max
-	gap := gtx.Dp(visual.Metrics.PanelGap)
-	panelWidth := min(gtx.Dp(visual.Metrics.PanelWidth), max(viewport.X, 0))
-	panelHeight := min(gtx.Dp(visual.Metrics.PanelMaxHeight), max(viewport.Y-gap, 0))
+	gap := gtx.Dp(defaults.PanelGap)
+	panelWidth := min(gtx.Dp(defaults.PanelWidth), max(viewport.X, 0))
+	panelHeight := min(gtx.Dp(defaults.PanelMaxHeight), max(viewport.Y-gap, 0))
 	if panelWidth <= 0 || panelHeight <= 0 {
 		return layout.Dimensions{}
 	}
@@ -118,7 +113,7 @@ func (picker Widget) layoutOverlay(ctx *core.Context, gtx, panelGtx layout.Conte
 
 	macro := op.Record(gtx.Ops)
 	dimensions, tracked := core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
-		return picker.layoutPanel(ctx, panelGtx, pickerState, visual)
+		return picker.layoutPanel(ctx, panelGtx, pickerState, defaults)
 	})
 	call := macro.Stop()
 	placement := core.Placement{Side: core.SideBottom, Align: core.AlignStart}
@@ -134,17 +129,17 @@ func (picker Widget) layoutOverlay(ctx *core.Context, gtx, panelGtx layout.Conte
 		AvoidOverflow:    true,
 	})
 	origin := core.PanelTransformOriginAt(anchor, result.Position, dimensions.Size, result.Placement)
-	scale := visual.Metrics.EnterScale + (1-visual.Metrics.EnterScale)*progress
+	scale := defaults.EnterScale + (1-defaults.EnterScale)*progress
 	scaleTransform := f32.AffineId().Scale(origin, f32.Pt(scale, scale))
 	panelTransform := f32.AffineId().Offset(f32.Pt(float32(result.Position.X), float32(result.Position.Y))).Mul(scaleTransform)
 	tracked.PlaceTransform(panelTransform)
 	tracked.SetOpacity(progress)
-	picker.layoutDismissAreas(gtx, pickerState, viewport, anchor, core.AffineRectBounds(image.Rectangle{Max: dimensions.Size}, panelTransform))
+	pickerState.popup.LayoutOutside(gtx, viewport, true, anchor, core.AffineRectBounds(image.Rectangle{Max: dimensions.Size}, panelTransform))
 
 	offset := op.Offset(result.Position).Push(gtx.Ops)
 	opacity := paint.PushOpacity(gtx.Ops, progress)
 	transform := op.Affine(scaleTransform).Push(gtx.Ops)
-	layoutColorPickerPanelBlocker(gtx, pickerState, dimensions.Size)
+	pickerState.popup.LayoutSurface(gtx, image.Rectangle{Max: dimensions.Size})
 	call.Add(gtx.Ops)
 	transform.Pop()
 	opacity.Pop()
@@ -152,51 +147,27 @@ func (picker Widget) layoutOverlay(ctx *core.Context, gtx, panelGtx layout.Conte
 	return dimensions
 }
 
-func (picker Widget) layoutDismissAreas(gtx layout.Context, pickerState *colorPickerState, viewport image.Point, anchor, panel image.Rectangle) {
-	index := 0
-	for _, outsideAnchor := range core.DismissRects(image.Rectangle{Max: viewport}, anchor) {
-		if outsideAnchor.Empty() {
-			continue
-		}
-		for _, area := range core.DismissRects(outsideAnchor, panel) {
-			if area.Empty() || index >= len(pickerState.dismiss) {
-				continue
-			}
-			areaGtx := gtx
-			areaGtx.Constraints = layout.Exact(area.Size())
-			offset := op.Offset(area.Min).Push(gtx.Ops)
-			pass := pointer.PassOp{}.Push(gtx.Ops)
-			pickerState.dismiss[index].Layout(areaGtx, func(layout.Context) layout.Dimensions {
-				return layout.Dimensions{Size: area.Size()}
-			})
-			pass.Pop()
-			offset.Pop()
-			index++
-		}
-	}
-}
-
-func (picker Widget) layoutPanel(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, visual theme.ColorPickerVisual) layout.Dimensions {
-	restoreColors := core.PushColors(ctx, visual.PanelForeground, visual.PanelBackground)
+func (picker Widget) layoutPanel(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, defaults colorPickerDefaults) layout.Dimensions {
+	restoreColors := core.PushColors(ctx, defaults.PanelForeground, defaults.PanelBackground)
 	defer restoreColors()
 	pickerState.panelList.Axis = layout.Vertical
 	macro := op.Record(gtx.Ops)
 	dimensions := pickerState.panelList.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
-		return flowlayout.TrackedInset(ctx, gtx, layout.UniformInset(visual.Metrics.PanelPadding), func(gtx layout.Context) layout.Dimensions {
+		return flowlayout.TrackedInset(ctx, gtx, layout.UniformInset(defaults.PanelPadding), func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return picker.layoutPanelContent(ctx, gtx, pickerState, visual)
+			return picker.layoutPanelContent(ctx, gtx, pickerState, defaults)
 		})
 	})
 	call := macro.Stop()
-	visual.Panel(gtx, dimensions.Size)
-	radius := min(max(gtx.Dp(visual.Metrics.PanelRadius), 1), min(dimensions.Size.X, dimensions.Size.Y)/2)
+	radius := min(max(gtx.Dp(defaults.PanelRadius), 1), min(dimensions.Size.X, dimensions.Size.Y)/2)
+	draw.Surface(gtx, image.Rectangle{Max: dimensions.Size}, radius, defaults.PanelBackground, defaults.PanelShadow)
 	clipped := clip.UniformRRect(image.Rectangle{Max: dimensions.Size}, radius).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	clipped.Pop()
 	return dimensions
 }
 
-func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, visual theme.ColorPickerVisual) layout.Dimensions {
+func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, defaults colorPickerDefaults) layout.Dimensions {
 	restore := core.PushKey(ctx, picker.key)
 	defer restore()
 	// Continuous drag (area/slider) must not flood recent-history; discrete
@@ -233,7 +204,7 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 	}
 	if picker.showRGB {
 		children[count] = func(gtx layout.Context) layout.Dimensions {
-			return picker.layoutRGBChannels(ctx, gtx, pickerState, visual, commitChange)
+			return picker.layoutRGBChannels(ctx, gtx, pickerState, defaults, commitChange)
 		}
 		count++
 	}
@@ -259,9 +230,9 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 		}
 		count++
 	}
-	gap := visual.Metrics.ContentGap
+	gap := defaults.ContentGap
 	if picker.alpha || picker.showField || picker.showRGB || len(picker.presets) > 0 || picker.showHistory {
-		gap = visual.Metrics.CompactContentGap
+		gap = defaults.CompactContentGap
 	}
 	history := historyWithoutPresets(pickerState.history, picker.presets)
 	if picker.showHistory && len(history) > 0 {
@@ -291,7 +262,7 @@ func historyWithoutPresets(history, presets []color.NRGBA) []color.NRGBA {
 	return filtered
 }
 
-func (picker Widget) layoutRGBChannels(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, visual theme.ColorPickerVisual, onChange func(color.NRGBA)) layout.Dimensions {
+func (picker Widget) layoutRGBChannels(ctx *core.Context, gtx layout.Context, pickerState *colorPickerState, defaults colorPickerDefaults, onChange func(color.NRGBA)) layout.Dimensions {
 	value := pickerState.color.syncedColor
 	if !pickerState.color.ready {
 		value = picker.value
@@ -322,7 +293,7 @@ func (picker Widget) layoutRGBChannels(ctx *core.Context, gtx layout.Context, pi
 			})
 		})
 	}
-	return layoutTrackedRow(ctx, gtx, gtx.Dp(visual.Metrics.ChannelGap), children)
+	return layoutTrackedRow(ctx, gtx, gtx.Dp(defaults.ChannelGap), children)
 }
 
 // layoutTrackedRow lays out equal-width children in a row while recording each
@@ -423,33 +394,6 @@ func trimSpaceASCII(value string) string {
 		end--
 	}
 	return value[start:end]
-}
-
-func addColorControlInput(gtx layout.Context, tag event.Tag, size image.Point, enabled, area bool, label, description string) {
-	clipped := clip.Rect{Max: size}.Push(gtx.Ops)
-	semantic.LabelOp(label).Add(gtx.Ops)
-	semantic.DescriptionOp(description).Add(gtx.Ops)
-	semantic.EnabledOp(enabled).Add(gtx.Ops)
-	if enabled {
-		if area {
-			pointer.CursorCrosshair.Add(gtx.Ops)
-		} else {
-			pointer.CursorPointer.Add(gtx.Ops)
-		}
-		event.Op(gtx.Ops, tag)
-	}
-	clipped.Pop()
-}
-
-func layoutColorPickerPanelBlocker(gtx layout.Context, pickerState *colorPickerState, size image.Point) {
-	if size.X <= 0 || size.Y <= 0 {
-		return
-	}
-	blockerGtx := gtx
-	blockerGtx.Constraints = layout.Exact(size)
-	pickerState.dialog.Layout(blockerGtx, func(layout.Context) layout.Dimensions {
-		return layout.Dimensions{Size: size}
-	})
 }
 
 func (picker Widget) semanticLabel(ctx *core.Context) string {

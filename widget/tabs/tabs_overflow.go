@@ -6,7 +6,6 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
 	dropdownui "github.com/qianniancn/flowui/widget/dropdown"
 	menuui "github.com/qianniancn/flowui/widget/menu"
@@ -23,41 +22,41 @@ type tabsOverflowLayout struct {
 
 // layoutTabStrip dispatches the opt-in overflow menu path while preserving the
 // existing scroll-list implementation for the default mode.
-func (t Widget) layoutTabStrip(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, visual theme.TabsVisual) layout.Dimensions {
+func (t Widget) layoutTabStrip(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, defaults tabsDefaults) layout.Dimensions {
 	if t.overflowMode != OverflowMenu && t.overflowMode != OverflowAuto {
-		return t.layoutTabStripDefault(ctx, gtx, state, selectedKey, disabled, visual)
+		return t.layoutTabStripDefault(ctx, gtx, state, selectedKey, disabled, defaults)
 	}
-	overflow := t.measureOverflow(ctx, gtx, selectedKey, visual)
+	overflow := t.measureOverflow(ctx, gtx, selectedKey, defaults)
 	if len(overflow.hidden) == 0 {
-		return t.layoutTabStripDefault(ctx, gtx, state, selectedKey, disabled, visual)
+		return t.layoutTabStripDefault(ctx, gtx, state, selectedKey, disabled, defaults)
 	}
-	return t.layoutOverflowTabStrip(ctx, gtx, state, selectedKey, disabled, overflow, visual)
+	return t.layoutOverflowTabStrip(ctx, gtx, state, selectedKey, disabled, overflow, defaults)
 }
 
-func (t Widget) measureOverflow(ctx *core.Context, gtx layout.Context, selectedKey string, visuals ...theme.TabsVisual) tabsOverflowLayout {
-	var visual theme.TabsVisual
-	if len(visuals) > 0 {
-		visual = visuals[0]
+func (t Widget) measureOverflow(ctx *core.Context, gtx layout.Context, selectedKey string, values ...tabsDefaults) tabsOverflowLayout {
+	effective := tabsDefaults{}
+	if len(values) > 0 {
+		effective = values[0]
 	} else {
-		visual = t.visual(ctx)
+		effective = t.defaultsWithCache(ctx)
 	}
-	metrics := visual.Metrics
-	padding := gtx.Dp(metrics.ListPadding)
+	geometry := effective.geometry
+	padding := gtx.Dp(geometry.listPadding)
 	if t.variant == Secondary {
 		padding = 0
 	}
-	sizeStyle := tabsSizeStyleForVisual(metrics, t.size)
+	sizeStyle := tabsSizeStyleFor(geometry, t.size)
 	tabHeight := max(gtx.Dp(sizeStyle.height), 1)
 	measureTabs := t
 	// Force intrinsic widths for the visibility calculation. The normal list
 	// may distribute spare width when Fit and Centered are not requested.
 	measureTabs.fit = true
 	measureTabs.centered = true
-	widths := measureTabs.tabWidths(ctx, gtx, padding, sizeStyle, visual)
+	widths := measureTabs.tabWidths(ctx, gtx, padding, sizeStyle, effective)
 	if len(widths) == 0 {
 		return tabsOverflowLayout{}
 	}
-	moreWidth := t.moreMainSize(ctx, gtx, sizeStyle, tabHeight, padding, visual)
+	moreWidth := t.moreMainSize(ctx, gtx, sizeStyle, tabHeight, padding, effective)
 	moreMain := moreWidth
 	moreCross := tabHeight + padding*2
 	available := gtx.Constraints.Max.X
@@ -74,7 +73,7 @@ func (t Widget) measureOverflow(ctx *core.Context, gtx layout.Context, selectedK
 		moreMain = available
 	}
 	visibleCount := len(t.items)
-	tabGap := gtx.Dp(metrics.TabGap)
+	tabGap := gtx.Dp(geometry.tabGap)
 	for visibleCount > 0 {
 		main := padding * 2
 		if t.orientation == Vertical {
@@ -165,7 +164,7 @@ func (t Widget) overflowItems(visibleCount int, selectedKey string) ([]TabItem, 
 	return visible, hidden
 }
 
-func (t Widget) moreMainSize(ctx *core.Context, gtx layout.Context, sizeStyle tabsSizeStyle, tabHeight, padding int, visual theme.TabsVisual) int {
+func (t Widget) moreMainSize(ctx *core.Context, gtx layout.Context, sizeStyle tabsSizeStyle, tabHeight, padding int, defaults tabsDefaults) int {
 	if t.moreContent != nil {
 		measure := gtx
 		measure.Constraints = layout.Constraints{Max: image.Pt(1e6, max(gtx.Constraints.Max.Y, 1))}
@@ -175,14 +174,14 @@ func (t Widget) moreMainSize(ctx *core.Context, gtx layout.Context, sizeStyle ta
 	label := t.moreText(ctx)
 	measure := gtx
 	measure.Constraints = layout.Constraints{Max: image.Pt(1e6, max(gtx.Constraints.Max.Y, 1))}
-	dims := textui.Measure(ctx, measure, textui.WithResolvedText(textui.New(label), t.itemTextStyle(ctx, visual, visual.Colors.ScrollForeground)))
+	dims := textui.Measure(ctx, measure, textui.WithResolvedText(textui.New(label), t.itemTextStyle(ctx, defaults, defaults.palette.scrollForeground)))
 	return max(
 		tabHeight+padding*2,
-		dims.Size.X+gtx.Dp(sizeStyle.paddingX)*2+gtx.Dp(visual.Metrics.IconSize)+gtx.Dp(visual.Metrics.IconGap),
+		dims.Size.X+gtx.Dp(sizeStyle.paddingX)*2+gtx.Dp(defaults.geometry.iconSize)+gtx.Dp(defaults.geometry.iconGap),
 	)
 }
 
-func (t Widget) layoutOverflowTabStrip(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, overflow tabsOverflowLayout, visual theme.TabsVisual) layout.Dimensions {
+func (t Widget) layoutOverflowTabStrip(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, overflow tabsOverflowLayout, defaults tabsDefaults) layout.Dimensions {
 	gap := overflow.gap
 	listWidget := t
 	listWidget.items = overflow.visible
@@ -191,10 +190,10 @@ func (t Widget) layoutOverflowTabStrip(ctx *core.Context, gtx layout.Context, st
 	listGtx.Constraints = layout.Exact(overflow.listSize)
 	moreGtx := gtx
 	moreGtx.Constraints = layout.Exact(overflow.moreSize)
-	more := t.layoutOverflowMenu(ctx, moreGtx, state, selectedKey, disabled, overflow.hidden, visual)
+	more := t.layoutOverflowMenu(ctx, moreGtx, state, selectedKey, disabled, overflow.hidden, defaults)
 	children := make([]layout.FlexChild, 0, 2)
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return listWidget.layoutTabStripDefault(ctx, listGtx, state, selectedKey, disabled, visual)
+		return listWidget.layoutTabStripDefault(ctx, listGtx, state, selectedKey, disabled, defaults)
 	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return more.Layout(ctx, moreGtx)
@@ -206,7 +205,7 @@ func (t Widget) layoutOverflowTabStrip(ctx *core.Context, gtx layout.Context, st
 	return layout.Flex{Axis: axis, Alignment: layout.Start, Gap: gap}.Layout(gtx, children...)
 }
 
-func (t Widget) layoutOverflowMenu(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, hidden []TabItem, visual theme.TabsVisual) core.Widget {
+func (t Widget) layoutOverflowMenu(ctx *core.Context, gtx layout.Context, state *tabsState, selectedKey string, disabled bool, hidden []TabItem, defaults tabsDefaults) core.Widget {
 	items := make([]menuui.Item, 0, len(hidden))
 	for _, item := range hidden {
 		items = append(items, menuui.Item{
@@ -219,20 +218,15 @@ func (t Widget) layoutOverflowMenu(ctx *core.Context, gtx layout.Context, state 
 	moreKey := core.DerivedKey(ctx, core.FullKey(ctx, t.key), "overflow-menu")
 	label := t.moreText(ctx)
 	defaultContent := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		color := visual.Colors.ScrollForeground
-		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(visual.Metrics.IconGap)}.Layout(gtx,
+		col := defaults.palette.scrollForeground
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(defaults.geometry.iconGap)}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if visual.Overflow == nil {
-					panic(theme.ErrIncompleteVisualProvider)
-				}
-				size := gtx.Constraints.Constrain(image.Pt(gtx.Dp(visual.Metrics.IconSize), gtx.Dp(visual.Metrics.IconSize)))
-				visual.Overflow(gtx, theme.TabsOverflowRenderRequest{
-					Size: size, Color: color,
-				})
+				size := gtx.Constraints.Constrain(image.Pt(gtx.Dp(defaults.geometry.iconSize), gtx.Dp(defaults.geometry.iconSize)))
+				tabsDrawOverflow(gtx, size, col)
 				return layout.Dimensions{Size: size}
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return textui.WithResolvedText(textui.New(label), t.itemTextStyle(ctx, visual, color)).Layout(ctx, gtx)
+				return textui.WithResolvedText(textui.New(label), t.itemTextStyle(ctx, defaults, col)).Layout(ctx, gtx)
 			}),
 		)
 	})
@@ -241,7 +235,7 @@ func (t Widget) layoutOverflowMenu(ctx *core.Context, gtx layout.Context, state 
 		triggerContent = t.slotWidget("overflow-trigger", t.moreContent)
 	}
 	trigger := button.New("").Key(moreKey + ":trigger").Content(triggerContent).Label(label).Variant(button.Ghost)
-	menu := dropdownui.New(moreKey, trigger, items).
+	popup := menuui.New(moreKey+":menu", items).
 		AutoWidth().
 		SelectionMode(menuui.SelectionSingle).
 		SelectedKey(selectedKey).
@@ -257,6 +251,7 @@ func (t Widget) layoutOverflowMenu(ctx *core.Context, gtx layout.Context, state 
 			state.selectionPending = true
 			core.RequestFocus(ctx, &state.item(event.Key).clickable)
 		})
+	menu := dropdownui.New(moreKey, trigger, nil).Menu(popup)
 	if disabled {
 		menu = menu.Disabled(true)
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -143,7 +142,7 @@ func (s Series) Hidden(hidden bool) Series {
 }
 
 type Widget struct {
-	override                *theme.BarChartOverride
+	style                   style.Style
 	key                     string
 	series                  []Series
 	categories              []string
@@ -189,7 +188,7 @@ type Widget struct {
 	markAreas               []chart.MarkArea
 	markPoints              []chart.MarkPoint
 	orientation             Orientation
-	visualCache             *barChartVisualCache
+	visualCache             *barChartDefaultsCache
 }
 
 func New(key string, series []Series) Widget {
@@ -203,7 +202,7 @@ func New(key string, series []Series) Widget {
 		animation:             true,
 		animationEasing:       animation.EaseCubicOut,
 		updateAnimationEasing: animation.EaseCubicInOut,
-		visualCache:           &barChartVisualCache{},
+		visualCache:           &barChartDefaultsCache{},
 	}
 }
 
@@ -433,24 +432,19 @@ func (w Widget) Disabled(disabled bool) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
-}
-
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.BarChartOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
-	return layoutui.Resolved(ctx, gtx, resolved, visualWidget{value: w, visual: visual})
+	defaults := w.resolveDefaults(active)
+	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, defaults.Defaults, style.Style{}, style.Style{}, w.style)
+	return layoutui.Resolved(ctx, gtx, resolved, barChartDefaultsWidget{value: w, defaults: defaults})
 }
 
-type visualWidget struct {
-	value  Widget
-	visual theme.BarChartVisual
+type barChartDefaultsWidget struct {
+	value    Widget
+	defaults barChartDefaults
 }
 
-func (v visualWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return v.value.layout(ctx, gtx, v.visual)
+func (v barChartDefaultsWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	return v.value.layout(ctx, gtx, v.defaults)
 }
 
 func (w Widget) legendVisible(data chartData) bool {
@@ -499,13 +493,10 @@ func validateNonnegative(name string, value float32) {
 	}
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.BarChartOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

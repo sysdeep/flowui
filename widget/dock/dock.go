@@ -13,6 +13,7 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
+	"github.com/qianniancn/flowui/widget/splitpane"
 )
 
 const stateSlotDockLayout = "dock-layout"
@@ -574,7 +575,7 @@ func (d Widget) layoutNode(ctx *core.Context, gtx layout.Context, node Node, val
 	second := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		return d.layoutChildNode(ctx, gtx, *node.second, value)
 	})
-	split := layoutui.SplitPane(first, second).Key(node.key).
+	split := splitpane.New(first, second).Key(node.key).
 		DefaultRatio(ratio).
 		Ratio(ratio).
 		MinFirst(int(node.minFirst)).

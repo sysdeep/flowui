@@ -4,7 +4,6 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/modal"
 	"github.com/qianniancn/flowui/widget/text"
 )
@@ -52,7 +51,7 @@ const (
 
 // Widget presents a controlled confirmation dialog that requires an explicit action by default.
 type Widget struct {
-	override                *theme.ModalOverride
+	style                   style.Style
 	key                     string
 	open                    bool
 	hasOpen                 bool
@@ -72,23 +71,20 @@ type Widget struct {
 	dismissable             bool
 	keyboardDismissDisabled bool
 	closeButton             bool
-	visualCache             *alertDialogVisualCache
+	visualCache             *alertDialogDefaultsCache
 }
 
-// New creates an alert dialog. When open is true, it starts in controlled
-// mode with the dialog open. When open is false, it starts in uncontrolled mode
-// with the dialog closed (use DefaultOpen(true) for uncontrolled mode starting open).
 // New creates an alert dialog. It starts uncontrolled and closed; Open sets the
 // controlled value and DefaultOpen the uncontrolled starting value.
 func New(title, description string) Widget {
 	return Widget{
-		key:                     core.AutoKey(),
+		key:                     core.AutoKey("alert-dialog"),
 		title:                   title,
 		description:             description,
 		status:                  StatusDanger,
 		keyboardDismissDisabled: true,
 		closeButton:             true,
-		visualCache:             &alertDialogVisualCache{},
+		visualCache:             &alertDialogDefaultsCache{},
 	}
 }
 
@@ -195,30 +191,27 @@ func (a Widget) CloseButton(show bool) Widget {
 }
 
 func (a Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return a.modal(a.override).Layout(ctx, gtx)
+	return a.modal().Layout(ctx, gtx)
 }
 
-// Style merges instance declarations into the dialog. The declaration reaches
-// the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the dialog. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (a Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if a.override == nil {
-		a.override = &theme.ModalOverride{}
-	}
-	a.override.Declaration = style.Join(a.override.Declaration, declaration)
+	a.style = style.Join(a.style, style.Join(values...))
 	return a
 }
 
-func (a Widget) modal(override *theme.ModalOverride) modal.Widget {
+func (a Widget) modal() modal.Widget {
 	body := a.body
 	if body == nil {
 		body = text.New(a.description)
 	}
 	header := a.header
 	if header == nil {
-		header = a.defaultHeader(override)
+		header = a.defaultHeader()
 	}
-	m := modal.New("", body).Key(a.key).Open(a.open)
+	m := modal.New("", body).Key(a.key)
 	// Apply open-state fields explicitly if set
 	if a.hasOpen {
 		m = m.Open(a.open)
@@ -235,10 +228,11 @@ func (a Widget) modal(override *theme.ModalOverride) modal.Widget {
 		Backdrop(a.modalBackdrop()).
 		Dismissable(a.dismissable).
 		KeyboardDismissDisabled(a.keyboardDismissDisabled).
-		CloseButton(a.closeButton)
+		CloseButton(a.closeButton).
+		Style(a.style)
 }
 
-func (a Widget) defaultHeader(override *theme.ModalOverride) dialogHeader {
+func (a Widget) defaultHeader() dialogHeader {
 	description := a.description
 	if a.body != nil {
 		description = ""
@@ -249,9 +243,7 @@ func (a Widget) defaultHeader(override *theme.ModalOverride) dialogHeader {
 		status:      a.status,
 		icon:        a.icon,
 		cache:       a.visualCache,
-		size:        a.size,
-		backdrop:    a.backdrop,
-		override:    override,
+		style:       a.style,
 	}
 }
 

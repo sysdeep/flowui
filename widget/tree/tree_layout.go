@@ -17,14 +17,13 @@ import (
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/menu"
 	"github.com/qianniancn/flowui/widget/spinner"
 	"github.com/qianniancn/flowui/widget/toggle"
 )
 
-func (t Widget) layout(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, visible []flatItem, visual theme.TreeVisual) layout.Dimensions {
-	metrics := visual.Metrics
+func (t Widget) layout(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, visible []flatItem, defaults treeDefaults) layout.Dimensions {
+	metrics := defaults.metrics
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	maxHeight := metrics.MaxHeight
 	if t.maxHeight > 0 {
@@ -38,18 +37,18 @@ func (t Widget) layout(ctx *core.Context, gtx layout.Context, treeStateValue *tr
 	macro := op.Record(gtx.Ops)
 	var contentDims layout.Dimensions
 	func() {
-		restore := core.PushColors(ctx, visual.Colors.RootForeground, visual.Colors.RootBackground)
+		restore := core.PushColors(ctx, defaults.colors.RootForeground, defaults.colors.RootBackground)
 		defer restore()
 		contentDims = layout.UniformInset(metrics.Padding).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			if len(visible) == 0 {
-				return t.layoutEmpty(ctx, gtx, visual)
+				return t.layoutEmpty(ctx, gtx, defaults)
 			}
 			treeStateValue.list.Axis = layout.Vertical
 			treeStateValue.list.Gap = gtx.Dp(metrics.Gap)
 			treeStateValue.list.Alignment = layout.Start
 			treeStateValue.list.ScrollAnyAxis = false
 			return layoutui.TrackedScrollbarWithVisualOutset(ctx, gtx, &treeStateValue.list, &treeStateValue.bar, &treeStateValue.visualOutset, len(visible), t.disabled, false, func(gtx layout.Context, index int) layout.Dimensions {
-				return t.layoutItem(ctx, gtx, treeStateValue, visible[index], index, visual)
+				return t.layoutItem(ctx, gtx, treeStateValue, visible[index], index, defaults)
 			})
 		})
 	}()
@@ -57,7 +56,7 @@ func (t Widget) layout(ctx *core.Context, gtx layout.Context, treeStateValue *tr
 
 	size := gtx.Constraints.Constrain(contentDims.Size)
 	radius := treeRootRadius(gtx, metrics, t.variant, size)
-	visual.Root(gtx, size, metrics.SurfaceRadius, visual.Colors.RootBackground, t.variant == VariantSurface)
+	treeDrawRoot(core.ActiveTheme(ctx), gtx, size, metrics.SurfaceRadius, defaults.colors.RootBackground, t.variant == VariantSurface)
 	if t.variant == VariantSurface {
 		root := clip.UniformRRect(image.Rectangle{Max: size}, radius).Push(gtx.Ops)
 		content.Add(gtx.Ops)
@@ -70,8 +69,8 @@ func (t Widget) layout(ctx *core.Context, gtx layout.Context, treeStateValue *tr
 	return layout.Dimensions{Size: size, Baseline: contentDims.Baseline}
 }
 
-func (t Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, visual theme.TreeVisual) layout.Dimensions {
-	metrics := visual.Metrics
+func (t Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, defaults treeDefaults) layout.Dimensions {
+	metrics := defaults.metrics
 	height := min(gtx.Dp(metrics.RowHeight), gtx.Constraints.Max.Y)
 	gtx.Constraints.Min.Y = min(max(gtx.Constraints.Min.Y, height), gtx.Constraints.Max.Y)
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -79,11 +78,11 @@ func (t Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, visual theme.
 		if !t.hasEmptyText {
 			value = ctx.Text(i18n.CollectionNoItems)
 		}
-		return visual.Text(gtx, theme.TreeTextRequest{Text: value, Size: metrics.ItemTextSize, Color: visual.Colors.Description})
+		return treeDrawText(core.ActiveTheme(ctx), gtx, value, metrics.ItemTextSize, defaults.colors.Description, 0)
 	})
 }
 
-func (t Widget) layoutItem(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, entry flatItem, index int, visual theme.TreeVisual) layout.Dimensions {
+func (t Widget) layoutItem(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, entry flatItem, index int, defaults treeDefaults) layout.Dimensions {
 	itemState := treeStateValue.item(entry.item.Key)
 	itemState.index = index
 	disabled := t.itemDisabled(entry.item)
@@ -94,7 +93,7 @@ func (t Widget) layoutItem(ctx *core.Context, gtx layout.Context, treeStateValue
 		gtx = gtx.Disabled()
 	}
 
-	metrics := visual.Metrics
+	metrics := defaults.metrics
 	height := min(max(treeItemHeight(gtx, metrics, entry.item), gtx.Constraints.Min.Y), gtx.Constraints.Max.Y)
 	width := gtx.Constraints.Max.X
 	size := image.Pt(width, height)
@@ -102,36 +101,36 @@ func (t Widget) layoutItem(ctx *core.Context, gtx layout.Context, treeStateValue
 	rowGtx.Constraints = layout.Exact(size)
 
 	focusVisible := core.FocusVisible(ctx, &itemState.clickable, rowGtx.Focused(&itemState.clickable))
-	focus := itemState.focus.Opacity(animGtx, focusVisible && !disabled, visual.Motion)
+	focus := itemState.focus.Opacity(animGtx, focusVisible && !disabled, defaults.motion)
 	hovered := (itemState.clickable.Hovered() || itemState.toggle.Hovered() || itemState.check.Hovered()) && !disabled
-	itemVisual := visual.Item(theme.TreeItemRequest{Selected: selected, Hovered: hovered, Disabled: disabled})
+	rowPaint := defaults.rowPaint(selected, hovered, disabled)
 	if treeContainsKey(treeStateValue.dragSources, entry.item.Key) {
-		itemVisual.Opacity *= 0.6
+		rowPaint.Opacity *= 0.6
 	}
 	expansionTarget := float32(0)
 	if expanded {
 		expansionTarget = 1
 	}
-	expansion := itemState.expansion.Value(animGtx, expansionTarget, treeExpandDuration, animation.EaseSmoothstep, visual.Motion)
+	expansion := itemState.expansion.Value(animGtx, expansionTarget, treeExpandDuration, animation.EaseSmoothstep, defaults.motion)
 
 	macro := op.Record(gtx.Ops)
 	func() {
-		restore := core.PushColors(ctx, itemVisual.Foreground, itemVisual.Background)
+		restore := core.PushColors(ctx, rowPaint.Foreground, rowPaint.Background)
 		defer restore()
 		if t.guides {
-			drawTreeGuides(rowGtx, entry, metrics, expanded, t.guideConnectors, t.guideStyle, visual)
+			drawTreeGuides(rowGtx, entry, metrics, expanded, t.guideConnectors, t.guideStyle, defaults)
 		}
-		t.layoutItemContent(ctx, rowGtx, treeStateValue, itemState, entry, itemVisual, selected, expanded, expansion, disabled, visual)
+		t.layoutItemContent(ctx, rowGtx, treeStateValue, itemState, entry, rowPaint, selected, expanded, expansion, disabled, defaults)
 	}()
 	content := macro.Stop()
 
 	row := func(gtx layout.Context) layout.Dimensions {
-		opacity := paint.PushOpacity(gtx.Ops, itemVisual.Opacity)
-		visual.Row(gtx, size, itemVisual, focus, metrics.RowRadius)
+		opacity := paint.PushOpacity(gtx.Ops, rowPaint.Opacity)
+		treeDrawRow(gtx, size, rowPaint.Background, rowPaint.Focus, focus, metrics.RowRadius, metrics.FocusRingWidth)
 		content.Add(gtx.Ops)
 		opacity.Pop()
 		if treeStateValue.dropTarget.drawKey == entry.item.Key {
-			visual.DropIndicator(gtx, size, treeDropPosition(treeStateValue.dropTarget.position), treeStateValue.dropTarget.depth, metrics, visual.Colors.DropIndicator)
+			treeDrawDropIndicator(gtx, size, treeStateValue.dropTarget.position, treeStateValue.dropTarget.depth, metrics, defaults.colors.DropIndicator)
 		}
 		return layout.Dimensions{Size: size}
 	}
@@ -149,7 +148,7 @@ func (t Widget) layoutItem(ctx *core.Context, gtx layout.Context, treeStateValue
 			}
 			offsetPx := gtx.Dp(metrics.DragPreviewOffset)
 			offset := itemState.drag.Press().Round().Add(image.Pt(offsetPx, offsetPx))
-			preview = t.dragPreview(ctx, label, offset, visual)
+			preview = t.dragPreview(ctx, label, offset, defaults)
 		}
 		itemState.drag.Layout(gtx, func(layout.Context) layout.Dimensions { return dims }, preview)
 		pass.Pop()
@@ -174,19 +173,19 @@ func (t Widget) layoutItem(ctx *core.Context, gtx layout.Context, treeStateValue
 		Layout(ctx, rowGtx)
 }
 
-func (t Widget) dragPreview(ctx *core.Context, label string, offset image.Point, visual theme.TreeVisual) layout.Widget {
+func (t Widget) dragPreview(ctx *core.Context, label string, offset image.Point, defaults treeDefaults) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
 		stack := op.Offset(offset).Push(gtx.Ops)
 		defer stack.Pop()
-		return t.layoutDragPreview(gtx, label, visual)
+		return t.layoutDragPreview(ctx, gtx, label, defaults)
 	}
 }
 
-func (t Widget) layoutDragPreview(gtx layout.Context, label string, visual theme.TreeVisual) layout.Dimensions {
-	return visual.DragPreview(gtx, theme.TreeDragPreviewRequest{Label: label}, visual.Metrics)
+func (t Widget) layoutDragPreview(ctx *core.Context, gtx layout.Context, label string, defaults treeDefaults) layout.Dimensions {
+	return treeDragPreview(core.ActiveTheme(ctx), gtx, label, defaults)
 }
 
-func treeItemHeight(gtx layout.Context, metrics theme.TreeMetrics, item Item) int {
+func treeItemHeight(gtx layout.Context, metrics treeGeometry, item Item) int {
 	height := metrics.RowHeight
 	if treeItemDescription(item) != "" {
 		height = metrics.DescriptionRowHeight
@@ -216,8 +215,8 @@ func registerTreeDragAreas(gtx layout.Context, state *treeItemState, size image.
 	}
 }
 
-func (t Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, itemState *treeItemState, entry flatItem, itemVisual theme.TreeItemVisual, selected, expanded bool, expansion float32, disabled bool, visual theme.TreeVisual) layout.Dimensions {
-	metrics := visual.Metrics
+func (t Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, itemState *treeItemState, entry flatItem, rowPaint treeRowPaint, selected, expanded bool, expansion float32, disabled bool, defaults treeDefaults) layout.Dimensions {
+	metrics := defaults.metrics
 	left := metrics.RowPaddingX + unit.Dp(entry.depth)*metrics.Indent
 	return layout.Inset{
 		Top:    metrics.RowPaddingY,
@@ -227,7 +226,7 @@ func (t Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, treeSta
 	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		children := make([]layout.FlexChild, 0, 3)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return t.layoutToggle(ctx, gtx, itemState, entry.item, itemVisual, expansion, disabled, visual)
+			return t.layoutToggle(ctx, gtx, itemState, entry.item, rowPaint, expansion, disabled, defaults)
 		}))
 		if t.checkable {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -242,7 +241,7 @@ func (t Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, treeSta
 				}
 				semantic.SelectedOp(selected).Add(gtx.Ops)
 				semantic.EnabledOp(!disabled).Add(gtx.Ops)
-				return t.layoutMainContent(ctx, gtx, treeStateValue, entry.item, itemVisual, selected, expanded, disabled, visual)
+				return t.layoutMainContent(ctx, gtx, treeStateValue, entry.item, rowPaint, selected, expanded, disabled, defaults)
 			}
 			if treeStateValue.renameKey == entry.item.Key {
 				return content(gtx)
@@ -293,8 +292,8 @@ func (t Widget) layoutCheckbox(ctx *core.Context, gtx layout.Context, treeStateV
 	return itemState.check.Layout(gtx, content)
 }
 
-func (t Widget) layoutToggle(ctx *core.Context, gtx layout.Context, itemState *treeItemState, item Item, itemVisual theme.TreeItemVisual, expansion float32, disabled bool, visual theme.TreeVisual) layout.Dimensions {
-	metrics := visual.Metrics
+func (t Widget) layoutToggle(ctx *core.Context, gtx layout.Context, itemState *treeItemState, item Item, rowPaint treeRowPaint, expansion float32, disabled bool, defaults treeDefaults) layout.Dimensions {
+	metrics := defaults.metrics
 	slot := min(gtx.Dp(metrics.ChevronSlotSize), min(gtx.Constraints.Max.X, gtx.Constraints.Max.Y))
 	size := image.Pt(max(slot, 0), max(slot, 0))
 	gtx.Constraints = layout.Exact(size)
@@ -309,7 +308,7 @@ func (t Widget) layoutToggle(ctx *core.Context, gtx layout.Context, itemState *t
 			return spinner.New().Color(spinner.Current).Size(spinner.Small).Label(ctx.Text(i18n.TreeLoadingChildren)).Layout(ctx, gtx)
 		}
 		if item.ChildrenState == ChildrenError {
-			visual.Retry(gtx, size, metrics, visual.Colors.Retry)
+			treeDrawRetry(gtx, size, metrics, defaults.colors.Retry)
 			return layout.Dimensions{Size: size}
 		}
 		switcher := item.Switcher
@@ -317,28 +316,28 @@ func (t Widget) layoutToggle(ctx *core.Context, gtx layout.Context, itemState *t
 			switcher = item.ExpandedSwitcher
 		}
 		if switcher != nil {
-			restore := core.PushColors(ctx, itemVisual.Chevron, visual.Colors.ToggleBackground)
+			restore := core.PushColors(ctx, rowPaint.Chevron, defaults.colors.ToggleBackground)
 			defer restore()
 			return switcher.Layout(ctx, gtx)
 		}
-		visual.Toggle(
+		treeDrawToggle(
 			gtx,
 			size,
 			metrics,
 			expansion,
 			t.guides && t.guideConnectors,
-			itemVisual.Chevron,
-			visual.Colors.ToggleBackground,
+			rowPaint.Chevron,
+			defaults.colors.ToggleBackground,
 		)
 		return layout.Dimensions{Size: size}
 	})
 }
 
-func (t Widget) layoutMainContent(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, item Item, itemVisual theme.TreeItemVisual, selected, expanded, disabled bool, visual theme.TreeVisual) layout.Dimensions {
+func (t Widget) layoutMainContent(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, item Item, rowPaint treeRowPaint, selected, expanded, disabled bool, defaults treeDefaults) layout.Dimensions {
 	if item.Content != nil {
 		return item.Content.Layout(ctx, gtx)
 	}
-	metrics := visual.Metrics
+	metrics := defaults.metrics
 	children := make([]layout.FlexChild, 0, 3)
 	leading := item.Leading
 	if expanded && item.ExpandedLeading != nil {
@@ -350,7 +349,7 @@ func (t Widget) layoutMainContent(ctx *core.Context, gtx layout.Context, treeSta
 		}))
 	}
 	children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-		return t.layoutItemText(ctx, gtx, treeStateValue, item, itemVisual, selected, disabled, visual)
+		return t.layoutItemText(ctx, gtx, treeStateValue, item, rowPaint, selected, disabled, defaults)
 	}))
 	if item.Trailing != nil {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -364,20 +363,19 @@ func (t Widget) layoutMainContent(ctx *core.Context, gtx layout.Context, treeSta
 	}.Layout(gtx, children...)
 }
 
-func (t Widget) layoutItemText(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, item Item, itemVisual theme.TreeItemVisual, selected, disabled bool, visual theme.TreeVisual) layout.Dimensions {
-	metrics := visual.Metrics
+func (t Widget) layoutItemText(ctx *core.Context, gtx layout.Context, treeStateValue *treeState, item Item, rowPaint treeRowPaint, selected, disabled bool, defaults treeDefaults) layout.Dimensions {
+	metrics := defaults.metrics
 	if treeStateValue.renameKey == item.Key {
-		editorStyle := visual.EditorStyle(theme.TreeItemRequest{Selected: selected, Disabled: disabled})
 		editor := material.Editor(core.ActiveMaterial(ctx), &treeStateValue.renameEditor, "")
-		editor.TextSize = editorStyle.TextSize
-		editor.Color = editorStyle.Foreground
-		editor.SelectionColor = editorStyle.Selection
-		editor.Font.Weight = editorStyle.FontWeight
+		editor.TextSize = metrics.ItemTextSize
+		editor.Color = rowPaint.Foreground
+		editor.SelectionColor = defaults.colors.EditorSelection
+		editor.Font.Weight = metrics.ItemTextWeight
 		return editor.Layout(gtx)
 	}
 	descriptionText := treeItemDescription(item)
 	labelWidget := func(gtx layout.Context) layout.Dimensions {
-		return visual.Text(gtx, theme.TreeTextRequest{Text: item.Label, Size: metrics.ItemTextSize, Color: itemVisual.Foreground, Weight: metrics.ItemTextWeight})
+		return treeDrawText(core.ActiveTheme(ctx), gtx, item.Label, metrics.ItemTextSize, rowPaint.Foreground, metrics.ItemTextWeight)
 	}
 	if descriptionText == "" {
 		return labelWidget(gtx)
@@ -385,10 +383,11 @@ func (t Widget) layoutItemText(ctx *core.Context, gtx layout.Context, treeStateV
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(labelWidget),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			color := rowPaint.Description
 			if item.ChildrenState == ChildrenError {
-				return visual.Text(gtx, theme.TreeTextRequest{Text: descriptionText, Size: metrics.ItemDescriptionSize, Color: visual.Colors.Retry})
+				color = defaults.colors.Retry
 			}
-			return visual.Text(gtx, theme.TreeTextRequest{Text: descriptionText, Size: metrics.ItemDescriptionSize, Color: itemVisual.Description})
+			return treeDrawText(core.ActiveTheme(ctx), gtx, descriptionText, metrics.ItemDescriptionSize, color, 0)
 		}),
 	)
 }

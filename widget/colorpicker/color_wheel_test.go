@@ -13,7 +13,7 @@ import (
 	"gioui.org/io/pointer"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func TestColorWheelOptionsUseValueSemantics(t *testing.T) {
@@ -33,7 +33,7 @@ func TestColorWheelOptionsUseValueSemantics(t *testing.T) {
 }
 
 func TestColorWheelUsesConfiguredAndConstrainedSize(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	now := time.Unix(1, 0)
 
@@ -83,7 +83,7 @@ func TestColorWheelChangePreservesBrightnessAndAlpha(t *testing.T) {
 }
 
 func TestDisabledColorWheelDoesNotDispatchPointerChanges(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	initial := color.NRGBA{R: 4, G: 133, B: 247, A: 93}
 	changes := 0
@@ -107,7 +107,7 @@ func TestDisabledColorWheelDoesNotDispatchPointerChanges(t *testing.T) {
 }
 
 func TestColorWheelPointerDispatchesChange(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	initial := color.NRGBA{R: 4, G: 133, B: 247, A: 93}
 	var changed color.NRGBA
@@ -134,7 +134,7 @@ func TestColorWheelPointerDispatchesChange(t *testing.T) {
 }
 
 func TestColorWheelKeyboardChangePreservesAlpha(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	initial := color.NRGBA{R: 4, G: 133, B: 247, A: 93}
 	var changed color.NRGBA

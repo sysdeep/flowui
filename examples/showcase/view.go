@@ -7,17 +7,25 @@ import (
 	"gioui.org/font"
 	giolayout "gioui.org/layout"
 	"gioui.org/unit"
+	lucide "github.com/qianniancn/flowui-icons-lucide"
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	widgetcode "github.com/qianniancn/flowui/widget/code"
+	"github.com/qianniancn/flowui/widget/divider"
+	"github.com/qianniancn/flowui/widget/dropdown"
+	"github.com/qianniancn/flowui/widget/icon"
 	"github.com/qianniancn/flowui/widget/input"
+	"github.com/qianniancn/flowui/widget/menu"
+	"github.com/qianniancn/flowui/widget/popover"
 	"github.com/qianniancn/flowui/widget/sidebar"
 	"github.com/qianniancn/flowui/widget/statusbar"
 	"github.com/qianniancn/flowui/widget/surface"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/widget/toast"
+	"github.com/qianniancn/flowui/widget/tooltip"
+	"github.com/qianniancn/flowui/window"
 )
 
 func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
@@ -32,14 +40,16 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 		}
 		root := layout.Stack(
 			layout.Stacked(layout.Column(
+				showcaseHeader(m, send, compact),
+				divider.New(),
 				layout.Expanded(body),
 				statusbar.New(text.New(m.status).MaxLines(1).Truncator("…"), text.New("FlowUI · Go / Gio")),
 			)),
-			layout.Overlay(toast.New("showcase-toasts", m.demo.toasts).
+			layout.Overlay(toast.New("showcase-toasts", toastItems(m.demo)).
 				OnClose(func(key string) { removeToast(send, key) }).
 				OnAction(func(key string) {
 					removeToast(send, key)
-					send(logMsg("已撤销演示操作"))
+					send(logMsg(m.text("已撤销演示操作")))
 				})),
 		)
 		return root.Layout(ctx, gtx)
@@ -47,36 +57,18 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 }
 
 func navigation(m Model, send ui.Send[Msg], compact bool) ui.Widget {
-	sections, count := filteredSections(m.query)
-	themeLabel := "切换深色"
-	if m.dark {
-		themeLabel = "切换浅色"
-	}
+	sections, count := filteredSections(m.query, m.demo)
 	header := []ui.Widget{
-		text.New("FlowUI").Size(26).Weight(font.Bold),
-		muted("组件展示 / Component showcase"),
-		input.New(m.query).Key("catalog-search").Label("搜索组件").
-			Hint("搜索名称、用途或包名").FullWidth().
+		muted(m.text("组件展示")),
+		input.New(m.query).Key("catalog-search").Label(m.text("搜索组件")).
+			Hint(m.text("搜索名称、用途或包名")).FillWidth().
 			OnChange(func(value string) { send(searchMsg(value)) }),
-		muted(fmt.Sprintf("%d / %d 个演示", count, len(catalog))),
-	}
-	if compact {
-		header = append(header, button.New("返回演示").Variant(button.Ghost).
-			OnClick(func() { send(navMsg(false)) }))
+		muted(fmt.Sprintf(m.text("%d / %d 个演示"), count, len(catalog))),
 	}
 	nav := sidebar.NewSections("catalog", m.selected, sections).
 		Width(280).Padding(16).ItemHeight(34).ItemGap(2).
 		Header(layout.Column(header...).Gap(12)).
-		Footer(layout.Column(
-			layout.Wrap(
-				button.New(themeLabel).Key("theme-toggle").Variant(button.Secondary).
-					OnClick(func() { send(themeMsg{}) }),
-				button.New("重置演示").Variant(button.Ghost).
-					OnClick(func() { send(resetMsg{}) }),
-			).Gap(8),
-			muted("默认主题 · 本地演示，无需联网"),
-		).Gap(10)).
-		EmptyText("没有匹配组件，请换个关键词").
+		EmptyText(m.text("没有匹配组件，请换个关键词")).
 		OnChange(func(key string) { send(selectMsg(key)) })
 	if compact {
 		return ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
@@ -88,10 +80,15 @@ func navigation(m Model, send ui.Send[Msg], compact bool) ui.Widget {
 }
 
 func detail(m Model, send ui.Send[Msg], compact bool) ui.Widget {
+	if m.selected == "overview" {
+		return layout.Scroll(layout.Box(demoOverview(m.demo, send)).
+			Style(style.New().FillWidth().Padding(24))).Key("overview-scroll").Vertical()
+	}
 	item, ok := findEntry(m.selected)
 	if !ok {
 		item = catalog[0]
 	}
+	item = item.localized(m.demo)
 	padding := unit.Dp(28)
 	if compact {
 		padding = 16
@@ -109,40 +106,23 @@ func detail(m Model, send ui.Send[Msg], compact bool) ui.Widget {
 			text.New(item.title).Size(28).Weight(font.Bold),
 			text.New(item.summary).Size(14),
 		).Gap(10),
-		section("交互演示", item.demo(m.demo, send)),
+		section(m.text("交互演示"), item.demo(m.demo, send)),
 	}
 	if item.code != "" {
-		sections = append(sections, section("基本用法", widgetcode.New("code-"+item.key, "go", item.code)))
+		sections = append(sections, section(m.text("基本用法"), widgetcode.New("code-"+item.key, "go", item.code)))
 	}
-	if documentation := componentDocumentation(item.key); documentation != nil {
+	if documentation := componentDocumentation(item.key, m.demo.language); documentation != nil {
 		sections = append(sections, documentation)
 	}
 	sections = append(sections, layout.Column(
 		muted(path),
-		muted("完整示例：examples/showcase/"+item.source),
-		muted("修改控件后可在底部查看反馈；“重置演示”恢复初始值。"),
+		muted(m.text("完整示例：examples/showcase/")+item.source),
+		muted(m.text("修改控件后可在底部查看反馈；“重置演示”恢复初始值。")),
 	).Gap(8))
 	content := layout.Column(sections...).Gap(24)
-	header := layout.Wrap(
-		muted("组件 / "+item.title),
-		button.New("明暗切换").Variant(button.Ghost).
-			OnClick(func() { send(themeMsg{}) }),
-	).Gap(12)
-	var top ui.Widget = header
-	if compact {
-		top = layout.Wrap(
-			button.New("组件目录").Variant(button.Secondary).
-				OnClick(func() { send(navMsg(true)) }),
-			header,
-		).Gap(8)
-	}
-	return layout.Column(
-		layout.Box(top).Style(style.New().FillWidth().PaddingX(padding).PaddingY(10)),
-		layout.Divider(),
-		layout.Expanded(layout.Scroll(
-			layout.Box(content).Style(style.New().FillWidth().MaxWidth(1080).Padding(padding)),
-		).Key("detail-scroll-"+item.key).Vertical()),
-	)
+	return layout.Scroll(
+		layout.Box(content).Style(style.New().FillWidth().MaxWidth(1080).Padding(padding)),
+	).Key("detail-scroll-" + item.key).Vertical()
 }
 
 func section(title string, body ui.Widget) ui.Widget {
@@ -161,4 +141,67 @@ func muted(value string) ui.Widget {
 
 func fixedHeight(height unit.Dp, child ui.Widget) ui.Widget {
 	return layout.Box(child).Style(style.New().FillWidth().Height(height))
+}
+
+func showcaseHeader(m Model, send ui.Send[Msg], compact bool) ui.Widget {
+	brand := text.New("FlowUI").Size(18).Weight(font.Bold).MaxLines(1).Truncator("…")
+	var identity ui.Widget = layout.Row(
+		layout.Box(brand).Style(style.New().Width(252)),
+		muted(m.text("组件 / ")+m.currentTitle()),
+	).Gap(16).AlignMiddle()
+	if compact {
+		label, glyph := m.text("组件目录"), lucide.Menu
+		if m.navOpen {
+			label, glyph = m.text("返回演示"), lucide.ArrowLeft
+		}
+		identity = layout.Row(
+			headerAction("catalog-toggle", label, glyph, func() { send(navMsg(!m.navOpen)) }),
+			layout.Expanded(brand),
+		).Gap(8).AlignMiddle()
+	}
+	themeLabel, themeIcon := m.text("切换深色"), lucide.Moon
+	if m.dark {
+		themeLabel, themeIcon = m.text("切换浅色"), lucide.Sun
+	}
+	return layout.Row(
+		layout.Expanded(identity),
+		layout.Row(
+			languageMenu(m, send),
+			headerAction("theme-toggle", themeLabel, themeIcon, func() { send(themeMsg{}) }),
+			headerAction("demo-reset", m.text("重置演示"), lucide.RotateCcw, func() { send(resetMsg{}) }),
+		).Gap(4).AlignMiddle(),
+	).Gap(16).AlignMiddle().FillWidth().Padding(4, 16)
+}
+
+func (m Model) currentTitle() string {
+	item, ok := findEntry(m.selected)
+	if !ok {
+		item = catalog[0]
+	}
+	return item.localized(m.demo).title
+}
+
+func headerAction(key, label string, glyph []byte, onClick func()) ui.Widget {
+	trigger := button.New(label).Key(key).Content(icon.New(glyph).Size(18)).
+		IconOnly().Size(button.Small).Variant(button.Ghost).OnClick(onClick)
+	return tooltip.New(key+"-hint", trigger, label).Placement(popover.Bottom).Offset(8)
+}
+
+func languageMenu(m Model, send ui.Send[Msg]) ui.Widget {
+	label := "简体中文"
+	if m.demo.language == window.LanguageEnglish {
+		label = "English"
+	}
+	trigger := button.New(label).Key("language-trigger").Variant(button.Ghost).Size(button.Small).
+		Content(layout.Row(icon.New(lucide.Languages).Size(16), text.New(label), icon.New(lucide.ChevronDown).Size(12)).Gap(8).AlignMiddle())
+	items := []dropdown.Item{
+		{Key: string(window.LanguageChinese), Label: "简体中文", IndicatorType: dropdown.IndicatorCheckmark,
+			OnAction: func() { send(languageMsg(window.LanguageChinese)) }},
+		{Key: string(window.LanguageEnglish), Label: "English", IndicatorType: dropdown.IndicatorCheckmark,
+			OnAction: func() { send(languageMsg(window.LanguageEnglish)) }},
+	}
+	return dropdown.New("showcase-language", trigger, items).
+		Menu(menu.New("showcase-language-menu", items).Width(176).Compact(true).
+			SelectionMode(menu.SelectionSingle).SelectedKey(string(m.demo.language))).
+		Placement(popover.BottomEnd).Offset(8)
 }

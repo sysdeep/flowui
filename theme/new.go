@@ -5,27 +5,33 @@ import (
 	"time"
 )
 
-// New builds semantic colors and motion from a Seed, then installs the neutral
-// component geometry board. Component visual recipes are supplied separately
-// by the selected style provider.
-func New(seed Seed) Theme { return newTheme(seed, DefaultDeriveOptions(), ScalesFromSeed) }
+// Light returns FlowUI's default light theme, ready for window.Theme.
+func Light() Theme { return New(DefaultSeed()) }
 
-// NewDark is New against the dark canvas: the same seed and the same brandless
-// recipe with the neutral roles composited the other way round and the ramps
-// read dark-to-light.
-func NewDark(seed Seed) Theme { return newTheme(seed, DarkDeriveOptions(), DarkScalesFromSeed) }
+// Dark returns FlowUI's default dark theme, ready for window.Theme.
+func Dark() Theme { return NewDark(DefaultSeed()) }
 
-func newTheme(seed Seed, opts DeriveOptions, scales func(Seed) Scales) Theme {
+// New creates the default light theme with seed-based colors and motion.
+func New(seed Seed) Theme { return newTheme(seed, false) }
+
+// NewDark creates the default dark theme with seed-based colors and motion.
+func NewDark(seed Seed) Theme { return newTheme(seed, true) }
+
+func newTheme(seed Seed, dark bool) Theme {
 	t := Theme{
 		Typography:      defaultTypography(),
 		Fonts:           FontConfig{SystemFonts: true},
 		Shadows:         DefaultShadows(),
-		Components:      FrameworkComponents(),
 		Motion:          motionFromSeed(seed.Motion),
 		DisabledOpacity: 0.5,
 	}
-	t.UseSemantic(scales(seed).Derive(opts))
+	scales, opts := ScalesFromSeed(seed), DefaultDeriveOptions()
+	if dark {
+		scales, opts = DarkScalesFromSeed(seed), DarkDeriveOptions()
+	}
+	t.UseSemantic(scales.Derive(opts))
 	t.Code = defaultCodeColors(&t)
+	configureDefaults(&t, seed, dark)
 	SyncMaterialTheme(&t)
 	return t
 }
@@ -88,11 +94,11 @@ func motionFromSeed(m MotionSeed) MotionTheme {
 // defaultTypography is the framework's type ladder. It is a constant, not a
 // derivation: nothing in a Seed changes type size yet.
 func defaultTypography() Typography {
-	return Typography{
-		Typeface:     "sans-serif",
-		MonoTypeface: "monospace",
-		BodySize:     14,
-		ControlSize:  14,
-		SmallSize:    12,
+	typography := Typography{
+		BodySize:    14,
+		ControlSize: 14,
+		SmallSize:   12,
 	}
+	configureTypography(&typography)
+	return typography
 }

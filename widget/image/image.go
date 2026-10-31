@@ -7,7 +7,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	flowlayout "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 // Fit controls how an image is scaled inside its layout bounds.
@@ -35,7 +34,7 @@ type Widget struct {
 	hasHeight  bool
 	hasOpacity bool
 	hasRadius  bool
-	override   *theme.ImageOverride
+	style      style.Style
 }
 
 // New creates an Image that preserves its intrinsic size and scales down when needed.
@@ -69,7 +68,7 @@ func (i Widget) Height(dp int) Widget {
 	return i
 }
 
-// Radius sets the clipping radius in dp. Without it the provider's default
+// Radius sets the clipping radius in dp. Without it the recipe's default
 // applies.
 func (i Widget) Radius(dp int) Widget {
 	i.radius = unit.Dp(max(dp, 0))
@@ -77,14 +76,11 @@ func (i Widget) Radius(dp int) Widget {
 	return i
 }
 
-// Style merges instance declarations into the image. The declaration reaches
-// the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the image. The declaration is
+// retained for callers that build one shared declaration chain; image layout
+// itself only consumes the radius and opacity options.
 func (i Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if i.override == nil {
-		i.override = &theme.ImageOverride{}
-	}
-	i.override.Declaration = style.Join(i.override.Declaration, declaration)
+	i.style = style.Join(i.style, style.Join(values...))
 	return i
 }
 

@@ -2,8 +2,6 @@ package barchart
 
 import (
 	"image/color"
-
-	"github.com/qianniancn/flowui/theme"
 )
 
 type chartStyle struct {
@@ -16,18 +14,18 @@ type chartStyle struct {
 	opacity       float32
 }
 
-func barChartStyleFor(visual theme.BarChartVisual, disabled bool) chartStyle {
+func barChartStyleFor(defaults barChartDefaults, disabled bool) chartStyle {
 	opacity := float32(1)
 	if disabled {
-		opacity = visual.DisabledOpacity
+		opacity = defaults.DisabledOpacity
 	}
 	return chartStyle{
-		axis:          visual.Colors.Axis,
-		axisLabel:     visual.Colors.AxisLabel,
-		grid:          visual.Colors.Grid,
-		categoryHover: visual.Colors.CategoryHover,
-		barBackground: visual.Colors.BarBackground,
-		legendHover:   visual.Colors.LegendHover,
+		axis:          defaults.Colors.Axis,
+		axisLabel:     defaults.Colors.AxisLabel,
+		grid:          defaults.Colors.Grid,
+		categoryHover: defaults.Colors.CategoryHover,
+		barBackground: defaults.Colors.BarBackground,
+		legendHover:   defaults.Colors.LegendHover,
 		opacity:       opacity,
 	}
 }

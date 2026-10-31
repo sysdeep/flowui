@@ -6,7 +6,6 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type chipResolvedStyle struct {
@@ -23,43 +22,24 @@ type chipVisualKey struct {
 	size    Size
 }
 
-type chipVisualCache struct {
-	cache computed.ProviderCache[chipVisualKey, theme.ChipVisual]
-}
+type chipVisualCache = computed.VisualCache[chipVisualKey, chipVisual]
 
-type ChipVisualCacheStats = computed.ProviderCacheStats
-
-func (c *chipVisualCache) Stats() ChipVisualCacheStats {
-	if c == nil {
-		return ChipVisualCacheStats{}
-	}
-	return c.cache.Stats()
-}
-
-func (c Widget) visualWithCache(ctx *core.Context, override *theme.ChipOverride) theme.ChipVisual {
+func (c Widget) visualWithCache(ctx *core.Context) chipVisual {
 	active := core.ActiveTheme(ctx)
-	request := theme.ChipRequest{Color: c.color, Variant: c.variant, Size: c.size, Override: override}
-	if override != nil || c.visualCache == nil {
-		return resolveChipVisual(active, request)
-	}
 	key := chipVisualKey{color: c.color, variant: c.variant, size: c.size}
-	return c.visualCache.cache.Resolve(active, key, func() theme.ChipVisual {
-		return resolveChipVisual(active, request)
+	return c.visualCache.Resolve(active, key, func() chipVisual {
+		return buildChipVisual(active, c.color, c.variant, c.size)
 	})
 }
 
-func resolveChipVisual(active *theme.Theme, request theme.ChipRequest) theme.ChipVisual {
-	return theme.ResolveVisual(active, request, theme.ComponentVisualProvider.Chip, theme.ValidateChipVisual)
-}
-
-func (c Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual theme.ChipVisual) chipResolvedStyle {
+func (c Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual chipVisual) chipResolvedStyle {
 	state := style.State{}
 	resolved := chipResolvedStyle{
-		root:          computed.ResolveStatic(ctx, state, visual.Defaults, visual.Variant, visual.Size, visual.Override),
-		label:         computed.ResolvePartStatic(ctx, style.PartLabel, state, visual.Defaults, visual.Variant, visual.Size, visual.Override),
-		icon:          computed.ResolvePartStatic(ctx, style.PartIcon, state, visual.Defaults, visual.Variant, visual.Size, visual.Override),
-		labelPaddingX: visual.Metrics.LabelPaddingX,
-		contentGap:    visual.Metrics.ContentGap,
+		root:          computed.ResolveStatic(ctx, state, visual.Defaults, visual.Variant, visual.Size, c.style),
+		label:         computed.ResolvePartStatic(ctx, style.PartLabel, state, visual.Defaults, visual.Variant, visual.Size, c.style),
+		icon:          computed.ResolvePartStatic(ctx, style.PartIcon, state, visual.Defaults, visual.Variant, visual.Size, c.style),
+		labelPaddingX: visual.LabelPaddingX,
+		contentGap:    visual.ContentGap,
 	}
 	if !computed.HasTransitions(resolved.root, resolved.label, resolved.icon) {
 		return resolved

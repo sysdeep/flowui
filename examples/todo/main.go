@@ -7,7 +7,8 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	buttonpkg "github.com/qianniancn/flowui/widget/button"
 	inputpkg "github.com/qianniancn/flowui/widget/input"
@@ -126,7 +127,7 @@ func addControls(m Model, canAdd bool, send ui.Send[Msg]) ui.Widget {
 
 	return layout.Row(
 		layout.Expanded(input),
-		layout.Box(button).Style(style.New().Width(100)),
+		button.Width(100),
 	).Gap(12).AlignMiddle()
 }
 
@@ -143,7 +144,7 @@ func todoRow(item Item, send ui.Send[Msg]) ui.Widget {
 
 	return layout.Row(
 		layout.Expanded(checkbox),
-		layout.Box(button).Style(style.New().Width(100)),
+		button.Width(100),
 	).Gap(12).AlignMiddle()
 }
 
@@ -151,6 +152,6 @@ func main() {
 	ui.Run(ui.NewProgram(Model{NextID: 1},
 		Update, View), window.Title("FlowUI Todo"),
 		window.Size(900, 600),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 }

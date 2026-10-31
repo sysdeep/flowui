@@ -7,20 +7,21 @@ import (
 	"strconv"
 
 	"gioui.org/font"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/i18n"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
 const stateSlotColorSlider = "color-slider"
 
 type ColorSliderWidget struct {
-	override   *theme.ColorPickerOverride
+	style      style.Style
 	key        string
 	value      color.NRGBA
 	channel    ColorChannel
@@ -33,9 +34,9 @@ type ColorSliderWidget struct {
 }
 
 type colorSliderState struct {
-	control     colorControlState
-	color       colorValueState
-	visualCache colorPickerVisualCache
+	control       colorControlState
+	color         colorValueState
+	defaultsCache colorSliderDefaultsCache
 }
 
 func ColorSlider(key string, value color.NRGBA, channel ColorChannel) ColorSliderWidget {
@@ -80,13 +81,13 @@ func (slider ColorSliderWidget) withColorState(state *colorValueState) ColorSlid
 }
 
 func (slider ColorSliderWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return slider.layoutWithOverride(ctx, gtx, slider.override)
+	return slider.layoutWithStyle(ctx, gtx)
 }
 
-func (slider ColorSliderWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ColorPickerOverride) layout.Dimensions {
+func (slider ColorSliderWidget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	key := core.ClaimKey(ctx, core.KindColorSlider, slider.key)
 	sliderState := core.UseState[colorSliderState](ctx, key, stateSlotColorSlider)
-	visual := sliderState.visualCache.resolve(core.ActiveTheme(ctx), colorPickerRequest(override))
+	defaults := colorSliderDefaultsFor(ctx, &sliderState.defaultsCache)
 	valueState := &sliderState.color
 	if slider.color != nil {
 		valueState = slider.color
@@ -99,40 +100,45 @@ func (slider ColorSliderWidget) layoutWithOverride(ctx *core.Context, gtx layout
 	count := 0
 	if slider.showLabel || slider.showOutput {
 		children[count] = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return slider.layoutHeader(ctx, gtx, valueState, visual)
+			return slider.layoutHeader(ctx, gtx, valueState, defaults)
 		})
 		count++
 	}
 	children[count] = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return slider.layoutTrack(ctx, gtx, sliderState, valueState, visual, enabled)
+		return slider.layoutTrack(ctx, gtx, sliderState, valueState, defaults, enabled)
 	})
 	count++
 
 	focused := gtx.Focused(&sliderState.control)
-	return layoutui.Styled(ctx, gtx, key, style.State{
-		Pressed:      sliderState.control.dragging,
+	state := style.State{
+		Pressed:      sliderState.control.Dragging,
 		Focused:      focused,
 		FocusVisible: core.FocusVisible(ctx, &sliderState.control, focused),
 		Disabled:     !enabled,
-		Dragging:     sliderState.control.dragging,
-	}, visual.Override, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
-		opacity := paint.PushOpacity(gtx.Ops, func() float32 {
-			if enabled {
-				return 1
-			}
-			return visual.DisabledOpacity
-		}())
+		Dragging:     sliderState.control.Dragging,
+	}
+	resolved := computed.Resolve(
+		ctx,
+		gtx,
+		key,
+		state,
+		defaults.Defaults,
+		style.Style{},
+		style.Style{},
+		slider.style,
+	)
+	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
+		opacity := paint.PushOpacity(gtx.Ops, colorControlOpacity(enabled, defaults.DisabledOpacity))
 		defer opacity.Pop()
-		dimensions := layout.Flex{
+		return layout.Flex{
 			Axis: layout.Vertical,
-			Gap:  gtx.Dp(visual.Slider.HeaderGap),
+			Gap:  gtx.Dp(defaults.HeaderGap),
 		}.Layout(gtx, children[:count]...)
-		return dimensions
 	}))
 }
 
-func (slider ColorSliderWidget) layoutHeader(ctx *core.Context, gtx layout.Context, valueState *colorValueState, visual theme.ColorPickerVisual) layout.Dimensions {
-	textSize := float32(visual.Slider.TextSize)
+func (slider ColorSliderWidget) layoutHeader(ctx *core.Context, gtx layout.Context, valueState *colorValueState, defaults colorSliderDefaults) layout.Dimensions {
+	textSize := float32(defaults.TextSize)
 	var children [2]layout.FlexChild
 	count := 0
 	if slider.showLabel {
@@ -140,7 +146,7 @@ func (slider ColorSliderWidget) layoutHeader(ctx *core.Context, gtx layout.Conte
 			return text.New(slider.resolvedLabel(ctx)).
 				Size(textSize).
 				Weight(font.Medium).
-				Color(visual.PanelForeground).
+				Color(defaults.Foreground).
 				Layout(ctx, gtx)
 		})
 		count++
@@ -150,7 +156,7 @@ func (slider ColorSliderWidget) layoutHeader(ctx *core.Context, gtx layout.Conte
 			return text.New(slider.output(valueState)).
 				Size(textSize).
 				Weight(font.Medium).
-				Color(visual.MutedForeground).
+				Color(defaults.MutedForeground).
 				Layout(ctx, gtx)
 		})
 		count++
@@ -158,11 +164,14 @@ func (slider ColorSliderWidget) layoutHeader(ctx *core.Context, gtx layout.Conte
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children[:count]...)
 }
 
-func (slider ColorSliderWidget) layoutTrack(ctx *core.Context, gtx layout.Context, sliderState *colorSliderState, valueState *colorValueState, visual theme.ColorPickerVisual, enabled bool) layout.Dimensions {
-	size := image.Pt(gtx.Constraints.Max.X, max(gtx.Dp(visual.Slider.TrackHeight), 1))
+func (slider ColorSliderWidget) layoutTrack(ctx *core.Context, gtx layout.Context, sliderState *colorSliderState, valueState *colorValueState, defaults colorSliderDefaults, enabled bool) layout.Dimensions {
+	size := image.Pt(gtx.Constraints.Max.X, max(gtx.Dp(defaults.TrackHeight), 1))
 	trackGtx := gtx
 	trackGtx.Constraints = layout.Exact(size)
-	focus := sliderState.control.focusOpacity(ctx, gtx, visual.Motion)
+	focus := sliderState.control.focusOpacity(ctx, gtx, defaults.Motion)
+	thumbSize := max(gtx.Dp(defaults.ThumbSize), 1)
+	thumbBorder := max(gtx.Dp(defaults.ThumbBorderWidth), 1)
+	focusWidth := max(gtx.Dp(defaults.FocusRingWidth), 1)
 	switch slider.channel {
 	case ColorChannelAlpha:
 		currentColor := valueState.syncedColor
@@ -176,9 +185,7 @@ func (slider ColorSliderWidget) layoutTrack(ctx *core.Context, gtx layout.Contex
 		}
 		value := currentColor
 		value.A = uint8(current*255 + .5)
-		visual.Slider.Render(gtx, theme.ColorSliderRenderRequest{
-			Size: size, Channel: theme.ColorSliderAlpha, Value: colorPickerHSV(valueState.hsv()), Color: value, Focus: focus,
-		})
+		colorDrawAlphaSlider(gtx, size, value, thumbSize, thumbBorder, focusWidth, focus, defaults.FocusColor)
 	default:
 		current := valueState.hsv()
 		if next, changed := sliderState.control.updateAxis(ctx, trackGtx, size, current.h, 1.0/360, enabled); changed {
@@ -187,11 +194,9 @@ func (slider ColorSliderWidget) layoutTrack(ctx *core.Context, gtx layout.Contex
 			valueState.accept(value, next)
 			slider.dispatch(value)
 		}
-		visual.Slider.Render(gtx, theme.ColorSliderRenderRequest{
-			Size: size, Channel: theme.ColorSliderHue, Value: colorPickerHSV(current), Color: hsvToNRGBA(current), Focus: focus,
-		})
+		colorDrawHueSlider(gtx, size, current, thumbSize, thumbBorder, focusWidth, focus, defaults.FocusColor)
 	}
-	addColorControlInput(gtx, &sliderState.control, size, enabled, false, slider.resolvedLabel(ctx), slider.output(valueState))
+	sliderState.control.AddInput(gtx, &sliderState.control, image.Rectangle{Max: size}, enabled, pointer.CursorPointer, slider.resolvedLabel(ctx), slider.output(valueState))
 	return layout.Dimensions{Size: size}
 }
 
@@ -223,13 +228,9 @@ func (slider ColorSliderWidget) output(valueState *colorValueState) string {
 	return string(append(formatted, "°"...))
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w ColorSliderWidget) Style(values ...style.Style) ColorSliderWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ColorPickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

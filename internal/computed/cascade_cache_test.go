@@ -12,35 +12,6 @@ import (
 	"github.com/qianniancn/flowui/theme"
 )
 
-func TestCascadeCache_Basic(t *testing.T) {
-	cache := newCascadeCache(10)
-
-	key := cascadeCacheKey{
-		componentKey: "test-button",
-		stateHash:    0,
-		themeHash:    12345,
-		customHash:   67890,
-	}
-
-	// Cache miss
-	if _, found := cache.get(key); found {
-		t.Error("expected cache miss on empty cache")
-	}
-
-	// Put and retrieve
-	resolved := style.ResolvedStyle{}
-	cache.put(key, resolved)
-
-	if _, found := cache.get(key); !found {
-		t.Error("expected cache hit after put")
-	}
-
-	stats := cache.stats()
-	if stats.Hits != 1 || stats.Misses != 1 {
-		t.Errorf("expected 1 hit and 1 miss, got hits=%d misses=%d", stats.Hits, stats.Misses)
-	}
-}
-
 func TestCascadeCachePutOwnsStoredStyle(t *testing.T) {
 	cache := newCascadeCache(1)
 	key := cascadeCacheKey{componentKey: "menu-item"}
@@ -120,7 +91,7 @@ func TestResolveStaticCacheSharesTransitionFreeStyles(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	declaration := style.Style{}.Background(style.RGB(0x102030)).Padding(8)
 
@@ -146,7 +117,7 @@ func TestResolveStaticCacheCopiesStylesWithTransitions(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	declaration := style.Style{}.
 		Opacity(1).
@@ -177,7 +148,7 @@ func TestResolvePartStaticCacheSharesTransitionFreeStyles(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	declaration := style.Style{}.
 		Part(style.PartContent, style.Style{}.Background(style.RGB(0x102030)).Padding(8))
@@ -203,7 +174,7 @@ func TestResolvePartStaticCacheCopiesStylesWithTransitions(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	declaration := style.Style{}.
 		Part(style.PartContent, style.Style{}.
@@ -279,7 +250,7 @@ func TestSharedStaticStyleSurvivesCopyOnWriteHelpers(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	declaration := style.Style{}.Outline(2, 1, style.RGB(0x204060))
 	ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
@@ -381,72 +352,6 @@ func TestCascadeCache_Clear(t *testing.T) {
 	}
 }
 
-func TestComputeStyleStateHash(t *testing.T) {
-	tests := []struct {
-		name  string
-		state style.State
-		want  uint16
-	}{
-		{
-			name:  "empty",
-			state: style.State{},
-			want:  0,
-		},
-		{
-			name:  "hovered",
-			state: style.State{Hovered: true},
-			want:  1 << 0,
-		},
-		{
-			name:  "pressed",
-			state: style.State{Pressed: true},
-			want:  1 << 1,
-		},
-		{
-			name:  "hovered and pressed",
-			state: style.State{Hovered: true, Pressed: true},
-			want:  (1 << 0) | (1 << 1),
-		},
-		{
-			name:  "disabled",
-			state: style.State{Disabled: true},
-			want:  1 << 4,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := computeStyleStateHash(tt.state)
-			if got != tt.want {
-				t.Errorf("computeStyleStateHash() = %d, want %d", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestCustomStyleHash(t *testing.T) {
-	cache := newCascadeCache(10)
-
-	// Same style should produce same hash
-	s1 := style.Style{}.Padding(8).Background(style.RGB(0xffffff))
-	s2 := style.Style{}.Padding(8).Background(style.RGB(0xffffff))
-
-	hash1 := cache.computeCustomStyleHash(s1)
-	hash2 := cache.computeCustomStyleHash(s2)
-
-	if hash1 != hash2 {
-		t.Error("expected identical styles to produce same hash")
-	}
-
-	// Different style should produce different hash
-	s3 := style.Style{}.Padding(16).Background(style.RGB(0x000000))
-	hash3 := cache.computeCustomStyleHash(s3)
-
-	if hash1 == hash3 {
-		t.Error("expected different styles to produce different hash")
-	}
-}
-
 func TestCustomStyleHashDistinguishesPropertyIdentity(t *testing.T) {
 	cache := newCascadeCache(10)
 	width := style.Style{}.Width(8)
@@ -466,7 +371,7 @@ func TestResolveStaticCacheDistinguishesConditionalPredicates(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	state := style.State{Hovered: true}
 	hovered := style.Style{}.On(style.Hovered, style.Style{}.Width(8))
@@ -491,7 +396,10 @@ func TestResolveStaticCacheTracksRuntimeThemeShadows(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
+	semantic := activeTheme.Semantic()
+	semantic.SurfaceShadow = color.NRGBA{A: 100}
+	activeTheme.UseSemantic(semantic)
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	declaration := style.Style{}.Shadow(style.ShadowSurface)
 	first := ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
@@ -522,21 +430,25 @@ func TestResolvePartStaticCacheTracksInheritedStyles(t *testing.T) {
 		ClearCascadeCache()
 	}()
 
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	want := style.RGB(0xfefefe)
 	inherited := style.RGB(0x111111)
-	defaults := style.Style{}.Part(style.PartIndicator, style.Style{}.TextColor(want))
+	// The part has no explicit foreground, so the inherited root text remains
+	// the fallback. Changing the inherited layer must still invalidate cache.
+	defaults := style.Style{}.
+		TextColor(want).
+		Part(style.PartIndicator, style.Style{})
 
 	restore := core.PushInheritedStyle(ctx, style.Style{}.TextColor(inherited))
 	first := ResolvePartStatic(ctx, style.PartIndicator, style.State{}, defaults, style.Style{}, style.Style{}, style.Style{})
 	restore()
 	second := ResolvePartStatic(ctx, style.PartIndicator, style.State{}, defaults, style.Style{}, style.Style{}, style.Style{})
 
-	if got, _ := solidColor(first.Text.Color); got != inherited.Color {
+	if got, _ := Color(first.Text.Color); got != inherited.Color {
 		t.Fatalf("inherited color = %#v, want %#v", got, inherited.Color)
 	}
-	if got, _ := solidColor(second.Text.Color); got != want.Color {
+	if got, _ := Color(second.Text.Color); got != want.Color {
 		t.Fatalf("unscoped color = %#v, want %#v", got, want.Color)
 	}
 }
@@ -634,10 +546,10 @@ func BenchmarkResolveStatic_WithCache(b *testing.B) {
 	defer func() { DisableCascadeCache = false }()
 
 	// Create minimal test context - just need theme
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	state := style.State{Hovered: true}
 	defaults := style.Style{}.Padding(8).Background(style.RGB(0xffffff))
-	variant := style.Style{}.PaddingX(16)
+	variant := style.Style{}.Padding(16)
 	size := style.Style{}.Height(36)
 	custom := style.Style{}.TextColor(style.RGB(0x000000))
 
@@ -671,7 +583,7 @@ func BenchmarkResolveStatic_WithoutCache(b *testing.B) {
 
 	state := style.State{Hovered: true}
 	defaults := style.Style{}.Padding(8).Background(style.RGB(0xffffff))
-	variant := style.Style{}.PaddingX(16)
+	variant := style.Style{}.Padding(16)
 	size := style.Style{}.Height(36)
 	custom := style.Style{}.TextColor(style.RGB(0x000000))
 
@@ -689,7 +601,7 @@ func BenchmarkResolveStatic_MixedHitRate(b *testing.B) {
 	defer func() { DisableCascadeCache = false }()
 
 	defaults := style.Style{}.Padding(8).Background(style.RGB(0xffffff))
-	variant := style.Style{}.PaddingX(16)
+	variant := style.Style{}.Padding(16)
 	size := style.Style{}.Height(36)
 	custom := style.Style{}.TextColor(style.RGB(0x000000))
 

@@ -148,9 +148,6 @@ func newWindowSpec[M any, Msg any](
 	if !cfg.ThemeSet {
 		panic("flowui: window requires an explicit theme; use window.Theme(...)")
 	}
-	if err := theme.ValidateVisualProvider(cfg.InitialTheme); err != nil {
-		panic(err)
-	}
 	return WindowSpec{
 		key:                 key,
 		options:             append([]app.Option(nil), cfg.Native...),
@@ -178,9 +175,6 @@ func newWindowSpec[M any, Msg any](
 			activeTheme := cfg.InitialTheme
 			for _, apply := range cfg.ThemeOps {
 				apply(&activeTheme)
-			}
-			if err := theme.ValidateVisualProvider(activeTheme); err != nil {
-				return err
 			}
 			if theme.MaterialOf(&activeTheme) == nil {
 				theme.SyncMaterialTheme(&activeTheme)
@@ -359,9 +353,6 @@ func (a *Application) Configure(key string, options ...flowwindow.Option) bool {
 // returns false when key does not identify an active window.
 func (a *Application) SetTheme(key string, value theme.Theme) bool {
 	if a == nil {
-		return false
-	}
-	if theme.ValidateVisualProvider(value) != nil {
 		return false
 	}
 	window, appearance := a.windows.appearance(key)

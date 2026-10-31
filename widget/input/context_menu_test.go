@@ -16,7 +16,7 @@ import (
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/menu"
 )
 
@@ -351,11 +351,11 @@ func TestGroupTextAreaContextMenuOpensOnRightClick(t *testing.T) {
 }
 
 func TestEditMenuLabelsLocalized(t *testing.T) {
-	zh := editMenuLabelsFor(core.New(nil, testtheme.Behavior(), locale.LanguageChinese))
+	zh := editMenuLabelsFor(core.New(nil, new(theme.Light()), locale.LanguageChinese))
 	if zh.cut != "剪切" || zh.copy != "复制" || zh.paste != "粘贴" || zh.selectAll != "全选" {
 		t.Fatalf("zh labels = %+v", zh)
 	}
-	en := editMenuLabelsFor(core.New(nil, testtheme.Behavior(), locale.LanguageEnglish))
+	en := editMenuLabelsFor(core.New(nil, new(theme.Light()), locale.LanguageEnglish))
 	if en.cut != "Cut" || en.copy != "Copy" || en.paste != "Paste" || en.selectAll != "Select All" {
 		t.Fatalf("en labels = %+v", en)
 	}

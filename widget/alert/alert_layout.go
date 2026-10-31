@@ -10,13 +10,12 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/icon"
 	textui "github.com/qianniancn/flowui/widget/text"
 )
 
-func (a Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual theme.AlertVisual) layout.Dimensions {
+func (a Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual alertVisual) layout.Dimensions {
 	resolved := a.resolveStyle(ctx, gtx, visual)
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		if a.title != "" {
@@ -30,7 +29,7 @@ func (a Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual t
 	return layoutui.Resolved(ctx, gtx, resolved.root, content)
 }
 
-func (a Widget) layoutRow(ctx *core.Context, gtx layout.Context, resolved alertResolvedStyle, visual theme.AlertVisual) layout.Dimensions {
+func (a Widget) layoutRow(ctx *core.Context, gtx layout.Context, resolved alertResolvedStyle, visual alertVisual) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, 3)
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.layoutIndicator(ctx, gtx, resolved.indicator, visual)
@@ -64,7 +63,7 @@ func (a Widget) closeKey() string {
 	return "alert-close-" + a.title + "\x00" + a.description
 }
 
-func (a Widget) layoutIndicator(ctx *core.Context, gtx layout.Context, resolved style.ResolvedStyle, visual theme.AlertVisual) layout.Dimensions {
+func (a Widget) layoutIndicator(ctx *core.Context, gtx layout.Context, resolved style.ResolvedStyle, visual alertVisual) layout.Dimensions {
 	return layout.Inset{
 		Top:    visual.Metrics.IndicatorPadding,
 		Right:  visual.Metrics.IndicatorPadding,

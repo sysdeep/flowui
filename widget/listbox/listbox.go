@@ -8,42 +8,9 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
-)
-
-type Item struct {
-	Key         string
-	Label       string
-	Description string
-	Leading     core.Widget
-	Trailing    core.Widget
-	Indicator   func(selected bool) core.Widget
-	Disabled    bool
-	Variant     ItemVariant
-}
-
-type Section struct {
-	Title string
-	Items []Item
-}
-
-type ItemVariant int
-
-const (
-	ItemDefault ItemVariant = iota
-	ItemDanger
-)
-
-type SelectionMode int
-
-const (
-	SelectionSingle SelectionMode = iota
-	SelectionMultiple
-	SelectionNone
 )
 
 type Widget struct {
-	override            theme.ListBoxOverride
 	scrollToKey         string
 	key                 string
 	derivedOwner        string
@@ -76,9 +43,9 @@ type Widget struct {
 	maxHeight           int
 	padding             unit.Dp
 	hasPadding          bool
+	style               style.Style
 
-	partsOnly   bool
-	hasOverride bool
+	partsOnly bool
 }
 
 func (l Widget) withPadding(padding unit.Dp) Widget {
@@ -103,7 +70,7 @@ func WithDerivedIdentity(widget Widget, owner, role string) Widget {
 // sets the controlled value and DefaultSelectedKey the initial one.
 func New(items []Item) Widget {
 	return Widget{
-		key:           core.AutoKey(),
+		key:           core.AutoKey("listbox"),
 		items:         items,
 		selectionMode: SelectionSingle,
 	}
@@ -156,7 +123,6 @@ func (l Widget) DefaultSelectedKey(key string) Widget {
 	return l
 }
 
-// SelectedKeys sets controlled mode with external multiple selection values.
 // SelectedKeys sets the controlled selection and switches to multiple selection.
 func (l Widget) SelectedKeys(keys []string) Widget {
 	l.selectedKeys = keys
@@ -211,7 +177,7 @@ func (l Widget) Disabled(disabled bool) Widget {
 	return l
 }
 
-func (l Widget) FullWidth() Widget {
+func (l Widget) FillWidth() Widget {
 	l.fullWidth = true
 	return l
 }
@@ -239,15 +205,7 @@ func (l Widget) ScrollToKey(key string) Widget {
 }
 
 func (l Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	var override *theme.ListBoxOverride
-	if l.hasOverride {
-		override = &l.override
-	}
-	return l.layoutWithOverride(ctx, gtx, override, l.partsOnly)
-}
 
-func (l Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instanceOverride *theme.ListBoxOverride, partsOnly bool) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	rootKey := core.FullKey(ctx, l.key)
 	if l.derivedOwner != "" {
 		rootKey = core.DerivedKey(ctx, l.derivedOwner, l.derivedRole)
@@ -256,7 +214,6 @@ func (l Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instan
 	state.beginFrame()
 	defer state.endFrame()
 
-	// Bind disclosure and get current values
 	if l.selectionMode == SelectionMultiple {
 		state.bindMultiple(l)
 		l.selectedKeys = state.currentMultipleValue(l)
@@ -269,17 +226,15 @@ func (l Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instan
 	l.disabledKeySet = state.disabledKeys.Resolve(l.disabledKeys)
 	entries, items := state.resolveEntries(l)
 
-	if !l.disabled {
-		result := state.updateKeys(gtx, items, l, state.keyboardActiveKey(l))
-		if result.focusKey != "" {
-			core.RequestFocus(ctx, &state.item(result.focusKey).Clickable)
-		}
-		if result.actionKey != "" {
-			l.activate(state, result.actionKey)
-		}
-	}
 	if l.disabled {
 		gtx = gtx.Disabled()
+	}
+	result := state.updateKeys(gtx, items, l, state.keyboardActiveKey(l))
+	if result.focusKey != "" {
+		core.RequestFocus(ctx, &state.item(result.focusKey).Clickable)
+	}
+	if result.actionKey != "" {
+		l.activate(state, result.actionKey)
 	}
 	hovered, pressed, focused := false, false, false
 	for itemKey, itemState := range state.items {
@@ -291,15 +246,10 @@ func (l Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instan
 		focused = focused || gtx.Focused(&itemState.Clickable)
 	}
 	selected := l.selectedKey != "" || len(l.selectedKeys) > 0
-	request := theme.ListBoxRequest{}
-	if instanceOverride != nil {
-		request.Override = instanceOverride
-	}
-	visual := state.listBoxVisualForRequest(ctx, request)
-	instanceStyle := visual.Override
-	state.resolvedPartCache.prepare(ctx, core.ActiveTheme(ctx), instanceStyle)
-	rootStyle := instanceStyle
-	if partsOnly {
+	defaults := state.defaultsFor(ctx)
+	state.resolvedPartCache.prepare(ctx, core.ActiveTheme(ctx), l.style)
+	rootStyle := l.style
+	if l.partsOnly {
 		rootStyle = style.Style{}
 	}
 	return layoutui.Styled(ctx, gtx, rootKey, style.State{
@@ -309,7 +259,7 @@ func (l Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, instan
 		Disabled: l.disabled || !gtx.Enabled(),
 		Selected: selected,
 	}, rootStyle, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return l.layout(ctx, gtx, rootKey, state, visual, entries, len(items) > 0, instanceStyle)
+		return l.layout(ctx, gtx, rootKey, state, defaults, entries, len(items) > 0, l.style)
 	}))
 }
 
@@ -425,18 +375,18 @@ func listBoxSameKeys(a, b []string) bool {
 	return true
 }
 
-// Style merges instance declarations into the list.
+// Style merges instance declarations into the list. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (l Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	l.override.Declaration = style.Join(l.override.Declaration, declaration)
-	l.hasOverride = true
+	l.style = style.Join(l.style, style.Join(values...))
 	return l
 }
 
-// StyleParts adapts a compound owner's declaration for embedded items.
+// StyleParts adapts a compound owner's declaration for embedded items. The
+// declaration styles the items while leaving the root unstyled.
 func (l Widget) StyleParts(declaration style.Style) Widget {
-	l.override.Declaration = declaration
+	l.style = declaration
 	l.partsOnly = true
-	l.hasOverride = !declaration.IsEmpty()
 	return l
 }

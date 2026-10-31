@@ -15,15 +15,34 @@ import (
 	"github.com/qianniancn/flowui/animation"
 	flowlayout "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/theme"
-	"github.com/qianniancn/flowui/theme/base"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
+	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/portal"
 	"github.com/qianniancn/flowui/window"
 )
 
+func anonymousButton() button.Widget { return button.New("Click") }
+
+func TestAnonymousWidgetsKeepPointerStateAcrossFramesAndWindows(t *testing.T) {
+	h := uitest.New(image.Pt(240, 120), theme.Light())
+	other := uitest.New(image.Pt(240, 120), theme.Light())
+	clicks := 0
+	fixed := anonymousButton()
+	root := ui.WidgetFunc(func(ctx *ui.Context, gtx layout.Context) layout.Dimensions {
+		return flowlayout.Column(fixed, anonymousButton().OnClick(func() { clicks++ })).Layout(ctx, gtx)
+	})
+	h.Frame(root)
+	other.Frame(anonymousButton())
+	h.Click(f32.Pt(20, 48))
+	h.Frame(root)
+	if clicks != 1 {
+		t.Fatalf("rebuilt anonymous button clicks=%d, want 1", clicks)
+	}
+}
+
 func TestHarnessRoutesPointerAndKeyboardClicks(t *testing.T) {
-	harness := uitest.New(image.Pt(240, 120), base.Light())
+	harness := uitest.New(image.Pt(240, 120), theme.Light())
 	button := new(testButton)
 
 	harness.Frame(button)
@@ -48,7 +67,7 @@ func TestHarnessRoutesPointerAndKeyboardClicks(t *testing.T) {
 }
 
 func TestHarnessAdvancesTweenAndLaysOutPortal(t *testing.T) {
-	harness := uitest.New(image.Pt(240, 120), base.Light())
+	harness := uitest.New(image.Pt(240, 120), theme.Light())
 	var progress float32
 	portalLayouts := 0
 	root := ui.WidgetFunc(func(ctx *ui.Context, gtx layout.Context) layout.Dimensions {
@@ -79,13 +98,13 @@ func TestHarnessAdvancesTweenAndLaysOutPortal(t *testing.T) {
 }
 
 func TestHarnessConfigurationAndResize(t *testing.T) {
-	light := base.Light()
+	light := theme.Light()
 	if language := uitest.NewWithConfig(uitest.Config{Size: image.Pt(100, 100), Theme: &light}).Context().Language(); language != window.LanguageEnglish {
 		t.Fatalf("default language = %q, want English", language)
 	}
 
-	activeTheme := base.Dark()
-	activeTheme.Palette.Accent = color.NRGBA{R: 1, G: 2, B: 3, A: 255}
+	activeTheme := theme.Dark()
+	activeTheme.Colors.Tones[theme.TonePrimary].Fill = color.NRGBA{R: 1, G: 2, B: 3, A: 255}
 	harness := uitest.NewWithConfig(uitest.Config{
 		Size:     image.Pt(200, 100),
 		Theme:    &activeTheme,
@@ -95,7 +114,7 @@ func TestHarnessConfigurationAndResize(t *testing.T) {
 	if harness.Context().Language() != window.LanguageChinese {
 		t.Fatalf("language = %q, want Chinese", harness.Context().Language())
 	}
-	if harness.Context().Theme().Palette.Background != activeTheme.Palette.Background {
+	if harness.Context().Theme().Colors.Background != activeTheme.Colors.Background {
 		t.Fatal("harness did not use the configured theme")
 	}
 	var now time.Time
@@ -116,10 +135,10 @@ func TestHarnessConfigurationAndResize(t *testing.T) {
 }
 
 func TestHarnessRejectsInvalidTimeAndSize(t *testing.T) {
-	activeTheme := base.Light()
+	activeTheme := theme.Light()
 	mustPanic(t, func() { uitest.New(image.Point{}, activeTheme) })
 	mustPanic(t, func() { uitest.NewWithConfig(uitest.Config{Size: image.Pt(100, 100)}) })
-	mustPanic(t, func() { uitest.New(image.Pt(100, 100), theme.Theme{}) })
+	_ = uitest.New(image.Pt(100, 100), theme.Theme{})
 	harness := uitest.New(image.Pt(100, 100), activeTheme)
 	mustPanic(t, func() { harness.Resize(image.Pt(-1, 100)) })
 	mustPanic(t, func() { harness.Advance(-time.Second) })

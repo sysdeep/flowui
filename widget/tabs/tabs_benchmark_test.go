@@ -11,11 +11,11 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func BenchmarkTabsLayoutSteadyState(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New("benchmark-tabs", "tab-0", []TabItem{
 		{Key: "tab-0", Label: "Overview"}, {Key: "tab-1", Label: "Activity"},
 		{Key: "tab-2", Label: "Settings"},
@@ -23,7 +23,7 @@ func BenchmarkTabsLayoutSteadyState(b *testing.B) {
 	gtx := layout.Context{Ops: new(op.Ops), Constraints: layout.Constraints{Max: image.Pt(480, 160)}}
 	var router input.Router
 	value.Layout(ctx, gtx)
-	baseline := value.visualCache.cache.Stats()
+	baseline := value.visualCache.Stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -36,52 +36,58 @@ func BenchmarkTabsLayoutSteadyState(b *testing.B) {
 		router.Frame(gtx.Ops)
 	}
 	b.StopTimer()
-	reportTabsVisualCacheStats(b, value.visualCache.cache.Stats(), baseline)
+	reportTabsDefaultsCacheStats(b, value.visualCache.Stats(), baseline)
 }
 
-func reportTabsVisualCacheStats(b *testing.B, after, before computed.ProviderCacheStats) {
-	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "tabs-visual-cache-hits/op")
-	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "tabs-visual-cache-misses/op")
-	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "tabs-visual-cache-theme-invalidations/op")
-	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "tabs-visual-cache-key-invalidations/op")
+func reportTabsDefaultsCacheStats(b *testing.B, after, before computed.VisualCacheStats) {
+	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "tabs-default-cache-hits/op")
+	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "tabs-default-cache-misses/op")
+	b.ReportMetric(
+		float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N),
+		"tabs-default-cache-theme-invalidations/op",
+	)
+	b.ReportMetric(
+		float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N),
+		"tabs-default-cache-key-invalidations/op",
+	)
 }
 
-func BenchmarkTabsVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+func BenchmarkTabsDefaultsCacheHit(b *testing.B) {
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New("benchmark-tabs", "tab-0", []TabItem{{Key: "tab-0", Label: "Overview"}})
-	value.visual(ctx)
-	baseline := value.visualCache.cache.Stats()
+	value.defaultsWithCache(ctx)
+	baseline := value.visualCache.Stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		value.visual(ctx)
+		value.defaultsWithCache(ctx)
 	}
 	b.StopTimer()
-	reportTabsVisualCacheStats(b, value.visualCache.cache.Stats(), baseline)
+	reportTabsDefaultsCacheStats(b, value.visualCache.Stats(), baseline)
 }
 
-func BenchmarkTabsVisualCacheInvalidation(b *testing.B) {
-	first := testtheme.Behavior()
-	second := testtheme.Behavior()
+func BenchmarkTabsDefaultsCacheInvalidation(b *testing.B) {
+	first := new(theme.Light())
+	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
 	value := New("benchmark-tabs", "tab-0", []TabItem{{Key: "tab-0", Label: "Overview"}})
-	value.visual(firstContext)
+	value.defaultsWithCache(firstContext)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
 		switch index & 3 {
 		case 0:
-			value.visual(firstContext)
+			value.defaultsWithCache(firstContext)
 		case 1:
-			value.visual(secondContext)
+			value.defaultsWithCache(secondContext)
 		case 2:
-			value.Size(Small).visual(secondContext)
+			value.Size(Small).defaultsWithCache(secondContext)
 		default:
-			value.visual(secondContext)
+			value.defaultsWithCache(secondContext)
 		}
 	}
 	b.StopTimer()
-	reportTabsVisualCacheStats(b, value.visualCache.cache.Stats(), computed.ProviderCacheStats{})
+	reportTabsDefaultsCacheStats(b, value.visualCache.Stats(), computed.VisualCacheStats{})
 }

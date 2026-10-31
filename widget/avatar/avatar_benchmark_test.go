@@ -1,6 +1,7 @@
 package avatar
 
 import (
+	"github.com/qianniancn/flowui/internal/computed"
 	"image"
 	"testing"
 	"time"
@@ -9,11 +10,11 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func BenchmarkAvatarLayoutSteadyState(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New("AB").Color(ColorSuccess).Variant(VariantSoft).Size(SizeMedium)
 	gtx := layout.Context{Ops: new(op.Ops), Constraints: layout.Constraints{Max: image.Pt(320, 160)}}
 	gtx.Now = time.Unix(0, 0)
@@ -29,47 +30,47 @@ func BenchmarkAvatarLayoutSteadyState(b *testing.B) {
 }
 
 func BenchmarkAvatarVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New("AB").Color(ColorSuccess).Variant(VariantSoft).Size(SizeMedium)
-	value.visualWithCache(ctx, nil)
+	value.visualWithCache(ctx)
 	baseline := value.visualCache.Stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		value.visualWithCache(ctx, nil)
+		value.visualWithCache(ctx)
 	}
 	b.StopTimer()
 	reportAvatarCacheStats(b, value.visualCache.Stats(), baseline)
 }
 
 func BenchmarkAvatarVisualCacheInvalidation(b *testing.B) {
-	first := testtheme.Behavior()
-	second := testtheme.Behavior()
+	first := new(theme.Light())
+	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
 	value := New("AB").Color(ColorSuccess).Variant(VariantSoft).Size(SizeMedium)
-	value.visualWithCache(firstContext, nil)
+	value.visualWithCache(firstContext)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
 		switch index & 7 {
 		case 0, 1:
-			value.visualWithCache(firstContext, nil)
+			value.visualWithCache(firstContext)
 		case 2, 3:
-			value.visualWithCache(secondContext, nil)
+			value.visualWithCache(secondContext)
 		case 4, 5:
-			value.Color(ColorDanger).visualWithCache(secondContext, nil)
+			value.Color(ColorDanger).visualWithCache(secondContext)
 		case 6, 7:
-			value.visualWithCache(secondContext, nil)
+			value.visualWithCache(secondContext)
 		}
 	}
 	b.StopTimer()
-	reportAvatarCacheStats(b, value.visualCache.Stats(), AvatarVisualCacheStats{})
+	reportAvatarCacheStats(b, value.visualCache.Stats(), computed.VisualCacheStats{})
 }
 
 func BenchmarkAvatarComponentTreeSteadyState(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	values := make([]Widget, 128)
 	children := make([]layout.FlexChild, len(values))
 	for index := range values {
@@ -96,8 +97,8 @@ func BenchmarkAvatarComponentTreeSteadyState(b *testing.B) {
 }
 
 func BenchmarkAvatarComponentTreeThemeSwitch(b *testing.B) {
-	first := testtheme.Behavior()
-	second := testtheme.Behavior()
+	first := new(theme.Light())
+	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
 	active := firstContext
@@ -131,8 +132,8 @@ func BenchmarkAvatarComponentTreeThemeSwitch(b *testing.B) {
 	reportAvatarCacheStats(b, avatarCacheStats(values), baseline)
 }
 
-func avatarCacheStats(values []Widget) AvatarVisualCacheStats {
-	var total AvatarVisualCacheStats
+func avatarCacheStats(values []Widget) computed.VisualCacheStats {
+	var total computed.VisualCacheStats
 	for _, value := range values {
 		stats := value.visualCache.Stats()
 		total.Hits += stats.Hits
@@ -143,7 +144,7 @@ func avatarCacheStats(values []Widget) AvatarVisualCacheStats {
 	return total
 }
 
-func reportAvatarCacheStats(b *testing.B, after, before AvatarVisualCacheStats) {
+func reportAvatarCacheStats(b *testing.B, after, before computed.VisualCacheStats) {
 	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "avatar-visual-cache-hits/op")
 	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "avatar-visual-cache-misses/op")
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "avatar-visual-cache-theme-invalidations/op")

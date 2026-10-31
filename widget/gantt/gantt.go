@@ -26,7 +26,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 	"github.com/qianniancn/flowui/widget/tooltip"
 )
@@ -150,7 +149,7 @@ type TaskChange struct {
 }
 
 type Widget struct {
-	override           *theme.GanttOverride
+	style              style.Style
 	key                string
 	tasks              []Task
 	height             unit.Dp
@@ -187,7 +186,7 @@ type Widget struct {
 	onTimeWindowChange func(time.Time, time.Time)
 	onTaskClick        func(Selection)
 	tooltipContent     func(Selection) core.Widget
-	visualCache        *ganttVisualCache
+	visualCache        *ganttDefaultsCache
 }
 
 func New(key string, tasks []Task) Widget {
@@ -199,7 +198,7 @@ func New(key string, tasks []Task) Widget {
 		copyTasks[index] = task
 		copyTasks[index].dependsOn = append([]string(nil), task.dependsOn...)
 	}
-	return Widget{key: key, tasks: copyTasks, showGrid: true, showTooltip: true, showDependencies: true, tickCount: 6, animation: true, animationEasing: animation.EaseCubicOut, updateEasing: animation.EaseCubicInOut, visualCache: &ganttVisualCache{}}
+	return Widget{key: key, tasks: copyTasks, showGrid: true, showTooltip: true, showDependencies: true, tickCount: 6, animation: true, animationEasing: animation.EaseCubicOut, updateEasing: animation.EaseCubicInOut, visualCache: &ganttDefaultsCache{}}
 }
 
 func (w Widget) Height(dp int) Widget {
@@ -469,27 +468,25 @@ const (
 )
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
+	return w.layoutWithStyle(ctx, gtx)
 }
 
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.GanttOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
-	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
-	return layoutui.Resolved(ctx, gtx, resolved, ganttVisualWidget{value: w, visual: visual})
+func (w Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	visual := w.resolveVisual(core.ActiveTheme(ctx))
+	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, w.style)
+	return layoutui.Resolved(ctx, gtx, resolved, ganttDefaultsWidget{value: w, visual: visual})
 }
 
-type ganttVisualWidget struct {
+type ganttDefaultsWidget struct {
 	value  Widget
-	visual theme.GanttVisual
+	visual ganttDefaults
 }
 
-func (v ganttVisualWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+func (v ganttDefaultsWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	return v.value.layout(ctx, gtx, v.visual)
 }
 
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.GanttVisual) layout.Dimensions {
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual ganttDefaults) layout.Dimensions {
 	if w.animationDuration <= 0 {
 		w.animationDuration = visual.Metrics.AnimationDuration
 	}
@@ -728,7 +725,7 @@ func ganttPointerCursor(state *chartState, taskClickable bool) pointer.Cursor {
 	return pointer.CursorDefault
 }
 
-func (w Widget) updateTaskEditing(gtx layout.Context, state *chartState, geo geometry, enabled bool, visual theme.GanttVisual) bool {
+func (w Widget) updateTaskEditing(gtx layout.Context, state *chartState, geo geometry, enabled bool, visual ganttDefaults) bool {
 	if !enabled || !w.taskEditing || w.onTaskChange == nil {
 		state.editMode = taskEditNone
 		state.editTaskKey = ""
@@ -951,9 +948,9 @@ func ganttTaskSignature(tasks []resolvedTask) string {
 	return signature.String()
 }
 
-func (w Widget) resolveTasksCached(state *chartState, visual theme.GanttVisual) []resolvedTask {
+func (w Widget) resolveTasksCached(state *chartState, visual ganttDefaults) []resolvedTask {
 	inputSignature := ganttTaskInputSignature(w.tasks)
-	themeSignature := visual.Colors.SeriesSignature()
+	themeSignature := visual.Colors.seriesSignature()
 	if state.resolvedTasksReady && state.resolvedTaskInputSignature == inputSignature && state.resolvedTasksLen == len(w.tasks) && state.resolvedThemeSignature == themeSignature {
 		return state.resolvedTasksCache
 	}
@@ -1057,7 +1054,7 @@ func ganttHashByte(hash uint64, value byte) uint64 {
 	return (hash ^ uint64(value)) * 1099511628211
 }
 
-func (w Widget) resolveTasks(visual theme.GanttVisual) []resolvedTask {
+func (w Widget) resolveTasks(visual ganttDefaults) []resolvedTask {
 	seen := make(map[string]struct{}, len(w.tasks))
 	groupColors := make(map[string]color.NRGBA)
 	result := make([]resolvedTask, 0, len(w.tasks))
@@ -1077,11 +1074,11 @@ func (w Widget) resolveTasks(visual theme.GanttVisual) []resolvedTask {
 			if task.group != "" {
 				col = groupColors[task.group]
 				if col.A == 0 {
-					col = visual.Colors.SeriesColor(len(groupColors))
+					col = visual.Colors.seriesColor(len(groupColors))
 					groupColors[task.group] = col
 				}
 			} else {
-				col = visual.Colors.SeriesColor(index)
+				col = visual.Colors.seriesColor(index)
 			}
 		}
 		progress := float32(1)
@@ -1571,7 +1568,7 @@ func exportSelection(task resolvedTask) Selection {
 	return Selection{Key: task.key, Label: task.label, Group: task.group, Parent: task.parentKey, Depth: task.depth, Start: task.start, End: task.end, Progress: task.progress, Color: task.color, Milestone: task.milestone, Collapsed: task.collapsed}
 }
 
-func (w Widget) drawGrid(gtx layout.Context, geo geometry, visual theme.GanttVisual) {
+func (w Widget) drawGrid(gtx layout.Context, geo geometry, visual ganttDefaults) {
 	tokens := visual.Metrics
 	if geo.plot.Empty() {
 		return
@@ -1598,25 +1595,32 @@ func (w Widget) drawGrid(gtx layout.Context, geo geometry, visual theme.GanttVis
 	chart.StrokeLine(gtx, f32.Pt(float32(geo.plot.Min.X), float32(geo.plot.Max.Y)), f32.Pt(float32(geo.plot.Max.X), float32(geo.plot.Max.Y)), axisWidth, visual.Colors.Axis)
 }
 
-func (w Widget) drawTasks(ctx *core.Context, gtx layout.Context, geo geometry, selectedIndex int, selected bool, visual theme.GanttVisual) {
+func (w Widget) drawTasks(ctx *core.Context, gtx layout.Context, geo geometry, selectedIndex int, selected bool, visual ganttDefaults) {
 	tokens := visual.Metrics
 	for _, item := range geo.tasks {
 		if item.rect.Empty() {
 			continue
 		}
 		radius := min(max(float32(gtx.Dp(tokens.BarRadius)), 0), float32(min(item.rect.Dx(), item.rect.Dy())/2))
-		visual.Task(gtx, theme.GanttTaskRequest{
-			Rect: item.rect, ProgressRect: item.progressRect, Baseline: item.baseline,
-			Color: item.task.color, Emphasis: visual.Colors.Emphasis,
-			HasSelection: selected, Selected: selected && item.index == selectedIndex,
-			Milestone: item.task.milestone, Radius: int(radius), EmphasisWidth: float32(max(gtx.Dp(tokens.EmphasisWidth), 1)),
-		})
+		ganttDrawTask(
+			gtx,
+			item.rect,
+			item.progressRect,
+			item.baseline,
+			item.task.color,
+			visual.Colors.Emphasis,
+			selected,
+			selected && item.index == selectedIndex,
+			item.task.milestone,
+			int(radius),
+			float32(max(gtx.Dp(tokens.EmphasisWidth), 1)),
+		)
 		if w.showTaskLabels {
 			w.drawTaskLabel(ctx, gtx, item, visual)
 		}
 	}
 }
-func (w Widget) drawTaskLabel(ctx *core.Context, gtx layout.Context, item taskGeometry, visual theme.GanttVisual) {
+func (w Widget) drawTaskLabel(ctx *core.Context, gtx layout.Context, item taskGeometry, visual ganttDefaults) {
 	tokens := visual.Metrics
 	padding := max(gtx.Dp(tokens.TaskLabelPaddingX), 0)
 	if item.progressRect.Empty() {
@@ -1640,7 +1644,7 @@ func (w Widget) drawTaskLabel(ctx *core.Context, gtx layout.Context, item taskGe
 	clipArea.Pop()
 }
 
-func drawDependencies(gtx layout.Context, geo geometry, visual theme.GanttVisual) {
+func drawDependencies(gtx layout.Context, geo geometry, visual ganttDefaults) {
 	tokens := visual.Metrics
 	index := make(map[string]taskGeometry, len(geo.tasks))
 	for _, task := range geo.tasks {
@@ -1649,6 +1653,8 @@ func drawDependencies(gtx layout.Context, geo geometry, visual theme.GanttVisual
 	width := float32(max(gtx.Dp(tokens.DependencyWidth), 1))
 	dash := float32(max(gtx.Dp(tokens.DependencyDash), 1))
 	margin := float32(max(gtx.Dp(tokens.DependencyRouteMargin), 0))
+	arrowLength := float32(max(gtx.Dp(tokens.DependencyArrowLength), 1))
+	arrowHeight := float32(max(gtx.Dp(tokens.DependencyArrowHeight), 1))
 	area := clip.Rect(geo.plot).Push(gtx.Ops)
 	defer area.Pop()
 	for _, target := range geo.tasks {
@@ -1658,11 +1664,18 @@ func drawDependencies(gtx layout.Context, geo geometry, visual theme.GanttVisual
 				continue
 			}
 			from, to, middle, forward := dependencyRoute(source, target, geo.plot, margin)
-			visual.Dependency(gtx, theme.GanttDependencyRequest{
-				From: from, To: to, Middle: f32.Pt(middle, from.Y), Forward: forward,
-				Width: width, Dash: dash, ArrowLength: float32(max(gtx.Dp(tokens.DependencyArrowLength), 1)),
-				ArrowHeight: float32(max(gtx.Dp(tokens.DependencyArrowHeight), 1)), Color: visual.Colors.Dependency,
-			})
+			ganttDrawDependency(
+				gtx,
+				from,
+				to,
+				f32.Pt(middle, from.Y),
+				forward,
+				width,
+				dash,
+				arrowLength,
+				arrowHeight,
+				visual.Colors.Dependency,
+			)
 		}
 	}
 }
@@ -1683,7 +1696,7 @@ func dependencyRoute(source, target taskGeometry, plot image.Rectangle, margin f
 	return from, to, middle, forward
 }
 
-func (w Widget) drawLabels(ctx *core.Context, gtx layout.Context, state *chartState, geo geometry, visual theme.GanttVisual, enabled bool) {
+func (w Widget) drawLabels(ctx *core.Context, gtx layout.Context, state *chartState, geo geometry, visual ganttDefaults, enabled bool) {
 	tokens := visual.Metrics
 	gap := max(gtx.Dp(tokens.TickLabelGap), 0)
 	indent := max(gtx.Dp(tokens.TaskIndent), 0)
@@ -1717,7 +1730,7 @@ func (w Widget) drawLabels(ctx *core.Context, gtx layout.Context, state *chartSt
 			offset := op.Offset(image.Pt(baseX, rowTop)).Push(gtx.Ops)
 			toggle.Layout(itemGtx, func(itemGtx layout.Context) layout.Dimensions {
 				pointer.CursorPointer.Add(itemGtx.Ops)
-				visual.Toggle(itemGtx, theme.GanttToggleRequest{Area: image.Rect(0, 0, toggleSize, rowHeight), Collapsed: w.taskCollapsed(state, task.task), Color: visual.Colors.Label})
+				ganttDrawToggle(itemGtx, image.Rect(0, 0, toggleSize, rowHeight), w.taskCollapsed(state, task.task), visual.Colors.Label)
 				return layout.Dimensions{Size: image.Pt(toggleWidth, rowHeight)}
 			})
 			offset.Pop()
@@ -1742,8 +1755,9 @@ func (w Widget) drawLabels(ctx *core.Context, gtx layout.Context, state *chartSt
 	}
 }
 
-func (w Widget) drawMarkers(ctx *core.Context, gtx layout.Context, geo geometry, visual theme.GanttVisual) {
+func (w Widget) drawMarkers(ctx *core.Context, gtx layout.Context, geo geometry, visual ganttDefaults) {
 	tokens := visual.Metrics
+	width := float32(max(gtx.Dp(tokens.MarkerWidth), 1))
 	for _, marker := range w.markers {
 		if marker.at.Before(geo.start) || marker.at.After(geo.end) {
 			continue
@@ -1753,10 +1767,7 @@ func (w Widget) drawMarkers(ctx *core.Context, gtx layout.Context, geo geometry,
 			col = visual.Colors.Marker
 		}
 		x := mapTime(marker.at, geo.start, geo.end, geo.plot)
-		visual.Marker(gtx, theme.GanttMarkerRequest{
-			From: f32.Pt(x, float32(geo.plot.Min.Y)), To: f32.Pt(x, float32(geo.plot.Max.Y)),
-			Width: float32(max(gtx.Dp(tokens.MarkerWidth), 1)), Color: col,
-		})
+		ganttStrokeLine(gtx, f32.Pt(x, float32(geo.plot.Min.Y)), f32.Pt(x, float32(geo.plot.Max.Y)), width, col)
 		if marker.label == "" {
 			continue
 		}
@@ -1770,7 +1781,7 @@ func (w Widget) drawMarkers(ctx *core.Context, gtx layout.Context, geo geometry,
 	}
 }
 
-func (w Widget) drawAxisTitles(ctx *core.Context, gtx layout.Context, geo geometry, visual theme.GanttVisual) {
+func (w Widget) drawAxisTitles(ctx *core.Context, gtx layout.Context, geo geometry, visual ganttDefaults) {
 	tokens := visual.Metrics
 	if w.taskAxis != "" {
 		label := chartText(ctx, gtx, w.taskAxis, tokens.AxisTextSize, visual.Colors.Label, tokens.TextWeight, max(geo.plot.Min.X, 1))
@@ -1787,7 +1798,7 @@ type recordedBlock struct {
 	dims layout.Dimensions
 }
 
-func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, tasks []resolvedTask, visual theme.GanttVisual, maxWidth int, enabled bool) recordedBlock {
+func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, tasks []resolvedTask, visual ganttDefaults, maxWidth int, enabled bool) recordedBlock {
 	if maxWidth <= 0 {
 		return recordedBlock{}
 	}
@@ -1860,7 +1871,7 @@ func chartText(ctx *core.Context, gtx layout.Context, value string, size unit.Sp
 	return recordedText{call: call, dims: dims}
 }
 
-func (w Widget) taskLabelWidth(ctx *core.Context, gtx layout.Context, state *chartState, tasks []resolvedTask, maxWidth int, visual theme.GanttVisual) int {
+func (w Widget) taskLabelWidth(ctx *core.Context, gtx layout.Context, state *chartState, tasks []resolvedTask, maxWidth int, visual ganttDefaults) int {
 	tokens := visual.Metrics
 	hiddenSignature := ganttStringSliceSignature(w.hiddenGroups)
 	textPx := gtx.Sp(tokens.AxisTextSize)
@@ -1905,7 +1916,7 @@ func hasHierarchy(tasks []taskGeometry) bool {
 	return false
 }
 
-func (w Widget) drawEmpty(ctx *core.Context, gtx layout.Context, area image.Rectangle, visual theme.GanttVisual, emptyText ...string) {
+func (w Widget) drawEmpty(ctx *core.Context, gtx layout.Context, area image.Rectangle, visual ganttDefaults, emptyText ...string) {
 	value := w.emptyText
 	if len(emptyText) > 0 {
 		value = emptyText[0]
@@ -1914,7 +1925,7 @@ func (w Widget) drawEmpty(ctx *core.Context, gtx layout.Context, area image.Rect
 	chart.PlaceRecorded(gtx, label.call, label.dims, image.Pt(area.Min.X+max((area.Dx()-label.dims.Size.X)/2, 0), area.Min.Y+max((area.Dy()-label.dims.Size.Y)/2, 0)))
 }
 
-func (w Widget) drawTooltip(ctx *core.Context, selection Selection, anchor image.Rectangle, progress float32, exiting bool, visual theme.GanttVisual) {
+func (w Widget) drawTooltip(ctx *core.Context, selection Selection, anchor image.Rectangle, progress float32, exiting bool, visual ganttDefaults) {
 	if selection.Key == "" {
 		return
 	}
@@ -1936,13 +1947,10 @@ func (w Widget) drawTooltip(ctx *core.Context, selection Selection, anchor image
 	tooltip.NewPopup(content).Placement(core.PopoverRightStart).Offset(max(visual.Metrics.TooltipGap, 0)).TransformMotion(false).Progress(progress).Exiting(exiting).Overlay(ctx, core.FullKey(ctx, "tooltip:"+w.key), anchor)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.GanttOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

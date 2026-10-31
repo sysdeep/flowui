@@ -13,7 +13,7 @@ func BenchmarkStyleFluent(b *testing.B) {
 		benchmarkStyle = Style{}.
 			Width(190).
 			Height(36).
-			PaddingX(12).
+			Padding(0, 12).
 			Radius(8).
 			Background(RGB(0x1677ff)).
 			TextColor(RGB(0xffffff)).

@@ -10,7 +10,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -39,7 +38,7 @@ func TestChipSizesHaveStableBehaviorHeights(t *testing.T) {
 		{SizeMedium, 24},
 		{SizeLarge, 28},
 	}
-	ctx := chipTestContext(testtheme.Behavior())
+	ctx := chipTestContext(new(theme.Light()))
 	for _, test := range tests {
 		dims := New("Label").Size(test.size).Layout(ctx, chipLayoutContext(nil, image.Pt(240, 80)))
 		if dims.Size.Y != test.want {
@@ -49,7 +48,7 @@ func TestChipSizesHaveStableBehaviorHeights(t *testing.T) {
 }
 
 func TestChipComposedContentInheritsSemanticColors(t *testing.T) {
-	activeTheme := testtheme.Behavior()
+	activeTheme := new(theme.Light())
 	ctx := chipTestContext(activeTheme)
 	start := &chipProbe{size: image.Pt(12, 12)}
 	end := &chipProbe{size: image.Pt(12, 12)}
@@ -75,7 +74,7 @@ func TestChipComposedContentInheritsSemanticColors(t *testing.T) {
 }
 
 func TestChipTertiaryContentPreservesParentBackground(t *testing.T) {
-	activeTheme := testtheme.Behavior()
+	activeTheme := new(theme.Light())
 	ctx := chipTestContext(activeTheme)
 	probe := &chipProbe{size: image.Pt(12, 12)}
 	New("Info").Color(ColorAccent).Variant(VariantTertiary).StartContent(probe).
@@ -89,7 +88,7 @@ func TestChipRespectsNarrowConstraints(t *testing.T) {
 	end := &chipProbe{size: image.Pt(12, 12)}
 	dims := New("A very long chip label").
 		EndContent(end).
-		Layout(chipTestContext(testtheme.Behavior()), chipLayoutContext(nil, image.Pt(80, 40)))
+		Layout(chipTestContext(new(theme.Light())), chipLayoutContext(nil, image.Pt(80, 40)))
 	if dims.Size.X > 80 || dims.Size.Y != 24 {
 		t.Fatalf("narrow dimensions = %v, want width <= 80 and height 24", dims.Size)
 	}
@@ -100,7 +99,7 @@ func TestChipRespectsNarrowConstraints(t *testing.T) {
 
 func TestChipExposesLabelSemantics(t *testing.T) {
 	router := new(input.Router)
-	ctx := chipTestContext(testtheme.Behavior())
+	ctx := chipTestContext(new(theme.Light()))
 	var ops op.Ops
 	gtx := layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(240, 80)},

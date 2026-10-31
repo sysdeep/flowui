@@ -6,7 +6,6 @@ import (
 	"gioui.org/f32"
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type graphControl uint8
@@ -17,7 +16,7 @@ const (
 	controlFit
 )
 
-func (w Widget) controlAt(position f32.Point, size image.Point, metrics theme.NodeGraphMetrics, pixelsPerDP float32) (graphControl, bool) {
+func (w Widget) controlAt(position f32.Point, size image.Point, metrics nodeGraphMetrics, pixelsPerDP float32) (graphControl, bool) {
 	if !w.controlsEnabled {
 		return 0, false
 	}
@@ -50,27 +49,27 @@ func (w Widget) applyControl(control graphControl, graph resolvedGraph, viewport
 	}
 }
 
-func graphControlsRect(size image.Point, metrics theme.NodeGraphMetrics, pixelsPerDP float32) image.Rectangle {
+func graphControlsRect(size image.Point, metrics nodeGraphMetrics, pixelsPerDP float32) image.Rectangle {
 	width := max(int(float32(metrics.ControlWidth)*pixelsPerDP), 1)
 	height := max(int(float32(metrics.ControlHeight)*pixelsPerDP), 1)
 	margin := max(int(float32(metrics.ControlMargin)*pixelsPerDP), 0)
 	return image.Rect(margin, size.Y-margin-height, margin+width, size.Y-margin)
 }
 
-func drawNodeControls(ctx *core.Context, gtx layout.Context, visual theme.NodeGraphVisual, enabled bool) {
+func drawNodeControls(ctx *core.Context, gtx layout.Context, visual nodeGraphDefaults, enabled bool) {
 	if !enabled {
 		return
 	}
-	rect := graphControlsRect(gtx.Constraints.Max, visual.Metrics, graphPixelsPerDP(gtx))
+	rect := graphControlsRect(gtx.Constraints.Max, visual.metrics, graphPixelsPerDP(gtx))
 	if rect.Empty() {
 		return
 	}
-	visual.Controls(gtx, theme.NodeGraphControlsRequest{
+	drawNodeGraphControls(visual.material, gtx, nodeGraphControls{
 		Rect: rect, ButtonWidth: rect.Dx() / 3,
-		Radius:       max(gtx.Dp(visual.Metrics.ControlRadius), 1),
-		DividerInset: max(gtx.Dp(visual.Metrics.ControlDividerInset), 1),
-		TextSize:     visual.Metrics.ControlTextSize, FitSpan: visual.Metrics.ControlFitSpan,
-		FitArm: visual.Metrics.ControlFitArm, Background: visual.Colors.ControlBackground,
-		Foreground: visual.Colors.ControlForeground, Border: visual.Colors.ControlBorder,
+		Radius:       max(gtx.Dp(visual.metrics.ControlRadius), 1),
+		DividerInset: max(gtx.Dp(visual.metrics.ControlDividerInset), 1),
+		TextSize:     visual.metrics.ControlTextSize, FitSpan: visual.metrics.ControlFitSpan,
+		FitArm: visual.metrics.ControlFitArm, Background: visual.colors.ControlBackground,
+		Foreground: visual.colors.ControlForeground, Border: visual.colors.ControlBorder,
 	})
 }

@@ -77,7 +77,7 @@ func (t TweenValue) Spring(config SpringConfig) TweenValue {
 	return t
 }
 
-// Initial enables an entry transition from value on the first core.
+// Initial enables an entry transition from value on the first frame.
 func (t TweenValue) Initial(value float32) TweenValue {
 	validateFinite("initial value", value)
 	t.initial = value

@@ -9,11 +9,11 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func BenchmarkStatusBarLayout(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New(nil, nil)
 	gtx := layout.Context{
 		Constraints: layout.Constraints{Min: image.Pt(640, 0), Max: image.Pt(640, 100)},
@@ -27,13 +27,13 @@ func BenchmarkStatusBarLayout(b *testing.B) {
 }
 
 func BenchmarkStatusBarVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	value := New(nil, nil)
-	value.visualWithCache(ctx, nil)
+	value.visualWithCache(ctx)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		value.visualWithCache(ctx, nil)
+		value.visualWithCache(ctx)
 	}
 }
 
@@ -51,7 +51,7 @@ func (benchmarkStatusBarChild) Layout(_ *core.Context, gtx layout.Context) layou
 }
 
 func newStatusBarComponentTreeFrame(count int) *statusBarBenchmarkFrame {
-	frame := &statusBarBenchmarkFrame{ctx: core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)}
+	frame := &statusBarBenchmarkFrame{ctx: core.New(nil, new(theme.Light()), locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Min: image.Pt(640, 0), Max: image.Pt(640, 480)},
 		Ops:         &frame.ops,
@@ -83,7 +83,7 @@ func (frame *statusBarBenchmarkFrame) layoutTree() layout.Dimensions {
 func (frame *statusBarBenchmarkFrame) cacheStats() [4]uint64 {
 	var result [4]uint64
 	for _, value := range frame.values {
-		stats := value.visualCache.stats()
+		stats := value.visualCache.Stats()
 		result[0] += stats.Hits
 		result[1] += stats.Misses
 		result[2] += stats.ThemeInvalidations
@@ -132,8 +132,8 @@ func BenchmarkStatusBarComponentTreeVisualCacheMiss(b *testing.B) {
 	frame := newStatusBarComponentTreeFrame(16)
 	frame.layoutTree()
 	baseline := frame.cacheStats()
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -16,7 +15,7 @@ import (
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/widget/navigation"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/toggle"
 )
 
@@ -67,12 +66,8 @@ type treeState struct {
 	items              map[string]*treeItemState
 	frameItems         map[string]struct{}
 	itemKeys           map[string]struct{}
-	keyFilters         []event.Filter
-	pressedKey         key.Name
-	pressedModifiers   key.Modifiers
-	pressedActionKey   string
+	navigation         base.CollectionNavigation
 	selectionAnchor    string
-	typeahead          navigation.Typeahead
 	dragMIME           string
 	dragSource         string
 	dragSources        []string
@@ -339,106 +334,62 @@ type treeKeyResult struct {
 }
 
 func (s *treeState) updateKeys(gtx layout.Context, tree Widget, visible []flatItem) treeKeyResult {
-	s.keyFilters = s.keyFilters[:0]
-	for keyValue, itemState := range s.items {
-		index := s.visibleIndex(visible, keyValue, itemState)
-		if index < 0 {
-			continue
-		}
-		entry := visible[index]
-		tag := &itemState.clickable
-		names := [11]key.Name{
-			key.NameDownArrow,
-			key.NameUpArrow,
-			key.NameHome,
-			key.NameEnd,
-		}
-		count := 4
-		if tree.itemDisabled(entry.item) {
-			s.keyFilters = append(s.keyFilters, itemState.keyFilters.Resolve(tag, names[:count]...)...)
-			continue
-		}
-		names[count] = key.NameRightArrow
-		names[count+1] = key.NameLeftArrow
-		names[count+2] = key.NameEnter
-		names[count+3] = key.NameReturn
-		names[count+4] = key.NameSpace
-		names[count+5] = ""
-		count += 6
-		if tree.onRename != nil && entry.item.Renamable {
-			names[count] = key.NameF2
-			count++
-		}
-		s.keyFilters = append(s.keyFilters, itemState.keyFilters.Resolve(tag, names[:count]...)...)
+	if tree.disabled {
+		gtx = gtx.Disabled()
 	}
-	if len(s.keyFilters) == 0 {
-		return treeKeyResult{}
-	}
-
-	current := s.focusedIndex(gtx, visible)
 	result := treeKeyResult{}
 	var expanded map[string]struct{}
-	for {
-		e, ok := gtx.Event(s.keyFilters...)
-		if !ok {
-			break
-		}
-		event, ok := e.(key.Event)
-		if !ok {
-			continue
-		}
-		if current < 0 {
-			current = tree.keyboardActiveIndex(visible)
-		}
-		switch event.Name {
-		case key.NameDownArrow:
-			if event.State == key.Press {
-				if next, ok := treeMoveVisible(visible, tree, current, 1); ok {
-					current = next
-					result.focusKey = visible[next].item.Key
-					if event.Modifiers.Contain(key.ModShift) && tree.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
+	s.navigation.UpdateWithEvents(gtx, base.Collection{
+		Count:    len(visible),
+		Key:      func(i int) string { return visible[i].item.Key },
+		Label:    func(i int) string { return visible[i].item.Label },
+		Disabled: func(i int) bool { return tree.itemDisabled(visible[i].item) },
+		Fallback: func() int { return tree.keyboardActiveIndex(visible) },
+		Clickables: func(yield func(int, *widget.Clickable) bool) {
+			for itemKey, itemState := range s.items {
+				if index := s.visibleIndex(visible, itemKey, itemState); index >= 0 {
+					if !yield(index, &itemState.clickable) {
+						return
 					}
 				}
 			}
-		case key.NameUpArrow:
-			if event.State == key.Press {
-				if next, ok := treeMoveVisible(visible, tree, current, -1); ok {
-					current = next
-					result.focusKey = visible[next].item.Key
-					if event.Modifiers.Contain(key.ModShift) && tree.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
-					}
-				}
+		},
+	}, -1, base.CollectionPolicy{
+		Activate: true, Typeahead: true, Modifiers: key.ModShift,
+		Commands: []key.Name{key.NameRightArrow, key.NameLeftArrow, key.NameF2},
+	}, func(e base.CollectionEvent) int {
+		current := e.Index
+		entry := visible[current]
+		switch e.Kind {
+		case base.CollectionFocus:
+			result.focusKey = entry.item.Key
+			rangeMovement := e.Name == key.NameDownArrow || e.Name == key.NameUpArrow || e.Name == key.NameHome || e.Name == key.NameEnd
+			if rangeMovement && e.Modifiers.Contain(key.ModShift) && tree.selectionMode == SelectionMultiple {
+				result.rangeKey = entry.item.Key
 			}
-		case key.NameHome:
-			if event.State == key.Press {
-				if next, ok := treeFirstEnabled(visible, tree); ok {
-					current = next
-					result.focusKey = visible[next].item.Key
-					if event.Modifiers.Contain(key.ModShift) && tree.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
-					}
-				}
+		case base.CollectionActivate:
+			if e.Name == key.NameSpace && tree.checkable {
+				result.checkKey = entry.item.Key
+			} else if e.Modifiers.Contain(key.ModShift) && tree.selectionMode == SelectionMultiple {
+				result.rangeKey = entry.item.Key
+			} else {
+				result.actionKey, result.actionModifiers = entry.item.Key, e.Modifiers
 			}
-		case key.NameEnd:
-			if event.State == key.Press {
-				if next, ok := treeLastEnabled(visible, tree); ok {
-					current = next
-					result.focusKey = visible[next].item.Key
-					if event.Modifiers.Contain(key.ModShift) && tree.selectionMode == SelectionMultiple {
-						result.rangeKey = result.focusKey
-					}
+		case base.CollectionCommand:
+			if e.Name == key.NameF2 {
+				if entry.item.Renamable && tree.onRename != nil {
+					result.renameKey = entry.item.Key
 				}
+				return current
 			}
-		case key.NameRightArrow:
-			if event.State == key.Press && current >= 0 && current < len(visible) {
-				if expanded == nil {
-					expanded = treeKeySet(tree.expandedKeys)
-				}
-				entry := visible[current]
+			if expanded == nil {
+				expanded = treeKeySet(tree.expandedKeys)
+			}
+			_, isExpanded := expanded[entry.item.Key]
+			switch e.Name {
+			case key.NameRightArrow:
 				if treeItemExpandable(entry.item) {
-					if _, ok := expanded[entry.item.Key]; !ok {
+					if !isExpanded {
 						result.toggleKey = entry.item.Key
 						if entry.item.ChildrenState == ChildrenUnloaded || entry.item.ChildrenState == ChildrenError {
 							result.loadEvent = treeLoadEvent(entry.item, false)
@@ -450,90 +401,18 @@ func (s *treeState) updateKeys(gtx layout.Context, tree Widget, visible []flatIt
 						result.focusKey = visible[child].item.Key
 					}
 				}
-			}
-		case key.NameLeftArrow:
-			if event.State == key.Press && current >= 0 && current < len(visible) {
-				if expanded == nil {
-					expanded = treeKeySet(tree.expandedKeys)
-				}
-				entry := visible[current]
-				if treeItemExpandable(entry.item) {
-					if _, ok := expanded[entry.item.Key]; ok {
-						result.toggleKey = entry.item.Key
-						continue
-					}
-				}
-				if parent := treeEnabledAncestor(visible, tree, current); parent >= 0 {
+			case key.NameLeftArrow:
+				if treeItemExpandable(entry.item) && isExpanded {
+					result.toggleKey = entry.item.Key
+				} else if parent := treeEnabledAncestor(visible, tree, current); parent >= 0 {
 					current = parent
 					result.focusKey = visible[parent].item.Key
 				}
 			}
-		case key.NameEnter, key.NameReturn, key.NameSpace:
-			s.handleActivationKey(event, visible, tree, current, &result)
-		case key.NameF2:
-			if event.State == key.Press && current >= 0 && current < len(visible) {
-				entry := visible[current]
-				if entry.item.Renamable && tree.onRename != nil && !tree.itemDisabled(entry.item) {
-					result.renameKey = entry.item.Key
-				}
-			}
-		default:
-			if event.State != key.Press || event.Modifiers&(key.ModCtrl|key.ModCommand|key.ModAlt|key.ModSuper) != 0 {
-				continue
-			}
-			text := navigation.Printable(event.Name)
-			if text == "" {
-				continue
-			}
-			query := s.typeahead.Append(gtx.Now, text)
-			next, ok := treeTypeaheadIndex(visible, tree, current, query)
-			if !ok && query != text {
-				s.typeahead.Set(text)
-				next, ok = treeTypeaheadIndex(visible, tree, current, text)
-			}
-			if ok {
-				current = next
-				result.focusKey = visible[next].item.Key
-			}
 		}
-	}
+		return current
+	})
 	return result
-}
-
-func (s *treeState) handleActivationKey(event key.Event, visible []flatItem, tree Widget, current int, result *treeKeyResult) {
-	switch event.State {
-	case key.Press:
-		s.pressedKey = event.Name
-		s.pressedModifiers = event.Modifiers
-		s.pressedActionKey = ""
-		if current >= 0 && current < len(visible) && !tree.itemDisabled(visible[current].item) {
-			s.pressedActionKey = visible[current].item.Key
-		}
-	case key.Release:
-		if s.pressedKey == event.Name && s.pressedActionKey != "" {
-			if event.Name == key.NameSpace && tree.checkable {
-				result.checkKey = s.pressedActionKey
-			} else if s.pressedModifiers.Contain(key.ModShift) && tree.selectionMode == SelectionMultiple {
-				result.rangeKey = s.pressedActionKey
-			} else {
-				result.actionKey = s.pressedActionKey
-				result.actionModifiers = s.pressedModifiers
-			}
-		}
-		s.pressedKey = ""
-		s.pressedModifiers = 0
-		s.pressedActionKey = ""
-	}
-}
-
-func (s *treeState) focusedIndex(gtx layout.Context, visible []flatItem) int {
-	for keyValue, itemState := range s.items {
-		index := s.visibleIndex(visible, keyValue, itemState)
-		if index >= 0 && gtx.Focused(&itemState.clickable) {
-			return index
-		}
-	}
-	return -1
 }
 
 func (s *treeState) ensureVisible(index int) {
@@ -559,7 +438,6 @@ type treeItemState struct {
 	check       widget.Clickable
 	toggle      core.ClickArea
 	focus       animation.FocusAnimation
-	keyFilters  core.KeyFilterCache
 	expansion   animation.FloatTransition
 	drag        core.DragState
 	dropTargets [3]core.DropTarget
@@ -934,19 +812,21 @@ func (s *treeState) applyRenameRequest(ctx *core.Context, tree Widget, visible [
 	core.RequestFocus(ctx, &s.renameEditor)
 }
 
-func (s *treeState) updateRename(gtx layout.Context, tree Widget) {
+func (s *treeState) updateRename(ctx *core.Context, gtx layout.Context, tree Widget) {
 	if s.renameKey == "" {
 		return
 	}
-	for {
-		eventValue, ok := s.renameEditor.Update(gtx)
-		if !ok {
-			break
-		}
-		if _, ok := eventValue.(widget.SubmitEvent); ok {
-			s.finishRename(tree, true)
-			return
-		}
+	events := (base.TextEditor{SingleLine: true}).Update(ctx, gtx, base.TextEditorRequest{
+		FieldKey: core.DerivedKey(ctx, tree.key, "rename"),
+		Editor:   &s.renameEditor,
+		Value:    s.renameEditor.Text(),
+	})
+	if !gtx.Enabled() {
+		return
+	}
+	if events.Submitted {
+		s.finishRename(tree, true)
+		return
 	}
 	for {
 		eventValue, ok := gtx.Event(key.Filter{Focus: &s.renameEditor, Name: key.NameEscape})
@@ -987,28 +867,6 @@ func treeVisibleIndex(visible []flatItem, key string) int {
 	return -1
 }
 
-// treeNavList adapts the flattened visible items into a navigation.List. Depth-aware
-// navigation (children, ancestors) stays below in tree-specific helpers.
-func treeNavList(visible []flatItem, tree Widget) navigation.List {
-	return navigation.List{
-		Count:    len(visible),
-		Disabled: func(i int) bool { return tree.itemDisabled(visible[i].item) },
-		Label:    func(i int) string { return visible[i].item.Label },
-	}
-}
-
-func treeMoveVisible(visible []flatItem, tree Widget, current, delta int) (int, bool) {
-	return navigation.Move(treeNavList(visible, tree), current, delta, false)
-}
-
-func treeFirstEnabled(visible []flatItem, tree Widget) (int, bool) {
-	return navigation.First(treeNavList(visible, tree))
-}
-
-func treeLastEnabled(visible []flatItem, tree Widget) (int, bool) {
-	return navigation.Last(treeNavList(visible, tree))
-}
-
 func treeFirstEnabledChild(visible []flatItem, tree Widget, current int) int {
 	depth := visible[current].depth + 1
 	for index := current + 1; index < len(visible) && visible[index].depth >= depth; index++ {
@@ -1032,10 +890,6 @@ func treeEnabledAncestor(visible []flatItem, tree Widget, current int) int {
 		parent = visible[index].parentKey
 	}
 	return -1
-}
-
-func treeTypeaheadIndex(visible []flatItem, tree Widget, current int, query string) (int, bool) {
-	return navigation.Match(treeNavList(visible, tree), current, query)
 }
 
 func treeKeySet(keys []string) map[string]struct{} {

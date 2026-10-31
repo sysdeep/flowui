@@ -15,9 +15,10 @@ import (
 	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/menu"
 )
@@ -167,9 +168,7 @@ func TestTreeRetainsInteractionStateOnlyForViewportRows(t *testing.T) {
 	if len(state.items) == 0 || len(state.items) >= 30 {
 		t.Fatalf("retained Tree row states = %d, want viewport rows only", len(state.items))
 	}
-	if len(state.keyFilters) == 0 || len(state.keyFilters) >= 300 {
-		t.Fatalf("Tree key filters = %d, want viewport rows only", len(state.keyFilters))
-	}
+
 }
 
 func BenchmarkTreeDataVersion(b *testing.B) {
@@ -283,11 +282,11 @@ func TestTreeRowClickSelectsAndRunsAction(t *testing.T) {
 	state.endFrame()
 	treeSetState(ctx, "files", state)
 	var changed, action string
-	New("files", "", treeTestItems()).
+	view := New("files", "", treeTestItems()).
 		ExpandedKeys([]string{"project"}).
 		OnChange(func(key string) { changed = key }).
-		OnAction(func(key string) { action = key }).
-		Layout(ctx, treeLayoutContext(nil, image.Pt(360, 240), time.Time{}))
+		OnAction(func(key string) { action = key })
+	layoutTreeFrame(ctx, new(input.Router), view, time.Unix(1, 0))
 	if changed != "readme" || action != "readme" {
 		t.Fatalf("click callbacks = changed %q action %q, want readme/readme", changed, action)
 	}
@@ -312,10 +311,10 @@ func TestTreeRowClickExpansionIsOptional(t *testing.T) {
 
 			selected := ""
 			var expanded []string
-			test.tree.
+			view := test.tree.
 				OnChange(func(key string) { selected = key }).
-				OnExpandedChange(func(keys []string) { expanded = keys }).
-				Layout(ctx, treeLayoutContext(nil, image.Pt(360, 240), time.Time{}))
+				OnExpandedChange(func(keys []string) { expanded = keys })
+			layoutTreeFrame(ctx, new(input.Router), view, time.Unix(1, 0))
 			if selected != "project" || !treeSameKeys(expanded, test.want) {
 				t.Fatalf("row click = selected %q expanded %#v, want project/%#v", selected, expanded, test.want)
 			}
@@ -332,11 +331,11 @@ func TestTreeLeafRowClickDoesNotRequestExpansion(t *testing.T) {
 	treeSetState(ctx, "files", state)
 
 	called := false
-	New("files", "", treeTestItems()).
+	view := New("files", "", treeTestItems()).
 		ExpandedKeys([]string{"project"}).
 		ExpandOnRowClick(true).
-		OnExpandedChange(func([]string) { called = true }).
-		Layout(ctx, treeLayoutContext(nil, image.Pt(360, 240), time.Time{}))
+		OnExpandedChange(func([]string) { called = true })
+	layoutTreeFrame(ctx, new(input.Router), view, time.Unix(1, 0))
 	if called {
 		t.Fatal("leaf row click requested expansion")
 	}
@@ -351,10 +350,10 @@ func TestTreeToggleClickOnlyChangesExpansion(t *testing.T) {
 	treeSetState(ctx, "files", state)
 	var selected string
 	var expanded []string
-	New("files", "", treeTestItems()).
+	view := New("files", "", treeTestItems()).
 		OnChange(func(key string) { selected = key }).
-		OnExpandedChange(func(keys []string) { expanded = keys }).
-		Layout(ctx, treeLayoutContext(nil, image.Pt(360, 240), time.Time{}))
+		OnExpandedChange(func(keys []string) { expanded = keys })
+	layoutTreeFrame(ctx, new(input.Router), view, time.Unix(1, 0))
 	if selected != "" {
 		t.Fatalf("toggle selected %q", selected)
 	}
@@ -373,10 +372,10 @@ func TestTreeAsyncBranchRequestsLoadAndExpansion(t *testing.T) {
 	treeSetState(ctx, "async", state)
 	loaded := ""
 	var expanded []string
-	New("async", "", items).
+	view := New("async", "", items).
 		OnLoadChildrenEvent(func(event LoadEvent) { loaded = event.Key }).
-		OnExpandedChange(func(keys []string) { expanded = keys }).
-		Layout(ctx, treeLayoutContext(nil, image.Pt(360, 120), time.Time{}))
+		OnExpandedChange(func(keys []string) { expanded = keys })
+	layoutTreeFrame(ctx, new(input.Router), view, time.Unix(1, 0))
 	if loaded != "remote" || !treeSameKeys(expanded, []string{"remote"}) {
 		t.Fatalf("async toggle = load %q expanded %#v", loaded, expanded)
 	}
@@ -424,7 +423,7 @@ func TestTreeAsyncStateControlsBranchAndErrorDescription(t *testing.T) {
 }
 
 func TestTreeToggleHoverHighlightsRow(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := treeTestContext(&activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	tree := New("files", "", treeTestItems())
@@ -716,6 +715,48 @@ func TestTreeKeyboardEnterSelectsFocusedNode(t *testing.T) {
 	}
 }
 
+func TestTreeHierarchyCommandPrecedesSameFrameMovement(t *testing.T) {
+	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
+	router := new(input.Router)
+	view := New("files", "", treeTestItems()).ExpandedKeys([]string{"project", "src"})
+	start := time.Unix(1, 0)
+	layoutTreeFrame(ctx, router, view, start)
+	state := treePeekState(ctx, "files")
+	router.Source().Execute(key.FocusCmd{Tag: &state.items["main"].clickable})
+	layoutTreeFrame(ctx, router, view, start.Add(time.Millisecond))
+	router.Queue(
+		key.Event{Name: key.NameLeftArrow, State: key.Press},
+		key.Event{Name: key.NameUpArrow, State: key.Press},
+	)
+	layoutTreeFrame(ctx, router, view, start.Add(2*time.Millisecond))
+	if !router.Source().Focused(&state.items["project"].clickable) {
+		t.Fatal("Left then Up did not move from main through src to project")
+	}
+}
+
+func TestTreeShiftSpaceKeepsPressModifiers(t *testing.T) {
+	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
+	router := new(input.Router)
+	selected := []string{"project"}
+	view := func() Widget {
+		return New("files", "", treeTestItems()).ExpandedKeys([]string{"project"}).
+			SelectionMode(SelectionMultiple).SelectedKeys(selected).
+			OnSelectionChange(func(keys []string) { selected = append([]string(nil), keys...) })
+	}
+	start := time.Unix(1, 0)
+	layoutTreeFrame(ctx, router, view(), start)
+	state := treePeekState(ctx, "files")
+	router.Source().Execute(key.FocusCmd{Tag: &state.items["readme"].clickable})
+	layoutTreeFrame(ctx, router, view(), start.Add(time.Millisecond))
+	router.Queue(key.Event{Name: key.NameSpace, State: key.Press, Modifiers: key.ModShift})
+	layoutTreeFrame(ctx, router, view(), start.Add(2*time.Millisecond))
+	router.Queue(key.Event{Name: key.NameSpace, State: key.Release})
+	layoutTreeFrame(ctx, router, view(), start.Add(3*time.Millisecond))
+	if !treeSameKeys(selected, []string{"project", "src", "readme"}) {
+		t.Fatalf("shift-space selection = %#v, want project/src/readme", selected)
+	}
+}
+
 func TestTreePointerFocusThenF2StartsAndCommitsRename(t *testing.T) {
 	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
 	router := new(input.Router)
@@ -939,17 +980,23 @@ func TestTreeRenameRequestWaitsForHiddenTarget(t *testing.T) {
 }
 
 func TestTreeKeyboardNavigationSkipsDisabledNodes(t *testing.T) {
-	visible := flattenVisibleItems(treeTestItems(), treeKeySet([]string{"project"}))
-	tree := New("files", "", treeTestItems()).DisabledKeys([]string{"readme"})
-	project := treeVisibleIndex(visible, "project")
-	next, ok := treeMoveVisible(visible, tree, project, 1)
-	if !ok || visible[next].item.Key != "src" {
-		t.Fatalf("next enabled = %d/%v key %q, want src", next, ok, visible[next].item.Key)
+	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
+	router := new(input.Router)
+	view := New("files", "", treeTestItems()).ExpandedKeys([]string{"project"}).DisabledKeys([]string{"readme"})
+	start := time.Unix(1, 0)
+	layoutTreeFrame(ctx, router, view, start)
+	state := treePeekState(ctx, "files")
+	router.Source().Execute(key.FocusCmd{Tag: &state.items["project"].clickable})
+	layoutTreeFrame(ctx, router, view, start.Add(time.Millisecond))
+	router.Queue(key.Event{Name: key.NameDownArrow, State: key.Press})
+	layoutTreeFrame(ctx, router, view, start.Add(2*time.Millisecond))
+	if !router.Source().Focused(&state.items["src"].clickable) {
+		t.Fatal("Down did not focus src")
 	}
-	readme := treeVisibleIndex(visible, "readme")
-	next, ok = treeMoveVisible(visible, tree, readme-1, 1)
-	if !ok || visible[next].item.Key != "archive" {
-		t.Fatalf("disabled readme was not skipped: %d/%v key %q", next, ok, visible[next].item.Key)
+	router.Queue(key.Event{Name: key.NameDownArrow, State: key.Press})
+	layoutTreeFrame(ctx, router, view, start.Add(3*time.Millisecond))
+	if !router.Source().Focused(&state.items["archive"].clickable) {
+		t.Fatal("Down did not skip disabled readme")
 	}
 }
 
@@ -966,18 +1013,27 @@ func TestTreeKeyboardActiveIndexSkipsHiddenAndDisabledSelections(t *testing.T) {
 }
 
 func TestTreeTypeaheadSkipsDisabledAndWraps(t *testing.T) {
-	visible := flattenVisibleItems(treeTestItems(), treeKeySet([]string{"project"}))
-	tree := New("files", "", treeTestItems()).DisabledKeys([]string{"archive"})
-	index, ok := treeTypeaheadIndex(visible, tree, treeVisibleIndex(visible, "readme"), "p")
-	if !ok || visible[index].item.Key != "project" {
-		t.Fatalf("typeahead p = %d/%v, want project", index, ok)
+	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
+	router := new(input.Router)
+	view := New("files", "", treeTestItems()).ExpandedKeys([]string{"project"}).DisabledKeys([]string{"archive"})
+	start := time.Unix(1, 0)
+	layoutTreeFrame(ctx, router, view, start)
+	state := treePeekState(ctx, "files")
+	router.Source().Execute(key.FocusCmd{Tag: &state.items["readme"].clickable})
+	layoutTreeFrame(ctx, router, view, start.Add(time.Millisecond))
+	router.Queue(key.Event{Name: "P", State: key.Press})
+	layoutTreeFrame(ctx, router, view, start.Add(2*time.Millisecond))
+	if !router.Source().Focused(&state.items["project"].clickable) {
+		t.Fatal("typeahead did not wrap to project")
 	}
-	if _, ok := treeTypeaheadIndex(visible, tree, 0, "a"); ok {
-		t.Fatal("typeahead returned disabled archive")
+	router.Queue(key.Event{Name: "A", State: key.Press})
+	layoutTreeFrame(ctx, router, view, start.Add(3*time.Millisecond))
+	if !router.Source().Focused(&state.items["project"].clickable) {
+		t.Fatal("typeahead focused disabled archive")
 	}
 }
 
-func TestTreeSmallUsesProviderGeometry(t *testing.T) {
+func TestTreeSmallUsesVisualGeometry(t *testing.T) {
 	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
 	gtx := treeLayoutContext(nil, image.Pt(320, 200), time.Time{})
 	medium := New("medium", "", []Item{{Key: "one", Label: "One"}}).Layout(ctx, gtx)
@@ -1408,14 +1464,13 @@ func TestDraggableTreeStillHandlesToggleClicks(t *testing.T) {
 	}
 }
 
-func TestTreeLayoutUsesThemeAndMaxHeight(t *testing.T) {
-	activeTheme := testtheme.Behavior()
-	activeTheme.VisualProvider = treeTallRowProvider{ComponentVisualProvider: testtheme.BehaviorProvider()}
+func TestTreeLayoutUsesDefaultAndMaxHeight(t *testing.T) {
+	activeTheme := new(theme.Light())
 	ctx := treeTestContext(activeTheme, locale.LanguageEnglish)
 	dims := New("files", "", []Item{{Key: "one", Label: "One"}}).
 		Layout(ctx, treeLayoutContext(nil, image.Pt(320, 200), time.Time{}))
-	if dims.Size.X != 320 || dims.Size.Y < 48 {
-		t.Fatalf("theme dimensions = %v, want width 320 and height >= 48", dims.Size)
+	if dims.Size.X != 320 || dims.Size.Y < 32 {
+		t.Fatalf("default dimensions = %v, want width 320 and height >= 32", dims.Size)
 	}
 
 	items := make([]Item, 20)
@@ -1429,31 +1484,52 @@ func TestTreeLayoutUsesThemeAndMaxHeight(t *testing.T) {
 	}
 }
 
-type treeTallRowProvider struct {
-	theme.ComponentVisualProvider
-}
-
-func (provider treeTallRowProvider) Tree(active *theme.Theme, request theme.TreeRequest) theme.TreeVisual {
-	visual := provider.ComponentVisualProvider.Tree(active, request)
-	visual.Metrics.RowHeight = 48
-	return visual
-}
-
 func TestTreeDragPreviewUsesCompactIndependentSize(t *testing.T) {
 	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
-	visual := treeVisualFor(core.ActiveTheme(ctx), SizeSmall)
+	defaults := treeDefaultsFor(core.ActiveTheme(ctx), SizeSmall)
 	dims := New("files", "", nil).Size(SizeSmall).layoutDragPreview(
+		ctx,
 		treeLayoutContext(nil, image.Pt(520, 24), time.Time{}),
 		"A long item name that must not use the full Tree row width",
-		visual,
+		defaults,
 	)
 	if dims.Size.X > 240 || dims.Size.Y <= 24 {
 		t.Fatalf("drag preview dimensions = %v, want width <= 240 and independent row height", dims.Size)
 	}
 }
 
+func TestTreeStyleIsLastCascadeLayer(t *testing.T) {
+	activeTheme := treeNeutralTheme()
+	ctx := treeTestContext(activeTheme, locale.LanguageEnglish)
+	defaults := treeDefaultsFor(activeTheme, SizeMedium)
+	value := New("styled", "", nil).Style(style.Style{}.Padding(9))
+
+	resolved := computed.ResolveStatic(ctx, style.State{}, defaults.root, style.Style{}, style.Style{}, value.style)
+	if resolved.Box == nil || resolved.Box.Padding == nil || resolved.Box.Padding.Left != 9 {
+		t.Fatalf("instance style did not reach the root cascade: %#v", resolved.Box)
+	}
+}
+
+func TestTreeStyleDoesNotChangeDefaultsCacheKey(t *testing.T) {
+	ctx := treeTestContext(treeNeutralTheme(), locale.LanguageEnglish)
+	router := new(input.Router)
+	value := New("style-cache", "", []Item{{Key: "one", Label: "One"}})
+	start := time.Unix(1, 0)
+	layoutTreeFrame(ctx, router, value, start)
+	layoutTreeFrame(ctx, router, value.Style(style.Style{}.Padding(9)), start.Add(time.Millisecond))
+
+	state := treePeekState(ctx, "style-cache")
+	if state == nil {
+		t.Fatal("tree state was not initialized")
+	}
+	stats := state.visualCache.Stats()
+	if stats.Hits != 1 || stats.Misses != 1 || stats.KeyInvalidations != 0 {
+		t.Fatalf("instance style changed the defaults cache: %#v", stats)
+	}
+}
+
 func TestTreeComposedContentInheritsSelectedColors(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	leading := &treeProbe{size: image.Pt(16, 16)}
 	expandedLeading := &treeProbe{size: image.Pt(16, 16)}
 	trailing := &treeProbe{size: image.Pt(32, 16)}
@@ -1468,24 +1544,26 @@ func TestTreeComposedContentInheritsSelectedColors(t *testing.T) {
 	if leading.layouts != 0 {
 		t.Fatalf("collapsed leading layouts = %d, want 0 while expanded", leading.layouts)
 	}
-	selected := treeVisualFor(&activeTheme, SizeMedium).Item(theme.TreeItemRequest{Selected: true})
+	selectedForeground := activeTheme.Semantic().Tone(theme.TonePrimary).OnSoft
+	selectedBackground := activeTheme.Semantic().Tone(theme.TonePrimary).Soft
 	for name, probe := range map[string]*treeProbe{"expanded leading": expandedLeading, "trailing": trailing} {
-		if probe.layouts != 1 || probe.foreground != selected.Foreground || probe.background != selected.Background {
+		if probe.layouts != 1 || probe.foreground != selectedForeground || probe.background != selectedBackground {
 			t.Errorf("%s content = layouts %d colors %#v/%#v", name, probe.layouts, probe.foreground, probe.background)
 		}
 	}
 }
 
 func TestTreeCustomContentInheritsSelectedColors(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	content := &treeProbe{size: image.Pt(120, 18)}
 	item := Item{Key: "selected", Label: "Selected", Content: content}
 	New("tree", "selected", []Item{item}).Layout(
 		treeTestContext(&activeTheme, locale.LanguageEnglish),
 		treeLayoutContext(nil, image.Pt(320, 100), time.Time{}),
 	)
-	selected := treeVisualFor(&activeTheme, SizeMedium).Item(theme.TreeItemRequest{Selected: true})
-	if content.layouts != 1 || content.foreground != selected.Foreground || content.background != selected.Background {
+	selectedForeground := activeTheme.Semantic().Tone(theme.TonePrimary).OnSoft
+	selectedBackground := activeTheme.Semantic().Tone(theme.TonePrimary).Soft
+	if content.layouts != 1 || content.foreground != selectedForeground || content.background != selectedBackground {
 		t.Fatalf("custom content = layouts %d colors %#v/%#v", content.layouts, content.foreground, content.background)
 	}
 }
@@ -1529,7 +1607,7 @@ func TestTreeSemanticsExposeSelectionAndExpansion(t *testing.T) {
 }
 
 func TestTreeCheckboxSemanticsExposeCheckedAndPartialState(t *testing.T) {
-	ctx := treeTestContext(testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := treeTestContext(new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	var ops op.Ops
 	gtx := layout.Context{
@@ -1594,25 +1672,16 @@ func treeTestItems() []Item {
 }
 
 func treeTestContext(activeTheme *theme.Theme, language locale.Language) *core.Context {
-	if activeTheme != nil && activeTheme.VisualProvider == nil {
-		value := *activeTheme
-		value.VisualProvider = testtheme.BehaviorProvider()
-		activeTheme = &value
-	}
 	return core.New(nil, activeTheme, language)
 }
 
 func treeNeutralTheme() *theme.Theme {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	return &activeTheme
 }
 
-func treeVisualFor(activeTheme *theme.Theme, size Size) theme.TreeVisual {
-	value := *activeTheme
-	if value.VisualProvider == nil {
-		value.VisualProvider = testtheme.BehaviorProvider()
-	}
-	return resolveTreeVisual(&value, theme.TreeRequest{Size: treeThemeSize(size)})
+func treeDefaultsFor(activeTheme *theme.Theme, size Size) treeDefaults {
+	return buildTreeDefaults(activeTheme, treeVisualKey{Size: size})
 }
 
 func treeLayoutContext(router *input.Router, max image.Point, now time.Time) layout.Context {

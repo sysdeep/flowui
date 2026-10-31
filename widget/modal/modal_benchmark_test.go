@@ -1,6 +1,7 @@
 package modal
 
 import (
+	"github.com/qianniancn/flowui/internal/computed"
 	"image"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
 )
@@ -23,7 +24,7 @@ type modalBenchmarkFrame struct {
 }
 
 func newModalBenchmarkFrame(maximum image.Point) *modalBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &modalBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -44,16 +45,16 @@ func (frame *modalBenchmarkFrame) layout(value Widget) {
 	frame.router.Frame(&frame.ops)
 }
 
-func (frame *modalBenchmarkFrame) visualCacheStats() ModalVisualCacheStats {
+func (frame *modalBenchmarkFrame) visualCacheStats() computed.VisualCacheStats {
 	state, ok := core.PeekState[modalState](frame.ctx, "settings", stateSlotModal)
 	if !ok || state == nil {
-		return ModalVisualCacheStats{}
+		return computed.VisualCacheStats{}
 	}
-	return state.visualCache.stats()
+	return state.visualCache.Stats()
 }
 
 // BenchmarkModalLayoutSteadyState measures a settled modal overlay with a
-// header, text body, and footer action using the neutral behavior provider.
+// header, text body, and footer action using the built-in component appearance.
 func BenchmarkModalLayoutSteadyState(b *testing.B) {
 	frame := newModalBenchmarkFrame(image.Pt(480, 360))
 	value := New("Settings", text.New("Review the current workspace settings before applying changes.")).Key("settings").Open(true).
@@ -79,15 +80,15 @@ func BenchmarkModalLayoutSteadyState(b *testing.B) {
 	}
 }
 
-// BenchmarkModalVisualCacheMiss measures the provider path when the active
+// BenchmarkModalVisualCacheMiss measures the defaults path when the active
 // theme changes on every frame. It keeps invalidation cost visible separately
 // from the steady-state component tree benchmark above.
 func BenchmarkModalVisualCacheMiss(b *testing.B) {
 	frame := newModalBenchmarkFrame(image.Pt(480, 360))
 	value := New("Settings", text.New("Body")).Key("settings").Open(true)
 	frame.layout(value)
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 	baseline := frame.visualCacheStats()
 	b.ReportAllocs()
 	b.ResetTimer()

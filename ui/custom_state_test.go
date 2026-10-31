@@ -17,7 +17,7 @@ func (s *customFrameState) BeginFrame() {
 }
 
 func TestUseStateRetainsAndSweepsCustomState(t *testing.T) {
-	active := theme.NeutralTheme()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	core.BeginFrame(ctx)
 	first := UseStateWith(ctx, "canvas", func() *customFrameState {

@@ -1,41 +1,64 @@
 package navigation
 
 import (
+	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
+	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
-type paginationPaginationVisualKey struct {
-	size theme.PaginationSize
+// PaginationButtonKind identifies the semantic slot being painted.
+type PaginationButtonKind uint8
+
+const (
+	PaginationPage PaginationButtonKind = iota
+	PaginationPrevious
+	PaginationNext
+	PaginationEllipsis
+)
+
+// paginationMetrics contains only geometry consumed by pagination layout.
+type paginationMetrics struct {
+	Size         unit.Dp
+	ItemGap      unit.Dp
+	ContentGap   unit.Dp
+	CompactWidth unit.Dp
 }
 
-type paginationPaginationVisualCache struct {
-	cache computed.ProviderCache[paginationPaginationVisualKey, theme.PaginationVisual]
+// paginationButtonRequest carries behavior-owned state for one pagination slot.
+type paginationButtonRequest struct {
+	Kind         PaginationButtonKind
+	Label        string
+	Active       bool
+	Disabled     bool
+	Hovered      bool
+	Pressed      bool
+	FocusVisible bool
+	Focus        float32
 }
 
-type PaginationVisualCacheStats = computed.ProviderCacheStats
-
-func (c *paginationPaginationVisualCache) stats() PaginationVisualCacheStats {
-	if c == nil {
-		return PaginationVisualCacheStats{}
-	}
-	return c.cache.Stats()
+// paginationVisual is the resolved appearance of one pagination configuration.
+type paginationVisual struct {
+	Defaults      style.Style
+	Summary       style.Style
+	Metrics       paginationMetrics
+	RenderMetrics paginationRenderMetrics
+	Motion        theme.MotionTheme
 }
 
-func (p PaginationWidget) visualWithCache(ctx *core.Context, override *theme.PaginationOverride) theme.PaginationVisual {
+type paginationVisualKey struct {
+	size PaginationSize
+}
+
+type paginationVisualCache = computed.VisualCache[paginationVisualKey, paginationVisual]
+
+func (p PaginationWidget) visualWithCache(ctx *core.Context) paginationVisual {
 	active := core.ActiveTheme(ctx)
-	core.RequireVisualProvider(ctx)
-	request := theme.PaginationRequest{Size: theme.PaginationSize(p.size), Override: override}
-	if override != nil || p.visualCache == nil {
-		return paginationResolvePaginationVisual(active, request)
+	key := paginationVisualKey{size: p.size}
+	load := func() paginationVisual { return buildPagination(active, p.size) }
+	if p.visualCache == nil {
+		return load()
 	}
-	key := paginationPaginationVisualKey{size: request.Size}
-	return p.visualCache.cache.Resolve(active, key, func() theme.PaginationVisual {
-		return paginationResolvePaginationVisual(active, request)
-	})
-}
-
-func paginationResolvePaginationVisual(active *theme.Theme, request theme.PaginationRequest) theme.PaginationVisual {
-	return theme.ResolveVisual(active, request, theme.ComponentVisualProvider.Pagination, theme.ValidatePaginationVisual)
+	return p.visualCache.Resolve(active, key, load)
 }

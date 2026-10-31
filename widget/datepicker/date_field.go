@@ -17,10 +17,9 @@ import (
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/text"
 )
 
@@ -30,7 +29,7 @@ const (
 )
 
 type DateFieldWidget struct {
-	override     *theme.DatePickerOverride
+	style        style.Style
 	key          string
 	value        time.Time
 	label        string
@@ -39,7 +38,7 @@ type DateFieldWidget struct {
 	locale       Locale
 	localeSet    bool
 	onChange     func(time.Time)
-	variant      field.Variant
+	variant      Variant
 	disabled     bool
 	invalid      bool
 	required     bool
@@ -50,15 +49,11 @@ type DateFieldWidget struct {
 
 type dateFieldState struct {
 	segments      dateSegmentsState
-	hover         dateInputHoverState
+	hover         base.HoverInteraction
 	calendarStyle style.Style
 	partDefaults  datePickerPartDefaultsCache
 	resolvedParts datePickerResolvedPartCache
 	localeCache   datePickerLocaleCache
-}
-
-type dateInputHoverState struct {
-	hovered bool
 }
 
 const (
@@ -88,9 +83,8 @@ type dateSegmentsLayoutOptions struct {
 	instanceStyle style.Style
 	calendarStyle *style.Style
 	resolvedParts *datePickerResolvedPartCache
-	colors        field.Colors
-	metrics       theme.DatePickerMetrics
-	visual        theme.DatePickerVisual
+	colors        dateFieldColors
+	metrics       datePickerGeometry
 	enabled       bool
 	invalid       bool
 	minDate       time.Time
@@ -133,7 +127,7 @@ func (d DateFieldWidget) OnChange(fn func(time.Time)) DateFieldWidget {
 	return d
 }
 
-func (d DateFieldWidget) Variant(value field.Variant) DateFieldWidget {
+func (d DateFieldWidget) Variant(value Variant) DateFieldWidget {
 	d.variant = value
 	return d
 }
@@ -153,7 +147,7 @@ func (d DateFieldWidget) Required(value bool) DateFieldWidget {
 	return d
 }
 
-func (d DateFieldWidget) FullWidth() DateFieldWidget {
+func (d DateFieldWidget) FillWidth() DateFieldWidget {
 	d.fullWidth = true
 	return d
 }
@@ -169,41 +163,34 @@ func (d DateFieldWidget) MaxDate(value time.Time) DateFieldWidget {
 }
 
 func (d DateFieldWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return d.layoutWithOverride(ctx, gtx, d.override)
-}
-
-func (d DateFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.DatePickerOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	key := core.ClaimKey(ctx, core.KindDateField, d.key)
 	componentState := core.UseState[dateFieldState](ctx, key, stateSlotDateField)
 	activeTheme := core.ActiveTheme(ctx)
-	visual := componentState.partDefaults.visualForRequest(activeTheme, d.variant, override)
-	restoreOverride := core.PushInstanceStyle(ctx, visual.Override)
-	defer restoreOverride()
+	defaults := componentState.partDefaults.defaultsFor(activeTheme, d.variant)
 	d = d.resolveLocale(ctx, &componentState.localeCache)
 	componentState.segments.sync(d.value)
-	componentState.hover.update(gtx)
 	enabled := gtx.Enabled() && !d.disabled
+	componentState.hover.Update(gtx, &componentState.hover, enabled)
 	core.RegisterFieldFocus(ctx, key, &componentState.segments.segments[d.locale.DateOrder[0]].clickable, enabled)
 
 	focused := componentState.segments.focused(gtx)
-	hovered := componentState.hover.hovered || componentState.segments.hovered()
+	hovered := componentState.hover.Hovered || componentState.segments.hovered()
 	invalid := d.invalid || !componentState.segments.valid || dateOutsideRange(d.value, d.minDate, d.maxDate)
 	styleState := style.State{
 		Hovered: hovered, Focused: focused, FocusVisible: componentState.segments.focusVisible(ctx, gtx),
 		Disabled: !enabled, Invalid: invalid, Selected: !d.value.IsZero(),
 	}
-	componentState.resolvedParts.prepare(ctx, core.InstanceStyle(ctx), d.variant)
-	metrics := visual.Metrics
-	componentState.calendarStyle = visual.Calendar
-	resolved := resolveDatePickerField(ctx, gtx, key, styleState, core.InstanceStyle(ctx), visual)
-	descriptionResolved := resolveDatePickerPartFor(
+	componentState.resolvedParts.prepare(ctx, d.style, d.variant)
+	metrics := defaults.metrics
+	componentState.calendarStyle = defaults.calendar
+	resolved := resolveDatePickerField(ctx, gtx, key, styleState, d.style, defaults)
+	descriptionResolved := resolvePartFor(
 		ctx,
 		gtx,
 		key,
 		style.PartDescription,
 		style.State{Disabled: !enabled, Invalid: invalid},
-		core.InstanceStyle(ctx),
+		d.style,
 		style.Style{},
 		&componentState.calendarStyle,
 	)
@@ -225,19 +212,19 @@ func (d DateFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.Contex
 		dimensions := layoutDateInputFrame(ctx, gtx, resolved.Content, d.fullWidth, metrics, func(gtx layout.Context) layout.Dimensions {
 			return componentState.segments.layout(ctx, gtx, d.locale, dateSegmentsLayoutOptions{
 				key:           key,
-				instanceStyle: core.InstanceStyle(ctx),
+				instanceStyle: d.style,
 				calendarStyle: &componentState.calendarStyle,
 				resolvedParts: &componentState.resolvedParts,
 				colors:        resolved.Colors,
 				metrics:       metrics,
-				visual:        visual,
 				enabled:       enabled,
 				invalid:       invalid,
 				minDate:       d.minDate,
 				maxDate:       d.maxDate,
 			}, d.onChange)
 		})
-		addDateInputHover(gtx, &componentState.hover, dimensions.Size, enabled, true)
+		cursor := pointer.CursorText
+		componentState.hover.AddInput(gtx, &componentState.hover, image.Rectangle{Max: dimensions.Size}, enabled, &cursor)
 		return dimensions
 	})
 	count++
@@ -276,13 +263,13 @@ func (d DateFieldWidget) resolveLocale(ctx *core.Context, caches ...*datePickerL
 	return d
 }
 
-func layoutDateInputFrame(ctx *core.Context, gtx layout.Context, resolved style.ResolvedStyle, fullWidth bool, metrics theme.DatePickerMetrics, content layout.Widget) layout.Dimensions {
+func layoutDateInputFrame(ctx *core.Context, gtx layout.Context, resolved style.ResolvedStyle, fullWidth bool, metrics datePickerGeometry, content layout.Widget) layout.Dimensions {
 	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 		return layoutDateInputContent(ctx, gtx, fullWidth, metrics, content)
 	}))
 }
 
-func layoutDateInputContent(ctx *core.Context, gtx layout.Context, fullWidth bool, metrics theme.DatePickerMetrics, content layout.Widget) layout.Dimensions {
+func layoutDateInputContent(ctx *core.Context, gtx layout.Context, fullWidth bool, metrics datePickerGeometry, content layout.Widget) layout.Dimensions {
 	frameConstraints := gtx.Constraints
 	if fullWidth {
 		frameConstraints.Min.X = frameConstraints.Max.X
@@ -363,14 +350,8 @@ func (s *dateSegmentsState) empty() bool {
 func (s *dateSegmentsState) escapePressed(gtx layout.Context) bool {
 	pressed := false
 	for index := range s.segments {
-		for {
-			value, ok := gtx.Event(key.Filter{Focus: &s.segments[index].clickable, Name: key.NameEscape})
-			if !ok {
-				break
-			}
-			if eventValue, ok := value.(key.Event); ok && eventValue.State == key.Press {
-				pressed = true
-			}
+		if base.EscapePressed(gtx, &s.segments[index].clickable) {
+			pressed = true
 		}
 	}
 	return pressed
@@ -419,14 +400,9 @@ func (s *dateSegmentsState) layout(ctx *core.Context, gtx layout.Context, locale
 
 func (s *dateSegmentsState) updateSegment(ctx *core.Context, gtx layout.Context, index int, order [3]DatePart, enabled bool, minDate, maxDate time.Time, onChange func(time.Time)) {
 	segment := &s.segments[index]
-	presses := core.SnapshotPresses(segment.clickable.History())
-	if enabled {
-		for segment.clickable.Clicked(gtx) {
-			segment.typed = ""
-			core.RequestFocusVisible(ctx, &segment.clickable, presses.ClickFocusVisible(segment.clickable.History()))
-		}
-		core.FocusOnPress(ctx, &segment.clickable, segment.clickable.History(), presses.Active())
-	}
+	base.RowInteraction(ctx, gtx, &segment.clickable, !enabled, func() {
+		segment.typed = ""
+	})
 	if !enabled || !gtx.Focused(&segment.clickable) {
 		return
 	}
@@ -661,16 +637,16 @@ func (s *dateSegmentsState) layoutSegment(ctx *core.Context, gtx layout.Context,
 		if cached, ok := options.resolvedParts.segmentValue(key); ok {
 			resolved = cached
 		} else {
-			resolved = resolveDatePickerPartFor(
+			resolved = resolvePartFor(
 				ctx, gtx, options.key, PartDateSegment, state, options.instanceStyle,
-				datePickerDateSegmentDeclaration(options.visual, baseColor, state), options.calendarStyle,
+				dateSegmentDeclaration(core.ActiveTheme(ctx), baseColor), options.calendarStyle,
 			)
 			options.resolvedParts.storeSegment(key, resolved)
 		}
 	} else {
-		resolved = resolveDatePickerPartFor(
+		resolved = resolvePartFor(
 			ctx, gtx, options.key, PartDateSegment, state, options.instanceStyle,
-			datePickerDateSegmentDeclaration(options.visual, baseColor, state), options.calendarStyle,
+			dateSegmentDeclaration(core.ActiveTheme(ctx), baseColor), options.calendarStyle,
 		)
 	}
 	textMacro := op.Record(gtx.Ops)
@@ -693,7 +669,7 @@ func (s *dateSegmentsState) layoutSegment(ctx *core.Context, gtx layout.Context,
 		if options.enabled {
 			pointer.CursorText.Add(gtx.Ops)
 		}
-		background := datePickerPaintColor(options.visual, resolved)
+		background := dateResolvePaintColor(resolved)
 		if background.A != 0 {
 			paint.Fill(gtx.Ops, background)
 		}
@@ -746,20 +722,16 @@ func layoutDateSegmentLiteral(ctx *core.Context, gtx layout.Context, value strin
 		if cached, ok := options.resolvedParts.literalValue(key); ok {
 			resolved = cached
 		} else {
-			resolved = resolveDatePickerPartFor(
+			resolved = resolvePartFor(
 				ctx, gtx, options.key, PartDateLiteral, state, options.instanceStyle,
-				datePickerTextPartDeclaration(options.visual, PartDateLiteral, theme.DatePickerTextRequest{
-					Base: baseColor, State: state,
-				}), options.calendarStyle,
+				dateTextPartDeclaration(baseColor), options.calendarStyle,
 			)
 			options.resolvedParts.storeLiteral(key, resolved)
 		}
 	} else {
-		resolved = resolveDatePickerPartFor(
+		resolved = resolvePartFor(
 			ctx, gtx, options.key, PartDateLiteral, state, options.instanceStyle,
-			datePickerTextPartDeclaration(options.visual, PartDateLiteral, theme.DatePickerTextRequest{
-				Base: baseColor, State: state,
-			}), options.calendarStyle,
+			dateTextPartDeclaration(baseColor), options.calendarStyle,
 		)
 	}
 	textWidget := text.WithResolvedText(text.New(value), resolved.Text)
@@ -788,37 +760,10 @@ func dateSegmentLabel(ctx *core.Context, index int) string {
 	return ctx.Text(keys[index])
 }
 
-func (s *dateInputHoverState) update(gtx layout.Context) {
-	for {
-		eventValue, ok := core.NextPointerEvent(gtx, s, pointer.Enter|pointer.Leave|pointer.Cancel)
-		if !ok {
-			return
-		}
-		s.hovered = eventValue.Kind == pointer.Enter
-	}
-}
-
-func addDateInputHover(gtx layout.Context, target event.Tag, size image.Point, enabled, textCursor bool) {
-	if !enabled || size.X <= 0 || size.Y <= 0 {
-		return
-	}
-	clipped := clip.Rect{Max: size}.Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	if textCursor {
-		pointer.CursorText.Add(gtx.Ops)
-	}
-	event.Op(gtx.Ops, target)
-	pass.Pop()
-	clipped.Pop()
-}
-
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the date field. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w DateFieldWidget) Style(values ...style.Style) DateFieldWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.DatePickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

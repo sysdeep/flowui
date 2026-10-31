@@ -12,11 +12,10 @@ import (
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
-func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.LineChartMetrics) {
+func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics lineChartMetrics) {
 	gap := max(gtx.Dp(metrics.TickLabelGap), 0)
 	for _, tick := range geometry.yTicks {
 		label := recordChartText(ctx, gtx, tick.label, metrics.AxisTextSize, metrics.TextWeight, style.axisLabel, max(geometry.plot.Min.X-gap, 0))
@@ -35,7 +34,7 @@ func (w Widget) layoutAxisLabels(ctx *core.Context, gtx layout.Context, geometry
 	}
 }
 
-func (w Widget) measureYAxisLabelWidth(ctx *core.Context, gtx layout.Context, data chartData, metrics theme.LineChartMetrics, labelColor color.NRGBA, maxWidth int) int {
+func (w Widget) measureYAxisLabelWidth(ctx *core.Context, gtx layout.Context, data chartData, metrics lineChartMetrics, labelColor color.NRGBA, maxWidth int) int {
 	scale := w.resolveYScale(data)
 	width := 0
 	for _, value := range scale.Ticks {
@@ -45,7 +44,7 @@ func (w Widget) measureYAxisLabelWidth(ctx *core.Context, gtx layout.Context, da
 	return width
 }
 
-func (w Widget) pruneXTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.LineChartMetrics) []axisTick {
+func (w Widget) pruneXTicks(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics lineChartMetrics) []axisTick {
 	if len(geometry.xTicks) < 2 {
 		return geometry.xTicks
 	}
@@ -81,7 +80,7 @@ func (w Widget) pruneXTicks(ctx *core.Context, gtx layout.Context, geometry char
 	return ticks
 }
 
-func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.LineChartMetrics) {
+func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry chartGeometry, style chartStyle, metrics lineChartMetrics) {
 	value := w.emptyText
 	if !w.hasEmptyText {
 		value = ctx.Text(i18n.ChartNoData)
@@ -94,7 +93,7 @@ func (w Widget) layoutEmpty(ctx *core.Context, gtx layout.Context, geometry char
 	placeChartText(gtx, label, position)
 }
 
-func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, style chartStyle, metrics theme.LineChartMetrics, hiddenOpacity float32, maxWidth int, enabled bool) recordedChartBlock {
+func (w Widget) recordLegend(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, style chartStyle, metrics lineChartMetrics, hiddenOpacity float32, maxWidth int, enabled bool) recordedChartBlock {
 	if maxWidth <= 0 || len(data.legend) == 0 {
 		return recordedChartBlock{}
 	}

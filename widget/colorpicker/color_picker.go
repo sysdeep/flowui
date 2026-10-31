@@ -4,14 +4,14 @@ import (
 	"image/color"
 
 	"gioui.org/layout"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type Widget struct {
-	override     *theme.ColorPickerOverride
+	style        style.Style
 	key          string
 	value        color.NRGBA
 	hasValue     bool
@@ -140,12 +140,12 @@ func (picker Widget) reportChange(state *colorPickerState, value color.NRGBA, re
 }
 
 func (picker Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return picker.layoutWithOverride(ctx, gtx, picker.override)
+	return picker.layoutWithStyle(ctx, gtx)
 }
 
-func (picker Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ColorPickerOverride) layout.Dimensions {
+func (picker Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	key, pickerState := colorPickerStateFor(ctx, picker.key)
-	visual := resolveColorPickerVisualWithOverride(ctx, pickerState, override)
+	defaults := colorPickerDefaultsFor(ctx, &pickerState.defaultsCache)
 
 	// Bind disclosure and get current value
 	pickerState.bind(picker)
@@ -168,31 +168,38 @@ func (picker Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, o
 	if !enabled {
 		triggerGtx = triggerGtx.Disabled()
 	}
-	dimensions := layoutui.Styled(ctx, triggerGtx, key, style.State{
+	state := style.State{
 		Hovered:  pickerState.trigger.Hovered(),
 		Pressed:  pickerState.trigger.Pressed(),
 		Focused:  triggerGtx.Focused(&pickerState.trigger),
 		Disabled: !enabled,
 		Open:     pickerState.open,
-	}, visual.Override, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return picker.layoutTrigger(ctx, gtx, pickerState, visual, enabled)
+	}
+	resolved := computed.Resolve(
+		ctx,
+		triggerGtx,
+		key,
+		state,
+		defaults.Defaults,
+		style.Style{},
+		style.Style{},
+		picker.style,
+	)
+	dimensions := layoutui.Resolved(ctx, triggerGtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return picker.layoutTrigger(ctx, gtx, pickerState, defaults, enabled)
 	}))
-	progress := pickerState.popoverProgress(gtx, pickerState.open && enabled, visual.Motion, visual.Metrics.EnterDuration, visual.Metrics.ExitDuration)
+	progress := pickerState.popoverProgress(gtx, pickerState.open && enabled, defaults.Motion, defaults.EnterDuration, defaults.ExitDuration)
 	if progress == 0 && !pickerState.open {
 		return dimensions
 	}
 
-	picker.layoutPopover(ctx, gtx, pickerState, visual, key, dimensions, progress, core.OverlayNaturallyDisabled(gtx))
+	picker.layoutPopover(ctx, gtx, pickerState, defaults, key, dimensions, progress, core.OverlayNaturallyDisabled(gtx))
 	return dimensions
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ColorPickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

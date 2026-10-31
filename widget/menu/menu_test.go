@@ -16,7 +16,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -46,7 +45,7 @@ func (w *measurableMenuWidget) Measure(_ *core.Context, gtx layout.Context) layo
 }
 
 func menuTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func menuTestLayoutContext(router *input.Router, now time.Time) layout.Context {
@@ -125,13 +124,13 @@ func TestMenuAutoWidthIncludesLeadingContentGap(t *testing.T) {
 	widget := New("leading-gap", nil)
 	item := Item{Key: "roadmap", Label: "Roadmap", Leading: leading}
 	visual := widget.visual(ctx)
-	metrics := visual.Metrics
-	itemVisual := visual.Item(theme.MenuItemRequest{Variant: uint8(item.Variant)})
+	defaults := visual.defaults
+	metrics := defaults.Metrics
 	measurementStyle := widget.resolveItemMeasurementStyleWithVisual(ctx, item, visual)
-	itemColors := itemVisual.Colors(measurementStyle)
+	itemColors := defaults.item(item.Variant, false).resolvedColors(measurementStyle)
 	want := widget.measureWidgetWidth(ctx, gtx, leading) +
 		gtx.Dp(metrics.ItemContentGap) +
-		visual.TextWidth(gtx, theme.MenuTextRequest{Text: item.Label, Color: itemColors.Foreground, Role: theme.MenuTextItem, Style: measurementStyle}) +
+		defaults.textWidth(core.ActiveTheme(ctx), gtx, menuTextSpec{Text: item.Label, Color: itemColors.Foreground, Role: MenuTextItem, Part: measurementStyle}) +
 		gtx.Dp(metrics.ItemPaddingX)*2
 	if got := widget.preferredItemWidthPxWithVisual(ctx, gtx, item, visual); got != want {
 		t.Fatalf("auto item width = %d, want %d including leading content gap", got, want)
@@ -150,7 +149,7 @@ func TestMenuAutoWidthMeasuresEmptyText(t *testing.T) {
 	widget := New("empty", nil).EmptyText("No matching actions").AutoWidth()
 	visual := widget.visual(ctx)
 	width := widget.preferredWidthPxWithVisual(ctx, gtx, visual)
-	if width <= gtx.Dp(visual.Metrics.Padding*2) {
+	if width <= gtx.Dp(visual.defaults.Metrics.Padding*2) {
 		t.Fatalf("empty menu width = %d, expected the empty text to contribute", width)
 	}
 }
@@ -160,8 +159,9 @@ func TestMenuAutoWidthIncludesSectionTitlePadding(t *testing.T) {
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	widget := Sections("section-width", []Section{{Title: "A considerably long section title"}}).AutoWidth()
 	visual := widget.visual(ctx)
-	metrics := visual.Metrics
-	title := visual.TextWidth(gtx, theme.MenuTextRequest{Text: "A considerably long section title", Color: visual.Colors.Description, Role: theme.MenuTextSection})
+	defaults := visual.defaults
+	metrics := defaults.Metrics
+	title := defaults.textWidth(core.ActiveTheme(ctx), gtx, menuTextSpec{Text: "A considerably long section title", Color: defaults.Colors.Description, Role: MenuTextSection})
 	width := widget.preferredWidthPxWithVisual(ctx, gtx, visual)
 	minimum := title + 2*gtx.Dp(metrics.SectionPaddingX) + 2*gtx.Dp(metrics.Padding)
 	if width < minimum {
@@ -276,11 +276,12 @@ func TestMenuDataCacheInvalidatesAutomaticSectionSeparators(t *testing.T) {
 func TestMenuCompactTokensAndSubmenu(t *testing.T) {
 	ctx := menuTestContext()
 	base := New("actions", nil)
-	metrics := base.Compact(true).visual(ctx).Metrics
+	visual := base.Compact(true).visual(ctx)
+	metrics := visual.defaults.Metrics
 	if metrics.Padding != 4 || metrics.Radius != 8 || metrics.ItemGap != 0 || metrics.ItemMinHeight != 28 || metrics.ItemRadius != 4 || metrics.ItemPaddingX != 8 || metrics.ItemPaddingY != 3 {
 		t.Fatalf("compact menu metrics = %#v", metrics)
 	}
-	root := base.Compact(true).visual(ctx).Root.Resolve(style.State{})
+	root := visual.panel
 	if root.Paint == nil || root.Paint.Radius == nil || *root.Paint.Radius != 8 {
 		t.Fatalf("compact menu root radius = %#v, want 8", root.Paint)
 	}
@@ -485,31 +486,13 @@ func TestMenuWidthConstraintsPreserveParentMinimum(t *testing.T) {
 func TestMenuAutoWidthUsesItemPartTypography(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	widget := New("weighted", []Item{{Key: "copy", Label: "Copy"}})
-	visual := widget.visualWithOverride(ctx, &theme.MenuOverride{Declaration: style.Style{}.Part(style.PartItem, style.Style{}.FontWeight(int(font.Bold)))})
-	part := widget.resolveItemMeasurementStyleWithVisual(ctx, widget.items[0], visual)
-	itemVisual := visual.Item(theme.MenuItemRequest{})
-	if got := visual.TextWidth(gtx, theme.MenuTextRequest{Text: widget.items[0].Label, Color: itemVisual.Colors(part).Foreground, Role: theme.MenuTextItem, Style: part}); got <= 0 {
-		t.Fatalf("measured item width = %d, want positive width", got)
-	}
-}
-
-func TestMenuAutoWidthResolvesItemVisualOnce(t *testing.T) {
-	ctx := menuTestContext()
-	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	widget := New("visual-once", []Item{{Key: "copy", Label: "Copy", Shortcut: "Ctrl+C", Leading: fixedMenuWidget{size: image.Pt(16, 16)}}})
+	widget := New("weighted", []Item{{Key: "copy", Label: "Copy"}}).
+		Style(style.Style{}.Part(style.PartItem, style.Style{}.FontWeight(int(font.Bold))))
 	visual := widget.visual(ctx)
-	original := visual.Item
-	itemCalls := 0
-	visual.Item = func(request theme.MenuItemRequest) theme.MenuItemVisual {
-		itemCalls++
-		return original(request)
-	}
-	if got := widget.preferredItemWidthPxWithVisual(ctx, gtx, widget.items[0], visual); got <= 0 {
-		t.Fatalf("auto item width = %d, want positive width", got)
-	}
-	if itemCalls != 1 {
-		t.Fatalf("item visual calls = %d, want one call per measurement", itemCalls)
+	part := widget.resolveItemMeasurementStyleWithVisual(ctx, widget.items[0], visual)
+	colors := visual.defaults.item(ItemDefault, false).resolvedColors(part)
+	if got := visual.defaults.textWidth(core.ActiveTheme(ctx), gtx, menuTextSpec{Text: widget.items[0].Label, Color: colors.Foreground, Role: MenuTextItem, Part: part}); got <= 0 {
+		t.Fatalf("measured item width = %d, want positive width", got)
 	}
 }
 
@@ -517,11 +500,12 @@ func TestMenuAutoWidthUsesItemPartPadding(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	base := New("padding", []Item{{Key: "copy", Label: "Copy"}})
-	wideVisual := base.visualWithOverride(ctx, &theme.MenuOverride{Declaration: style.Style{}.Part(style.PartItem, style.Style{}.PaddingX(40))})
+	wide := base.Style(style.Style{}.Part(style.PartItem, style.Style{}.Padding(40)))
 	baseVisual := base.visual(ctx)
+	wideVisual := wide.visual(ctx)
 	baseWidth := base.preferredItemWidthPxWithVisual(ctx, gtx, base.items[0], baseVisual)
-	wideWidth := base.preferredItemWidthPxWithVisual(ctx, gtx, base.items[0], wideVisual)
-	wantDelta := 2 * (gtx.Dp(unit.Dp(40)) - gtx.Dp(baseVisual.Metrics.ItemPaddingX))
+	wideWidth := wide.preferredItemWidthPxWithVisual(ctx, gtx, wide.items[0], wideVisual)
+	wantDelta := 2 * (gtx.Dp(unit.Dp(40)) - gtx.Dp(baseVisual.defaults.Metrics.ItemPaddingX))
 	if wideWidth-baseWidth != wantDelta {
 		t.Fatalf("item padding width delta = %d, want %d", wideWidth-baseWidth, wantDelta)
 	}
@@ -635,7 +619,7 @@ func TestMenuSelectionCallbacks(t *testing.T) {
 
 func TestMenuActivatesActionCheckboxAndRadioItems(t *testing.T) {
 	ctx := menuTestContext()
-	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
+	gtx := menuTestLayoutContext(new(input.Router), time.Unix(1, 0))
 	action := ""
 	checkedKey := ""
 	checked := false
@@ -684,6 +668,51 @@ func TestMenuKeyboardNavigationWrapsAndSkipsDisabled(t *testing.T) {
 	layoutMenuFrame(ctx, router, widget, start.Add(2*time.Millisecond))
 	if !router.Source().Focused(&state.item("copy").clickable) {
 		t.Fatal("down arrow did not wrap to first item")
+	}
+}
+
+func TestMenuTypeaheadAndDisabledActivation(t *testing.T) {
+	ctx := menuTestContext()
+	router := new(input.Router)
+	disabled, actions := false, 0
+	view := func() Widget {
+		return New("typeahead", []Item{
+			{Key: "copy", Label: "Copy"},
+			{Key: "delete", Label: "Delete", Disabled: true},
+			{Key: "duplicate", Label: "Duplicate"},
+		}).Disabled(disabled).OnActionEvent(func(ActionEvent) { actions++ })
+	}
+	now := time.Unix(11, 0)
+	frame := func() {
+		layoutMenuFrame(ctx, router, view(), now)
+		now = now.Add(time.Millisecond)
+	}
+	frame()
+	state, _ := core.PeekState[menuState](ctx, "typeahead", stateSlotMenu)
+	router.Source().Execute(key.FocusCmd{Tag: &state.item("copy").clickable})
+	frame()
+	router.Queue(key.Event{Name: "D", State: key.Press})
+	frame()
+	if !router.Source().Focused(&state.item("duplicate").clickable) {
+		t.Fatal("typeahead did not skip disabled Delete")
+	}
+	router.Queue(key.Event{Name: key.NameReturn, State: key.Press})
+	frame()
+	disabled = true
+	frame()
+	disabled = false
+	frame()
+	router.Source().Execute(key.FocusCmd{Tag: &state.item("duplicate").clickable})
+	frame()
+	router.Queue(key.Event{Name: key.NameReturn, State: key.Release})
+	frame()
+	if actions != 0 {
+		t.Fatal("stale release activated re-enabled menu")
+	}
+	router.Queue(key.Event{Name: key.NameReturn, State: key.Press}, key.Event{Name: key.NameReturn, State: key.Release})
+	frame()
+	if actions != 1 {
+		t.Fatalf("fresh menu action count = %d, want 1", actions)
 	}
 }
 

@@ -10,11 +10,11 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 func BenchmarkTooltipLayout(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	value := New("benchmark", fixedWidget{size: image.Pt(96, 28)}, "Benchmark tooltip").Delay(0)
 	gtx := layout.Context{
@@ -38,7 +38,7 @@ func BenchmarkTooltipLayout(b *testing.B) {
 	}
 	state, _ := core.PeekState[tooltipState](ctx, "benchmark", stateSlotTooltip)
 	if state != nil {
-		stats := state.visualCache.stats()
+		stats := state.visualCache.Stats()
 		b.ReportMetric(float64(stats.Hits), "visual-cache-hits")
 		b.ReportMetric(float64(stats.Misses), "visual-cache-misses")
 		b.ReportMetric(float64(stats.Hits)/float64(b.N), "tooltip-visual-cache-hits/op")
@@ -49,17 +49,17 @@ func BenchmarkTooltipLayout(b *testing.B) {
 }
 
 func BenchmarkTooltipVisualCacheHit(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
-	cache := tooltipVisualCache{}
-	tooltipVisualWithCache(ctx, nil, &cache)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+	cache := tooltipDefaultsCache{}
+	tooltipVisualWithCache(ctx, &cache)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tooltipVisualWithCache(ctx, nil, &cache)
+		tooltipVisualWithCache(ctx, &cache)
 	}
 	b.StopTimer()
-	stats := cache.stats()
+	stats := cache.Stats()
 	b.ReportMetric(float64(stats.Hits), "cache-hits")
 	b.ReportMetric(float64(stats.Misses), "cache-misses")
 	b.ReportMetric(float64(stats.Hits)/float64(b.N), "tooltip-visual-cache-hits/op")

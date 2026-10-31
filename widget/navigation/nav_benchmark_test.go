@@ -38,6 +38,7 @@ func BenchmarkNavigationTypeahead(b *testing.B) {
 	var typeahead Typeahead
 	base := time.Unix(0, 0)
 	index := 0
+	query := ""
 	chars := []string{"a", "b", "c", "d"}
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -46,10 +47,10 @@ func BenchmarkNavigationTypeahead(b *testing.B) {
 			typeahead.Reset()
 		}
 		index++
-		typeahead.Append(base.Add(time.Duration(index)*10*time.Millisecond), chars[index%len(chars)])
+		query = typeahead.Append(base.Add(time.Duration(index)*10*time.Millisecond), chars[index%len(chars)])
 	}
 	b.StopTimer()
-	if typeahead.text == "" {
+	if query == "" {
 		b.Fatal("benchmark typeahead query is empty")
 	}
 }

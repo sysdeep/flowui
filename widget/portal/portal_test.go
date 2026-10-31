@@ -96,7 +96,7 @@ func TestPortalRejectsNilRootContent(t *testing.T) {
 }
 
 func portalTestContext(viewport image.Point) (*core.Context, layout.Context) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	core.BeginFrameWithViewport(ctx, viewport)
 	router := new(input.Router)

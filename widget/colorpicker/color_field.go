@@ -5,10 +5,10 @@ import (
 
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/i18n"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/text"
 )
@@ -16,7 +16,7 @@ import (
 const stateSlotColorField = "color-field"
 
 type ColorFieldWidget struct {
-	override     *theme.ColorPickerOverride
+	style        style.Style
 	key          string
 	value        color.NRGBA
 	label        string
@@ -33,12 +33,12 @@ type ColorFieldWidget struct {
 }
 
 type colorFieldState struct {
-	text        string
-	syncedColor color.NRGBA
-	syncedAlpha bool
-	ready       bool
-	valid       bool
-	visualCache colorPickerVisualCache
+	text          string
+	syncedColor   color.NRGBA
+	syncedAlpha   bool
+	ready         bool
+	valid         bool
+	defaultsCache colorFieldDefaultsCache
 }
 
 func ColorField(key string, value color.NRGBA) ColorFieldWidget {
@@ -85,7 +85,7 @@ func (field ColorFieldWidget) Required(required bool) ColorFieldWidget {
 	return field
 }
 
-func (field ColorFieldWidget) FullWidth() ColorFieldWidget {
+func (field ColorFieldWidget) FillWidth() ColorFieldWidget {
 	field.fullWidth = true
 	return field
 }
@@ -101,13 +101,13 @@ func (field ColorFieldWidget) Swatch(show bool) ColorFieldWidget {
 }
 
 func (field ColorFieldWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return field.layoutWithOverride(ctx, gtx, field.override)
+	return field.layoutWithStyle(ctx, gtx)
 }
 
-func (field ColorFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ColorPickerOverride) layout.Dimensions {
+func (field ColorFieldWidget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	key := core.ClaimKey(ctx, core.KindColorField, field.key)
 	fieldState := core.UseState[colorFieldState](ctx, key, stateSlotColorField)
-	visual := fieldState.visualCache.resolve(core.ActiveTheme(ctx), colorPickerRequest(override))
+	defaults := colorFieldDefaultsFor(ctx, &fieldState.defaultsCache)
 	fieldState.sync(field.value, field.alpha)
 
 	restore := core.PushKey(ctx, field.key)
@@ -140,13 +140,13 @@ func (field ColorFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.C
 		Invalid(invalid)
 	var groupLayout core.Widget = group
 	if field.fullWidth {
-		group = group.FullWidth()
+		group = group.FillWidth()
 		groupLayout = group
 	}
 	if field.swatch {
 		group = group.Prefix(ColorSwatch(field.value).Size(ColorSwatchExtraSmall))
 		groupLayout = (group).Style(style.Style{}.
-			Part(style.PartPrefix, style.Style{}.PaddingLeft(10).PaddingRight(8)))
+			Part(style.PartPrefix, style.Style{}.Padding(0, 8, 0, 10)))
 	}
 
 	children := make([]layout.FlexChild, 0, 3)
@@ -166,8 +166,8 @@ func (field ColorFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.C
 	if invalid && field.errorMessage != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return text.New(field.errorMessage).
-				Size(float32(visual.Field.ErrorTextSize)).
-				Color(visual.Field.ErrorForeground).
+				Size(float32(defaults.ErrorTextSize)).
+				Color(defaults.ErrorForeground).
 				Layout(ctx, gtx)
 		}))
 	} else if field.description != "" {
@@ -178,13 +178,25 @@ func (field ColorFieldWidget) layoutWithOverride(ctx *core.Context, gtx layout.C
 				Layout(ctx, gtx)
 		}))
 	}
-	return layoutui.Styled(ctx, gtx, key, style.State{
+
+	state := style.State{
 		Disabled: field.disabled,
 		Invalid:  invalid,
-	}, visual.Override, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
+	}
+	resolved := computed.Resolve(
+		ctx,
+		gtx,
+		key,
+		state,
+		defaults.Defaults,
+		style.Style{},
+		style.Style{},
+		field.style,
+	)
+	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 		return layout.Flex{
 			Axis: layout.Vertical,
-			Gap:  gtx.Dp(visual.Field.Gap),
+			Gap:  gtx.Dp(defaults.Gap),
 		}.Layout(gtx, children...)
 	}))
 }
@@ -207,13 +219,9 @@ func (field ColorFieldWidget) resolvedLabel(ctx *core.Context) string {
 	return ctx.Text(i18n.ColorPickerColor)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w ColorFieldWidget) Style(values ...style.Style) ColorFieldWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ColorPickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

@@ -62,7 +62,7 @@ type Semantic struct {
 	// They are named roles rather than a tone because no tone can carry them.
 	// A neutral tone's Fill is its own surface, and a hue tone's Soft is a tint
 	// or a pale ramp rung — neither is "the neutral surface a control sits on".
-	// Providers can choose different surface rungs for the same role without
+	// Recipes can choose different surface rungs for the same role without
 	// changing component logic.
 	ControlSurface      color.NRGBA
 	ControlSurfaceHover color.NRGBA
@@ -112,4 +112,18 @@ func (s Semantic) Tone(t Tone) TonePair {
 // v2 keeps the two apart by never reusing the name.
 func (s Semantic) HoverSurface() color.NRGBA {
 	return s.Tones[ToneHover].Fill
+}
+
+// Semantic returns this theme's semantic colors.
+func (t *Theme) Semantic() Semantic {
+	return t.Colors
+}
+
+// UseSemantic installs semantic colors.
+// Replace the window theme after customization to invalidate component caches.
+func (t *Theme) UseSemantic(s Semantic) {
+	if t == nil {
+		return
+	}
+	t.Colors = s
 }

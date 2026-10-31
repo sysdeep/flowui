@@ -5,29 +5,28 @@ import (
 	"image"
 	"time"
 
-	"gioui.org/io/event"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/clip"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 )
 
 const stateSlotToast = "toast"
 
-func toastStateFor(ctx *core.Context, key string) (string, *toastProviderState) {
+func toastStateFor(ctx *core.Context, key string) (string, *toastHostState) {
 	key = core.ClaimKey(ctx, core.KindToast, key)
-	return key, core.UseState[toastProviderState](ctx, key, stateSlotToast)
+	return key, core.UseState[toastHostState](ctx, key, stateSlotToast)
 }
 
-type toastProviderState struct {
+type toastHostState struct {
 	entries        map[string]*toastEntryState
 	order          []string
 	region         toastRegionTag
-	regionHovered  bool
+	regionHover    base.HoverInteraction
 	touchMode      bool
 	expansion      animation.FloatTransition
 	expansionValue float32
@@ -38,7 +37,7 @@ type toastEntryState struct {
 	present            bool
 	closeRequested     bool
 	root               toastRootTag
-	hovered            bool
+	hover              base.HoverInteraction
 	close              widget.Clickable
 	action             widget.Clickable
 	remaining          time.Duration
@@ -54,7 +53,7 @@ type toastEntryState struct {
 type toastRootTag struct{ _ byte }
 type toastRegionTag struct{ _ byte }
 
-func (s *toastProviderState) sync(gtx layout.Context, items []Item, defaultTimeout time.Duration) {
+func (s *toastHostState) sync(gtx layout.Context, items []Item, defaultTimeout time.Duration) {
 	if s.entries == nil {
 		s.entries = make(map[string]*toastEntryState)
 	}
@@ -117,7 +116,7 @@ func (s *toastProviderState) sync(gtx layout.Context, items []Item, defaultTimeo
 	s.order = nextOrder
 }
 
-func (s *toastProviderState) visible() bool {
+func (s *toastHostState) visible() bool {
 	for _, entry := range s.entries {
 		if entry.value > 0 || (entry.present && !entry.closeRequested) {
 			return true
@@ -126,13 +125,13 @@ func (s *toastProviderState) visible() bool {
 	return false
 }
 
-func (s *toastProviderState) resetRegion() {
-	s.regionHovered = false
+func (s *toastHostState) resetRegion() {
+	s.regionHover.Hovered = false
 	s.expansion.Reset()
 	s.expansionValue = 0
 }
 
-func (s *toastProviderState) cleanup() {
+func (s *toastHostState) cleanup() {
 	if len(s.entries) == 0 {
 		return
 	}
@@ -151,56 +150,38 @@ func (s *toastProviderState) cleanup() {
 	s.order = nextOrder
 }
 
-func (s *toastProviderState) entry(key string) *toastEntryState {
+func (s *toastHostState) entry(key string) *toastEntryState {
 	return s.entries[key]
 }
 
-func (s *toastProviderState) paused(gtx layout.Context) bool {
+func (s *toastHostState) paused(gtx layout.Context) bool {
 	for _, key := range s.order {
 		entry := s.entries[key]
-		if entry != nil && (entry.hovered || entry.close.Hovered() || gtx.Focused(&entry.root) || gtx.Focused(&entry.close) || gtx.Focused(&entry.action)) {
+		if entry != nil && (entry.hover.Hovered || entry.close.Hovered() || gtx.Focused(&entry.root) || gtx.Focused(&entry.close) || gtx.Focused(&entry.action)) {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *toastProviderState) updateRegionEvents(gtx layout.Context) {
+func (s *toastHostState) updateRegionEvents(gtx layout.Context) {
+	s.regionHover.Update(gtx, &s.region, true)
 	for {
-		eventValue, ok := gtx.Event(pointer.Filter{
-			Target: &s.region,
-			Kinds:  pointer.Enter | pointer.Leave | pointer.Press | pointer.Cancel,
-		})
+		e, ok := core.NextPointerEvent(gtx, &s.region, pointer.Press)
 		if !ok {
 			return
 		}
-		if pointerEvent, ok := eventValue.(pointer.Event); ok {
-			switch pointerEvent.Kind {
-			case pointer.Enter:
-				s.regionHovered = true
-			case pointer.Leave, pointer.Cancel:
-				s.regionHovered = false
-			case pointer.Press:
-				if pointerEvent.Source == pointer.Touch {
-					s.touchMode = true
-				}
-			}
+		if gtx.Enabled() && e.Source == pointer.Touch {
+			s.touchMode = true
 		}
 	}
 }
 
-func (s *toastProviderState) addRegionInput(gtx layout.Context, bounds image.Rectangle) {
-	if bounds.Empty() {
-		return
-	}
-	area := clip.Rect(bounds).Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	event.Op(gtx.Ops, &s.region)
-	pass.Pop()
-	area.Pop()
+func (s *toastHostState) addRegionInput(gtx layout.Context, bounds image.Rectangle) {
+	s.regionHover.AddInput(gtx, &s.region, bounds, true, nil)
 }
 
-func (s *toastProviderState) expansionProgress(gtx layout.Context, expanded bool, duration time.Duration, motions ...theme.MotionTheme) float32 {
+func (s *toastHostState) expansionProgress(gtx layout.Context, expanded bool, duration time.Duration, motions ...theme.MotionTheme) float32 {
 	target := float32(0)
 	if expanded {
 		target = 1
@@ -210,37 +191,14 @@ func (s *toastProviderState) expansionProgress(gtx layout.Context, expanded bool
 }
 
 func (e *toastEntryState) updateRootEvents(gtx layout.Context) {
-	for {
-		eventValue, ok := gtx.Event(pointer.Filter{
-			Target: &e.root,
-			Kinds:  pointer.Enter | pointer.Leave | pointer.Cancel,
-		})
-		if !ok {
-			break
-		}
-		if pointerEvent, ok := eventValue.(pointer.Event); ok {
-			switch pointerEvent.Kind {
-			case pointer.Enter:
-				e.hovered = true
-			case pointer.Leave, pointer.Cancel:
-				e.hovered = false
-			}
-		}
-	}
+	e.hover.Update(gtx, &e.root, true)
 }
 
 func (e *toastEntryState) addRootInput(gtx layout.Context, size image.Point) {
-	if size.X <= 0 || size.Y <= 0 {
-		return
-	}
-	area := clip.Rect{Max: size}.Push(gtx.Ops)
-	pass := pointer.PassOp{}.Push(gtx.Ops)
-	event.Op(gtx.Ops, &e.root)
-	pass.Pop()
-	area.Pop()
+	e.hover.AddInput(gtx, &e.root, image.Rectangle{Max: size}, true, nil)
 }
 
-func (s *toastProviderState) updateTimers(gtx layout.Context, paused bool, close func(*toastEntryState)) {
+func (s *toastHostState) updateTimers(gtx layout.Context, paused bool, close func(*toastEntryState)) {
 	for _, key := range s.order {
 		entry := s.entries[key]
 		if entry == nil || !entry.present || entry.closeRequested || entry.remaining <= 0 {
@@ -275,14 +233,14 @@ func (e *toastEntryState) resumeTimer(now time.Time) {
 	e.timerRunning = true
 }
 
-func (e *toastEntryState) requestClose(providerClose func(string)) {
+func (e *toastEntryState) requestClose(onClose func(string)) {
 	if e.closeRequested {
 		return
 	}
 	e.closeRequested = true
 	e.timerRunning = false
-	if providerClose != nil {
-		providerClose(e.item.key)
+	if onClose != nil {
+		onClose(e.item.key)
 	}
 }
 

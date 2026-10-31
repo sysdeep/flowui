@@ -8,14 +8,13 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 	"github.com/qianniancn/flowui/widget/tooltip"
 )
 
 const maxTooltipSeries = 8
 
-func (w Widget) drawTooltip(ctx *core.Context, geometry chartGeometry, selection chartSelection, anchor image.Rectangle, progress float32, exiting bool, metrics theme.BarChartMetrics, foreground color.NRGBA) {
+func (w Widget) drawTooltip(ctx *core.Context, geometry chartGeometry, selection chartSelection, anchor image.Rectangle, progress float32, exiting bool, metrics barChartMetrics, foreground color.NRGBA) {
 	content := w.tooltipWidget(geometry, selection, metrics, foreground)
 	if content == nil {
 		return
@@ -33,7 +32,7 @@ func (w Widget) drawTooltip(ctx *core.Context, geometry chartGeometry, selection
 		Overlay(ctx, core.FullKey(ctx, "tooltip:"+w.key), anchor)
 }
 
-func (w Widget) tooltipWidget(geometry chartGeometry, selection chartSelection, metrics theme.BarChartMetrics, foreground color.NRGBA) core.Widget {
+func (w Widget) tooltipWidget(geometry chartGeometry, selection chartSelection, metrics barChartMetrics, foreground color.NRGBA) core.Widget {
 	if w.tooltipContent != nil {
 		return w.tooltipContent(w.publicSelection(selection, geometry))
 	}
@@ -42,7 +41,7 @@ func (w Widget) tooltipWidget(geometry chartGeometry, selection chartSelection, 
 	})
 }
 
-func (w Widget) layoutTooltipContent(ctx *core.Context, gtx layout.Context, geometry chartGeometry, selection chartSelection, metrics theme.BarChartMetrics, textColor color.NRGBA) layout.Dimensions {
+func (w Widget) layoutTooltipContent(ctx *core.Context, gtx layout.Context, geometry chartGeometry, selection chartSelection, metrics barChartMetrics, textColor color.NRGBA) layout.Dimensions {
 	markerSize := max(gtx.Dp(metrics.TooltipMarkerSize), 2)
 	rowGap := max(gtx.Dp(metrics.TooltipRowGap), 0)
 	limit := min(len(selection.entries), maxTooltipSeries)

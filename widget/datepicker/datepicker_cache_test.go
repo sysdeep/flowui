@@ -1,7 +1,6 @@
 package datepicker
 
 import (
-	"errors"
 	"image/color"
 	"strconv"
 	"testing"
@@ -9,11 +8,8 @@ import (
 
 	"gioui.org/io/input"
 	"gioui.org/io/key"
-	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -68,119 +64,8 @@ func TestDatePickerMonthDaysIntoWritesOnlyCalendarSlots(t *testing.T) {
 	}
 }
 
-type countingDatePickerProvider struct {
-	theme.ComponentVisualProvider
-	calls      int
-	incomplete bool
-	requests   []theme.DatePickerRequest
-}
-
-type datePickerRendererCounts struct {
-	calendarIcon  int
-	yearIndicator int
-	navButton     int
-	cell          int
-	rangeTrack    int
-	strike        int
-	focus         int
-}
-
-type recordingDatePickerProvider struct {
-	theme.ComponentVisualProvider
-	counts *datePickerRendererCounts
-}
-
-func (p *recordingDatePickerProvider) DatePicker(active *theme.Theme, request theme.DatePickerRequest) theme.DatePickerVisual {
-	visual := p.ComponentVisualProvider.DatePicker(active, request)
-	calendarIcon := visual.CalendarIcon
-	visual.CalendarIcon = func(gtx layout.Context, value theme.DatePickerIconRenderRequest) {
-		p.counts.calendarIcon++
-		calendarIcon(gtx, value)
-	}
-	yearIndicator := visual.YearIndicator
-	visual.YearIndicator = func(gtx layout.Context, value theme.DatePickerYearIndicatorRenderRequest) {
-		p.counts.yearIndicator++
-		yearIndicator(gtx, value)
-	}
-	navButton := visual.NavButton
-	visual.NavButton = func(gtx layout.Context, value theme.DatePickerNavButtonRenderRequest) {
-		p.counts.navButton++
-		navButton(gtx, value)
-	}
-	cell := visual.CellRenderer
-	visual.CellRenderer = func(gtx layout.Context, value theme.DatePickerCellRenderRequest) {
-		p.counts.cell++
-		cell(gtx, value)
-	}
-	rangeRenderer := visual.RangeRenderer
-	visual.RangeRenderer = func(gtx layout.Context, value theme.DatePickerRangeRenderRequest) {
-		p.counts.rangeTrack++
-		rangeRenderer(gtx, value)
-	}
-	strike := visual.Strike
-	visual.Strike = func(gtx layout.Context, value theme.DatePickerStrikeRenderRequest) {
-		p.counts.strike++
-		strike(gtx, value)
-	}
-	focus := visual.Focus
-	visual.Focus = func(gtx layout.Context, value theme.DatePickerFocusRenderRequest) {
-		p.counts.focus++
-		focus(gtx, value)
-	}
-	return visual
-}
-
-func TestDatePickerInstancesUseProviderRenderers(t *testing.T) {
-	active := *testtheme.Behavior()
-	counts := &datePickerRendererCounts{}
-	baseProvider := testtheme.BehaviorProvider()
-	baseVisual := baseProvider.DatePicker(&active, theme.DatePickerRequest{Variant: theme.InputPrimary})
-	theme.ValidateDatePickerVisual(baseVisual)
-	active.VisualProvider = &recordingDatePickerProvider{
-		ComponentVisualProvider: baseProvider,
-		counts:                  counts,
-	}
-	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	var router input.Router
-	now := testDate(2026, 7, 1)
-
-	picker := New("renderer-picker", testDate(2026, 7, 9))
-	layoutDatePickerFrameAt(ctx, &router, picker, now)
-	state := testComponentState[datePickerState](ctx, picker.key, stateSlotDatePicker)
-	router.Source().Execute(key.FocusCmd{Tag: &state.trigger})
-	state.openCalendar()
-	layoutDatePickerFrameAt(ctx, &router, picker, now)
-
-	if counts.calendarIcon == 0 || counts.yearIndicator == 0 || counts.navButton == 0 || counts.cell == 0 || counts.focus == 0 {
-		t.Fatalf("date picker renderer counts = %#v, want field/calendar renderers", *counts)
-	}
-
-	rangePicker := DateRangePicker("renderer-range", DateRange{
-		Start: testDate(2026, 7, 5),
-		End:   testDate(2026, 7, 15),
-	}).MinDate(testDate(2026, 7, 10)).MaxDate(testDate(2026, 7, 20))
-	layoutDateComponentFrame(ctx, &router, rangePicker, now)
-	rangeState := testComponentState[dateRangePickerState](ctx, "renderer-range", stateSlotDateRangePicker)
-	router.Source().Execute(key.FocusCmd{Tag: &rangeState.calendar.trigger})
-	rangeState.calendar.openCalendar()
-	layoutDateComponentFrame(ctx, &router, rangePicker, now)
-
-	if counts.rangeTrack == 0 || counts.strike == 0 {
-		t.Fatalf("date range renderer counts = %#v, want range and strike renderers", *counts)
-	}
-}
-
-func (p *countingDatePickerProvider) DatePicker(active *theme.Theme, request theme.DatePickerRequest) theme.DatePickerVisual {
-	p.calls++
-	p.requests = append(p.requests, request)
-	if p.incomplete {
-		return theme.DatePickerVisual{}
-	}
-	return p.ComponentVisualProvider.DatePicker(active, request)
-}
-
 func TestDatePickerResolvedPartCacheTracksThemeAndScope(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
 
@@ -211,7 +96,7 @@ func TestDatePickerResolvedPartCacheTracksThemeAndScope(t *testing.T) {
 		t.Fatal("resolved cell style survived a style scope change")
 	}
 
-	other := *testtheme.Behavior()
+	other := theme.Light()
 	cache.storeWeekday(0, value)
 	core.ReplaceTheme(ctx, other)
 	cache.prepare(ctx, style.Style{})
@@ -228,13 +113,13 @@ func TestDatePickerResolvedPartCacheTracksThemeAndScope(t *testing.T) {
 }
 
 func TestDatePickerResolvedPartCacheTracksGenerationInvalidation(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
-	cache.prepare(ctx, style.Style{}, field.Primary)
+	cache.prepare(ctx, style.Style{}, Primary)
 
 	core.ReplaceLanguage(ctx, locale.LanguageChinese)
-	cache.prepare(ctx, style.Style{}, field.Primary)
+	cache.prepare(ctx, style.Style{}, Primary)
 
 	stats := cache.stats()
 	if stats.GenerationInvalidations != 1 {
@@ -246,16 +131,16 @@ func TestDatePickerResolvedPartCacheTracksGenerationInvalidation(t *testing.T) {
 }
 
 func TestDatePickerResolvedPartCacheTracksVariant(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
-	cache.prepare(ctx, style.Style{}, field.Primary)
+	cache.prepare(ctx, style.Style{}, Primary)
 	cache.storeHeader(3, style.ResolvedStyle{})
 	if _, ok := cache.headerValue(3); !ok {
 		t.Fatal("stored header style was not returned")
 	}
 
-	cache.prepare(ctx, style.Style{}, field.Secondary)
+	cache.prepare(ctx, style.Style{}, Secondary)
 	if _, ok := cache.headerValue(3); ok {
 		t.Fatal("header style survived a variant change")
 	}
@@ -266,10 +151,10 @@ func TestDatePickerResolvedPartCacheTracksVariant(t *testing.T) {
 }
 
 func TestDatePickerResolvedPartCacheStoresTextPartsByStateAndColor(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
-	cache.prepare(ctx, style.Style{}, field.Primary)
+	cache.prepare(ctx, style.Style{}, Primary)
 	state := style.State{Focused: true}
 	base := color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff}
 	key := datePickerTextResolvedKey(state, base)
@@ -287,7 +172,7 @@ func TestDatePickerResolvedPartCacheStoresTextPartsByStateAndColor(t *testing.T)
 }
 
 func TestDatePickerResolvedPartCacheBypassesTransitions(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
 	cache.prepare(ctx, style.Style{}.Transition(style.PropOpacity, time.Millisecond))
@@ -314,7 +199,7 @@ func TestDatePickerResolvedPartCacheBypassesTransitions(t *testing.T) {
 }
 
 func TestDatePickerResolvedPartCacheTracksWeekdayStates(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
 	cache.prepare(ctx, style.Style{})
@@ -341,7 +226,7 @@ func TestDatePickerResolvedPartCacheTracksWeekdayStates(t *testing.T) {
 }
 
 func TestDatePickerResolvedPartCacheDoesNotStoreTransitionWeekday(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
 	cache.prepare(ctx, style.Style{})
@@ -360,7 +245,7 @@ func TestDatePickerResolvedPartCacheDoesNotStoreTransitionWeekday(t *testing.T) 
 }
 
 func TestDatePickerResolvedPartCacheDoesNotStoreTransitionFocus(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	var cache datePickerResolvedPartCache
 	cache.prepare(ctx, style.Style{})
@@ -379,7 +264,7 @@ func TestDatePickerResolvedPartCacheDoesNotStoreTransitionFocus(t *testing.T) {
 }
 
 func TestDatePickerResolvedPartCacheUsedByOpenCalendar(t *testing.T) {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	picker := New("resolved-cache", testDate(2026, 7, 9))
 	state := datePickerStateFor(ctx, picker.key)
@@ -398,269 +283,5 @@ func TestDatePickerResolvedPartCacheUsedByOpenCalendar(t *testing.T) {
 	}
 	if state.resolvedParts.misses < misses {
 		t.Fatalf("cache misses moved backwards: %d -> %d", misses, state.resolvedParts.misses)
-	}
-}
-
-func TestDatePickerCalendarDeclarationReusesVisualBundle(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base}
-	active.VisualProvider = provider
-	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	var router input.Router
-
-	picker := New("visual-bundle-cache", testDate(2026, 7, 9))
-	layoutDatePickerFrameAt(ctx, &router, picker, testDate(2026, 7, 1))
-
-	// The field and calendar consume one shared provider bundle. The Calendar
-	// layer must not trigger another DatePicker construction through
-	// datePickerBaseStyle, and the field reads Defaults from the same bundle.
-	if provider.calls != 1 {
-		t.Fatalf("DatePicker provider calls = %d, want 1 shared visual bundle", provider.calls)
-	}
-}
-
-func TestDatePickerVisualCacheUsesSharedProviderProtocol(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base}
-	active.VisualProvider = provider
-
-	cache := datePickerPartDefaultsCache{}
-	cache.visualFor(&active, field.Primary)
-	cache.visualFor(&active, field.Primary)
-	if provider.calls != 1 {
-		t.Fatalf("same DatePicker visual request called Provider %d times, want 1", provider.calls)
-	}
-
-	cache.visualFor(&active, field.Secondary)
-	if provider.calls != 2 {
-		t.Fatalf("variant change called Provider %d times, want 2", provider.calls)
-	}
-
-	replacement := active
-	replacement.VisualProvider = provider
-	cache.visualFor(&replacement, field.Secondary)
-	if provider.calls != 3 {
-		t.Fatalf("theme replacement called Provider %d times, want 3", provider.calls)
-	}
-	stats := cache.visualCache.Stats()
-	if stats.Hits != 1 || stats.Misses != 3 || stats.KeyInvalidations != 1 || stats.ThemeInvalidations != 1 {
-		t.Fatalf("visual cache stats = %#v, want one hit, three misses and one key/theme invalidation", stats)
-	}
-}
-
-func TestDatePickerVisualCacheRejectsIncompleteProviderWithoutPoisoning(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base, incomplete: true}
-	active.VisualProvider = provider
-	cache := datePickerPartDefaultsCache{}
-
-	func() {
-		defer func() {
-			recovered := recover()
-			err, ok := recovered.(error)
-			if !ok || !errors.Is(err, theme.ErrIncompleteVisualProvider) {
-				t.Fatalf("incomplete visual panic = %v, want %v", recovered, theme.ErrIncompleteVisualProvider)
-			}
-		}()
-		cache.visualFor(&active, field.Primary)
-	}()
-	if stats := cache.visualCache.Stats(); stats.Hits != 0 || stats.Misses != 0 {
-		t.Fatalf("incomplete visual cache stats = %#v, want no committed request", stats)
-	}
-
-	provider.incomplete = false
-	cache.visualFor(&active, field.Primary)
-	if stats := cache.visualCache.Stats(); stats.Hits != 0 || stats.Misses != 1 {
-		t.Fatalf("recovered visual cache stats = %#v, want one committed miss", stats)
-	}
-}
-
-func TestDatePickerOverrideRejectsIncompleteProvider(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base, incomplete: true}
-	active.VisualProvider = provider
-	cache := datePickerPartDefaultsCache{}
-
-	defer func() {
-		recovered := recover()
-		err, ok := recovered.(error)
-		if !ok || !errors.Is(err, theme.ErrIncompleteVisualProvider) {
-			t.Fatalf("incomplete override visual panic = %v, want %v", recovered, theme.ErrIncompleteVisualProvider)
-		}
-	}()
-	cache.visualForRequest(&active, field.Primary, &theme.DatePickerOverride{})
-}
-
-func TestDatePickerOverrideVisualBypassesBaseCache(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base}
-	active.VisualProvider = provider
-	cache := datePickerPartDefaultsCache{}
-
-	baseVisual := cache.visualFor(&active, field.Primary)
-	declaration := style.Style{}.TextColor(style.RGB(0x102030))
-	overrideVisual := cache.visualForRequest(&active, field.Primary, &theme.DatePickerOverride{Declaration: declaration})
-	if got := overrideVisual.Override.Hash64(); got != declaration.Hash64() {
-		t.Fatalf("DatePicker override visual hash = %x, want %x", got, declaration.Hash64())
-	}
-	if provider.calls != 2 {
-		t.Fatalf("base plus override requests called Provider %d times, want 2", provider.calls)
-	}
-
-	cachedBase := cache.visualFor(&active, field.Primary)
-	if provider.calls != 2 {
-		t.Fatalf("override request replaced the cached base visual; Provider calls = %d, want 2", provider.calls)
-	}
-	if cachedBase.Override.Hash64() != baseVisual.Override.Hash64() {
-		t.Fatal("base visual cache returned instance override data")
-	}
-}
-
-func TestDateFieldReusesVisualBundleForFieldDefaults(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base}
-	active.VisualProvider = provider
-	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	var router input.Router
-
-	layoutDateComponentFrame(ctx, &router, DateField("visual-bundle-field", testDate(2026, 7, 9)), testDate(2026, 7, 1))
-	if provider.calls != 1 {
-		t.Fatalf("DateField DatePicker provider calls = %d, want 1 shared visual bundle", provider.calls)
-	}
-}
-
-func TestDateRangePickerReusesVisualBundleForFieldDefaults(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base}
-	active.VisualProvider = provider
-	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	var router input.Router
-
-	layoutDateComponentFrame(ctx, &router, DateRangePicker("visual-bundle-range", DateRange{
-		Start: testDate(2026, 7, 9),
-		End:   testDate(2026, 7, 12),
-	}), testDate(2026, 7, 1))
-	if provider.calls != 1 {
-		t.Fatalf("DateRangePicker DatePicker provider calls = %d, want 1 shared visual bundle", provider.calls)
-	}
-}
-
-func TestDatePickerVisualBundleUsesRequestedVariant(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	provider := &countingDatePickerProvider{ComponentVisualProvider: base}
-	active.VisualProvider = provider
-	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	var router input.Router
-
-	layoutDatePickerFrameAt(ctx, &router, New("visual-bundle-variant", testDate(2026, 7, 9)).Variant(field.Secondary), testDate(2026, 7, 1))
-	if len(provider.requests) != 1 || provider.requests[0].Variant != theme.InputSecondary {
-		t.Fatalf("DatePicker requests = %#v, want one secondary request", provider.requests)
-	}
-}
-
-func TestDatePickerProviderResolvesInstanceOverride(t *testing.T) {
-	active := *testtheme.Behavior()
-	base, err := theme.ComponentProvider(&active)
-	if err != nil {
-		t.Fatal(err)
-	}
-	declaration := style.Style{}.TextColor(style.RGB(0x102030))
-	visual := base.DatePicker(&active, theme.DatePickerRequest{
-		Variant:  theme.InputPrimary,
-		Override: &theme.DatePickerOverride{Declaration: declaration},
-	})
-	if got := visual.Override.Hash64(); got != declaration.Hash64() {
-		t.Fatalf("DatePicker visual override hash = %x, want %x", got, declaration.Hash64())
-	}
-}
-
-func TestDatePickerStyledWrappersPassInstanceOverrideToProvider(t *testing.T) {
-	declaration := style.Style{}.TextColor(style.RGB(0x102030))
-	cases := []struct {
-		name  string
-		value func() core.Widget
-	}{
-		{
-			name: "date-picker",
-			value: func() core.Widget {
-				return (New("styled-picker", testDate(2026, 7, 9))).Style(declaration)
-			},
-		},
-		{
-			name: "date-field",
-			value: func() core.Widget {
-				return (DateField("styled-field", testDate(2026, 7, 9))).Style(declaration)
-			},
-		},
-		{
-			name: "date-range-picker",
-			value: func() core.Widget {
-				return (DateRangePicker("styled-range", DateRange{
-					Start: testDate(2026, 7, 9),
-					End:   testDate(2026, 7, 12),
-				})).Style(declaration)
-			},
-		},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			active := *testtheme.Behavior()
-			base, err := theme.ComponentProvider(&active)
-			if err != nil {
-				t.Fatal(err)
-			}
-			provider := &countingDatePickerProvider{ComponentVisualProvider: base}
-			active.VisualProvider = provider
-			ctx := core.New(nil, &active, locale.LanguageEnglish)
-			var router input.Router
-
-			layoutDateComponentFrame(ctx, &router, testCase.value(), testDate(2026, 7, 1))
-			if provider.calls != 1 {
-				t.Fatalf("DatePicker Provider calls = %d, want 1 complete override visual; requests = %#v", provider.calls, provider.requests)
-			}
-			for _, request := range provider.requests {
-				if request.Override == nil {
-					continue
-				}
-				if got := request.Override.Declaration.Hash64(); got != declaration.Hash64() {
-					t.Fatalf("Provider received override hash = %x, want %x", got, declaration.Hash64())
-				}
-				return
-			}
-			t.Fatalf("Provider received no DatePicker instance override; requests = %#v", provider.requests)
-		})
 	}
 }

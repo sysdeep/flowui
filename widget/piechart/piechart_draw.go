@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"slices"
 	"sort"
 
 	"gioui.org/f32"
@@ -11,7 +12,6 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 func drawPieSlices(gtx layout.Context, slices []resolvedSlice, geometry chartGeometry, hoveredKey string, emphasis float32) {
@@ -96,7 +96,7 @@ type pieLabel struct {
 	position image.Point
 }
 
-func (w Widget) drawLabels(ctx *core.Context, gtx layout.Context, slices []resolvedSlice, geometry chartGeometry, style chartStyle, metrics theme.PieChartMetrics) {
+func (w Widget) drawLabels(ctx *core.Context, gtx layout.Context, slices []resolvedSlice, geometry chartGeometry, style chartStyle, metrics pieChartMetrics) {
 	line1 := float32(max(gtx.Dp(metrics.LabelLineLength), 0))
 	line2 := float32(max(gtx.Dp(metrics.LabelLineLength2), 0))
 	labelGap := float32(max(gtx.Dp(metrics.LabelGap), 0))
@@ -137,8 +137,8 @@ func resolveLabelSide(labels []pieLabel, right bool, area image.Rectangle, lineL
 		previousBottom = labels[index].centerY + halfHeight + 2
 	}
 	nextTop := float32(area.Max.Y)
-	for position := len(indexes) - 1; position >= 0; position-- {
-		index := indexes[position]
+	for _, index := range slices.Backward(indexes) {
+
 		halfHeight := float32(labels[index].text.dims.Size.Y) / 2
 		labels[index].centerY = min(labels[index].centerY, nextTop-halfHeight)
 		nextTop = labels[index].centerY - halfHeight - 2

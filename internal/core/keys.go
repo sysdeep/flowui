@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -58,6 +57,15 @@ const (
 	KindTitleBar         Kind = "title-bar"
 	KindStyle            Kind = "style"
 	KindPortal           Kind = "portal"
+	KindBaseToggle       Kind = "base-toggle"
+	KindBaseSlider       Kind = "base-slider"
+	KindBaseRangeSlider  Kind = "base-range-slider"
+	KindBasePopup        Kind = "base-popup"
+	KindBaseSelect       Kind = "base-select"
+	KindBaseTextInput    Kind = "base-text-input"
+	KindBaseOptions      Kind = "base-options"
+	KindBaseRadio        Kind = "base-radio"
+	KindBaseDisclosure   Kind = "base-disclosure"
 )
 
 const (
@@ -74,9 +82,9 @@ const (
 type Keys struct {
 	frame map[string]Kind
 	path  []string
-	// auto counts anonymous claims per kind and scope, so a widget without an
-	// explicit key keeps one identity while the tree shape stays stable.
-	auto map[string]int
+	// Automatic identities are assigned per scope on first resolution each frame.
+	autoCounts map[string]int
+	autoTokens map[autoTokenScope]string
 	// allowReuse lets a same-frame re-layout (overlay policy pass) reclaim keys
 	// that were already claimed during the paint pass.
 	allowReuse bool
@@ -108,7 +116,8 @@ func (k *Keys) BeginFrame() {
 	} else {
 		clear(k.frame)
 	}
-	clear(k.auto)
+	clear(k.autoCounts)
+	clear(k.autoTokens)
 }
 
 func (k *Keys) Frame() map[string]Kind {
@@ -125,13 +134,14 @@ func (k *Keys) Push(key string) func() {
 	}
 }
 
-// Claim resolves key. An empty key claims an anonymous identity derived from the
-// enclosing scope and the claim order, so static widgets do not have to invent
-// names; interactive content that can be reordered sets .Key(id) instead.
+// Claim resolves a constructor token or an explicit key. Empty keys fall back to
+// a per-kind position for low-level primitives without a construction token.
+// Dynamic content needs explicit keys or stable enclosing scopes.
 func (k *Keys) Claim(kind Kind, key string) string {
 	k.ensureFrame()
 	if key == "" {
-		return k.claim(kind, k.autoKey(kind))
+		owner := k.fullKey("root")
+		return k.claim(kind, k.Derived(owner, k.nextAutoKey(string(kind)+":anonymous")))
 	}
 	return k.claim(kind, k.FullKey(key))
 }
@@ -142,23 +152,6 @@ func (k *Keys) ensureFrame() {
 	if k.frame == nil {
 		k.frame = make(map[string]Kind)
 	}
-}
-
-// autoKey returns the next anonymous key for kind inside the current scope. It
-// lives in the derived namespace, so no user key can spell it, and counting per
-// scope keeps one subtree's growth from shifting another's keys.
-func (k *Keys) autoKey(kind Kind) string {
-	if k.auto == nil {
-		k.auto = make(map[string]int)
-	}
-	owner := "root"
-	if len(k.path) > 0 {
-		owner = strings.Join(k.path, "/")
-	}
-	scope := owner + "\x00" + string(kind)
-	index := k.auto[scope]
-	k.auto[scope] = index + 1
-	return k.Derived(owner, "auto:"+string(kind)+":"+strconv.Itoa(index))
 }
 
 func (k *Keys) ClaimDerived(kind Kind, owner, role string) string {
@@ -214,6 +207,10 @@ func (k *Keys) claim(kind Kind, key string) string {
 }
 
 func (k *Keys) FullKey(key string) string {
+	return k.fullKey(k.resolveAutoKey(key))
+}
+
+func (k *Keys) fullKey(key string) string {
 	if len(k.path) == 0 {
 		// Scoped keys always contain '/', so ambiguous roots use a slash-free namespace.
 		if strings.Contains(key, "/") || strings.IndexByte(key, derivedKeyPrefix) >= 0 || strings.HasPrefix(key, encodedRootPrefix) {

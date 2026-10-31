@@ -6,14 +6,12 @@ import (
 
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type Widget struct {
-	override     *theme.DatePickerOverride
+	style        style.Style
 	key          string
 	value        time.Time
 	hasValue     bool
@@ -27,7 +25,7 @@ type Widget struct {
 	locale       Locale
 	localeSet    bool
 	onChange     func(time.Time)
-	variant      field.Variant
+	variant      Variant
 	disabled     bool
 	editable     bool
 	invalid      bool
@@ -146,12 +144,12 @@ func (d Widget) Required(value bool) Widget {
 	return d
 }
 
-func (d Widget) Variant(variant field.Variant) Widget {
+func (d Widget) Variant(variant Variant) Widget {
 	d.variant = variant
 	return d
 }
 
-func (d Widget) FullWidth() Widget {
+func (d Widget) FillWidth() Widget {
 	d.fullWidth = true
 	return d
 }
@@ -167,16 +165,9 @@ func (d Widget) MaxDate(date time.Time) Widget {
 }
 
 func (d Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return d.layoutWithOverride(ctx, gtx, d.override)
-}
-
-func (d Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.DatePickerOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	state := datePickerStateFor(ctx, d.key)
 	activeTheme := core.ActiveTheme(ctx)
-	visual := state.partDefaults.visualForRequest(activeTheme, d.variant, override)
-	restoreOverride := core.PushInstanceStyle(ctx, visual.Override)
-	defer restoreOverride()
+	defaults := state.partDefaults.defaultsFor(activeTheme, d.variant)
 	d = d.resolveLocale(ctx, &state.localeCache)
 	now := datePickerFrameNow(gtx.Now)
 
@@ -189,12 +180,12 @@ func (d Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 
 	naturallyDisabled := core.OverlayNaturallyDisabled(gtx)
 	state.beginFrame()
-	state.resolvedParts.prepare(ctx, core.InstanceStyle(ctx), d.variant)
+	state.resolvedParts.prepare(ctx, d.style, d.variant)
 	state.sync(currentValue, d.initialMonth(now))
-	metrics := visual.Metrics
-	state.calendarStyle = visual.Calendar
-	state.hover.update(gtx)
+	metrics := defaults.metrics
+	state.calendarStyle = defaults.calendar
 	enabled := gtx.Enabled() && !d.disabled
+	state.hover.Update(gtx, &state.hover, enabled)
 	if d.editable {
 		core.RegisterFieldFocus(ctx, core.FullKey(ctx, d.key), &state.segments.segments[d.locale.DateOrder[0]].clickable, enabled)
 	} else {
@@ -216,7 +207,7 @@ func (d Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	}
 
 	invalid := d.invalid || (d.editable && !state.segments.valid) || dateOutsideRange(currentValue, d.minDate, d.maxDate)
-	hovered := state.hover.hovered || (d.editable && state.segments.hovered()) || state.trigger.Hovered()
+	hovered := state.hover.Hovered || (d.editable && state.segments.hovered()) || state.trigger.Hovered()
 	styleState := style.State{
 		Hovered:      hovered,
 		Focused:      focused,
@@ -233,7 +224,7 @@ func (d Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	if !d.editable {
 		fieldState.FocusVisible = core.FocusVisible(ctx, &state.trigger, triggerFocused)
 	}
-	resolved := resolveDatePickerField(ctx, gtx, core.FullKey(ctx, d.key), fieldState, style.Style{}, visual)
+	resolved := resolveDatePickerField(ctx, gtx, core.FullKey(ctx, d.key), fieldState, d.style, defaults)
 	var dims layout.Dimensions
 	var anchor image.Rectangle
 	dims = layoutui.Styled(ctx, gtx, core.FullKey(ctx, d.key), styleState, style.Style{}, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -241,7 +232,7 @@ func (d Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		return dims
 	}))
 
-	motion := state.partDefaults.motion(core.ActiveTheme(ctx))
+	motion := defaults.motion
 	progress := state.popoverProgress(gtx, state.open && enabled, motion)
 	if progress == 0 && (!state.open || !enabled) {
 		state.endFrame()
@@ -287,13 +278,10 @@ func datePickerFrameNow(now time.Time) time.Time {
 	return now
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the date picker. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.DatePickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

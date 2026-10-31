@@ -16,7 +16,6 @@ import (
 	"github.com/qianniancn/flowui/draw"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -26,14 +25,14 @@ func newContextWithTheme(_ any, value *theme.Theme) *core.Context {
 }
 
 func DefaultTheme() theme.Theme {
-	value := theme.NeutralTheme()
-	value.VisualProvider = testtheme.BehaviorProvider()
+	value := theme.Light()
+
 	return value
 }
 
 func DarkTheme() theme.Theme {
-	value := theme.NeutralDarkTheme()
-	value.VisualProvider = testtheme.BehaviorProvider()
+	value := theme.Dark()
+
 	return value
 }
 
@@ -45,10 +44,10 @@ func TestSurfaceVariantsUseSemanticPalette(t *testing.T) {
 		background color.NRGBA
 		foreground color.NRGBA
 	}{
-		{name: "default", variant: Default, background: theme.Palette.Surface, foreground: theme.Palette.SurfaceForeground},
-		{name: "secondary", variant: Secondary, background: theme.Palette.SurfaceSecondary, foreground: theme.Palette.SurfaceSecondaryForeground},
-		{name: "tertiary", variant: Tertiary, background: theme.Palette.SurfaceTertiary, foreground: theme.Palette.SurfaceTertiaryForeground},
-		{name: "transparent", variant: Transparent, foreground: theme.Palette.Foreground},
+		{name: "default", variant: Default, background: theme.Colors.Surface, foreground: theme.Colors.SurfaceForeground},
+		{name: "secondary", variant: Secondary, background: theme.Colors.SurfaceSecondary, foreground: theme.Colors.SurfaceSecondaryForeground},
+		{name: "tertiary", variant: Tertiary, background: theme.Colors.SurfaceTertiary, foreground: theme.Colors.SurfaceTertiaryForeground},
+		{name: "transparent", variant: Transparent, foreground: theme.Colors.Foreground},
 	}
 
 	for _, test := range tests {
@@ -72,9 +71,9 @@ func TestSurfaceUnknownVariantFallsBackToDefault(t *testing.T) {
 
 func TestSurfaceLayoutPreservesChildSizeAndScopesForeground(t *testing.T) {
 	theme := DefaultTheme()
-	theme.Palette.Foreground = color.NRGBA{R: 1, A: 0xff}
-	theme.Palette.SurfaceSecondaryForeground = color.NRGBA{G: 2, A: 0xff}
-	theme = paletteTheme(theme)
+	theme.Colors.Foreground = color.NRGBA{R: 1, A: 0xff}
+	theme.Colors.SurfaceSecondaryForeground = color.NRGBA{G: 2, A: 0xff}
+
 	ctx := newContextWithTheme(nil, &theme)
 	probe := &surfaceProbeWidget{size: image.Pt(120, 48)}
 	var ops op.Ops
@@ -87,17 +86,17 @@ func TestSurfaceLayoutPreservesChildSizeAndScopesForeground(t *testing.T) {
 	if dims.Size != probe.size {
 		t.Fatalf("surface size = %v, want child size %v", dims.Size, probe.size)
 	}
-	if probe.foreground != theme.Palette.SurfaceSecondaryForeground {
-		t.Fatalf("child foreground = %#v, want %#v", probe.foreground, theme.Palette.SurfaceSecondaryForeground)
+	if probe.foreground != theme.Colors.SurfaceSecondaryForeground {
+		t.Fatalf("child foreground = %#v, want %#v", probe.foreground, theme.Colors.SurfaceSecondaryForeground)
 	}
-	if probe.background != theme.Palette.SurfaceSecondary {
-		t.Fatalf("child background = %#v, want %#v", probe.background, theme.Palette.SurfaceSecondary)
+	if probe.background != theme.Colors.SurfaceSecondary {
+		t.Fatalf("child background = %#v, want %#v", probe.background, theme.Colors.SurfaceSecondary)
 	}
-	if got := ctx.ForegroundColor(); got != theme.Palette.Foreground {
-		t.Fatalf("foreground after layout = %#v, want restored %#v", got, theme.Palette.Foreground)
+	if got := ctx.ForegroundColor(); got != theme.Colors.Foreground {
+		t.Fatalf("foreground after layout = %#v, want restored %#v", got, theme.Colors.Foreground)
 	}
-	if got := ctx.BackgroundColor(); got != theme.Palette.Background {
-		t.Fatalf("background after layout = %#v, want restored %#v", got, theme.Palette.Background)
+	if got := ctx.BackgroundColor(); got != theme.Colors.Background {
+		t.Fatalf("background after layout = %#v, want restored %#v", got, theme.Colors.Background)
 	}
 }
 
@@ -165,9 +164,9 @@ func TestSurfaceConditionalStyleTransition(t *testing.T) {
 
 func TestNestedSurfaceUsesInnermostForeground(t *testing.T) {
 	theme := DefaultTheme()
-	theme.Palette.SurfaceSecondaryForeground = color.NRGBA{R: 3, A: 0xff}
-	theme.Palette.SurfaceTertiaryForeground = color.NRGBA{B: 4, A: 0xff}
-	theme = paletteTheme(theme)
+	theme.Colors.SurfaceSecondaryForeground = color.NRGBA{R: 3, A: 0xff}
+	theme.Colors.SurfaceTertiaryForeground = color.NRGBA{B: 4, A: 0xff}
+
 	ctx := newContextWithTheme(nil, &theme)
 	probe := &surfaceProbeWidget{size: image.Pt(80, 32)}
 	var ops op.Ops
@@ -179,11 +178,11 @@ func TestNestedSurfaceUsesInnermostForeground(t *testing.T) {
 		Ops:         &ops,
 	})
 
-	if probe.foreground != theme.Palette.SurfaceTertiaryForeground {
-		t.Fatalf("nested foreground = %#v, want innermost %#v", probe.foreground, theme.Palette.SurfaceTertiaryForeground)
+	if probe.foreground != theme.Colors.SurfaceTertiaryForeground {
+		t.Fatalf("nested foreground = %#v, want innermost %#v", probe.foreground, theme.Colors.SurfaceTertiaryForeground)
 	}
-	if probe.background != theme.Palette.SurfaceTertiary {
-		t.Fatalf("nested background = %#v, want innermost %#v", probe.background, theme.Palette.SurfaceTertiary)
+	if probe.background != theme.Colors.SurfaceTertiary {
+		t.Fatalf("nested background = %#v, want innermost %#v", probe.background, theme.Colors.SurfaceTertiary)
 	}
 }
 
@@ -200,19 +199,17 @@ func TestTransparentSurfacePreservesParentBackground(t *testing.T) {
 		Ops:         &ops,
 	})
 
-	if probe.background != theme.Palette.SurfaceSecondary {
-		t.Fatalf("transparent surface background = %#v, want inherited %#v", probe.background, theme.Palette.SurfaceSecondary)
+	if probe.background != theme.Colors.SurfaceSecondary {
+		t.Fatalf("transparent surface background = %#v, want inherited %#v", probe.background, theme.Colors.SurfaceSecondary)
 	}
 }
 
-func TestSurfaceStyleUsesThemeBorder(t *testing.T) {
+func TestSurfaceStyleUsesDefaultBorder(t *testing.T) {
 	activeTheme := DefaultTheme()
-	activeTheme.Components.Surface.BorderWidth = 2
-	activeTheme.Palette.Border = color.NRGBA{R: 12, G: 34, B: 56, A: 255}
-	activeTheme = paletteTheme(activeTheme)
+	activeTheme.Colors.Border = color.NRGBA{R: 12, G: 34, B: 56, A: 255}
 
 	style := surfaceStyleFor(&activeTheme, Default)
-	if style.borderWidth != 2 || style.border != activeTheme.Palette.Border {
+	if style.borderWidth != 1 || style.border != activeTheme.Colors.Border {
 		t.Fatalf("surface border = %v/%#v", style.borderWidth, style.border)
 	}
 }
@@ -272,22 +269,22 @@ func TestGradientSurfaceScopesSampledBackgroundAndForeground(t *testing.T) {
 
 func TestSurfaceAndOverlayTokensAreDistinct(t *testing.T) {
 	theme := DefaultTheme()
-	if theme.Palette.SurfaceSecondary == theme.Palette.Surface || theme.Palette.SurfaceTertiary == theme.Palette.Surface {
-		t.Fatal("surface prominence levels should be visually distinct")
+	if theme.Colors.SurfaceTertiary == theme.Colors.Surface {
+		t.Fatal("tertiary surface should be distinct from the panel surface")
 	}
-	if theme.Palette.SurfaceShadow == theme.Palette.OverlayShadow {
+	if theme.Colors.SurfaceShadow == theme.Colors.OverlayShadow {
 		t.Fatal("surface and overlay shadows should have distinct elevation")
 	}
 }
 
 func TestSurfacePaletteTokensHonorTransparentValues(t *testing.T) {
 	theme := DefaultTheme()
-	theme.Palette.SurfaceForeground = color.NRGBA{}
-	theme.Palette.SurfaceSecondary = color.NRGBA{}
-	theme.Palette.SurfaceSecondaryForeground = color.NRGBA{}
-	theme.Palette.SurfaceTertiary = color.NRGBA{}
-	theme.Palette.SurfaceTertiaryForeground = color.NRGBA{}
-	theme = paletteTheme(theme)
+	theme.Colors.SurfaceForeground = color.NRGBA{}
+	theme.Colors.SurfaceSecondary = color.NRGBA{}
+	theme.Colors.SurfaceSecondaryForeground = color.NRGBA{}
+	theme.Colors.SurfaceTertiary = color.NRGBA{}
+	theme.Colors.SurfaceTertiaryForeground = color.NRGBA{}
+
 	if got := surfaceStyleFor(&theme, Secondary); got.background.A != 0 || got.foreground.A != 0 {
 		t.Fatalf("secondary style = %#v, want transparent colors", got)
 	}
@@ -312,23 +309,23 @@ func TestSurfaceInstanceStyleOverridesDeclaration(t *testing.T) {
 	}
 }
 
-func TestSurfaceShadowUsesRestrainedElevation(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	layers := draw.ThemeShadow(activeTheme.Shadows.Surface, color.NRGBA{A: 100}, 1).EffectiveLayers()
-	if len(layers) != 2 {
-		t.Fatalf("surface shadow layers = %d, want 2", len(layers))
-	}
-	if layers[1].Blur >= draw.ThemeShadow(activeTheme.Shadows.Overlay, color.NRGBA{A: 100}, 1).EffectiveLayers()[1].Blur {
-		t.Fatal("surface shadow should be tighter than overlay shadow")
+func TestDefaultThemeReservesElevationForOverlays(t *testing.T) {
+	for _, activeTheme := range []theme.Theme{theme.Light(), theme.Dark()} {
+		if layers := draw.ThemeShadow(activeTheme.Shadows.Surface, activeTheme.Colors.SurfaceShadow, 1).EffectiveLayers(); len(layers) != 0 {
+			t.Fatalf("default surface shadow layers = %d, want 0", len(layers))
+		}
+		if layers := draw.ThemeShadow(activeTheme.Shadows.Overlay, activeTheme.Colors.OverlayShadow, 1).EffectiveLayers(); len(layers) != 2 {
+			t.Fatalf("overlay shadow layers = %d, want 2", len(layers))
+		}
 	}
 }
 
 func TestDarkThemeDisablesSurfaceElevation(t *testing.T) {
 	activeTheme := DarkTheme()
-	if layers := draw.ThemeShadow(activeTheme.Shadows.Surface, activeTheme.Palette.SurfaceShadow, 1).EffectiveLayers(); len(layers) != 0 {
+	if layers := draw.ThemeShadow(activeTheme.Shadows.Surface, activeTheme.Colors.SurfaceShadow, 1).EffectiveLayers(); len(layers) != 0 {
 		t.Fatalf("dark surface shadow layers = %d, want 0", len(layers))
 	}
-	if activeTheme.Palette.OverlayShadow.A == 0 {
+	if activeTheme.Colors.OverlayShadow.A == 0 {
 		t.Fatal("dark overlay shadow should retain separation from surrounding content")
 	}
 }
@@ -357,8 +354,8 @@ func (w *surfaceProbeWidget) Layout(ctx *core.Context, gtx layout.Context) layou
 	return layout.Dimensions{Size: gtx.Constraints.Constrain(w.size)}
 }
 
-// surfaceStyleFor keeps the provider assertions local to this test package;
-// production styling is supplied by the active theme provider.
+// surfaceStyleFor keeps the recipe assertions local to this test package;
+// production styling is supplied by the active theme recipe.
 type surfaceStyle struct {
 	background  color.NRGBA
 	foreground  color.NRGBA
@@ -366,21 +363,9 @@ type surfaceStyle struct {
 	borderWidth unit.Dp
 }
 
-// paletteTheme installs a theme's v1 palette as its colour source, so edits to
-// the palette reach the widgets: a widget reads the semantic layer, and a theme
-// built from a Seed carries one that no longer follows the palette.
-func paletteTheme(t theme.Theme) theme.Theme {
-	t.UseSemantic(theme.SemanticFromPalette(t.Palette))
-	return t
-}
-
 func surfaceStyleFor(activeTheme *theme.Theme, variant Variant) surfaceStyle {
-	provider, err := theme.ComponentProvider(activeTheme)
-	if err != nil {
-		panic(err)
-	}
-	visual := provider.Surface(activeTheme, theme.SurfaceRequest{Variant: variant})
-	resolved := style.Cascade(style.State{}, visual.Defaults, visual.Variant, visual.Override)
+	visual := buildSurfaceVisual(activeTheme, variant)
+	resolved := style.Cascade(style.State{}, visual.Defaults, visual.Variant)
 	result := surfaceStyle{}
 	if resolved.Paint != nil {
 		if border := resolved.Paint.Border; border != nil {

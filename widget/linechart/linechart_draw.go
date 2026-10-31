@@ -2,17 +2,17 @@ package linechart
 
 import (
 	"image/color"
+	"slices"
 
 	"gioui.org/f32"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
-func drawChartGrid(gtx layout.Context, geometry chartGeometry, style chartStyle, show bool, metrics theme.LineChartMetrics) {
+func drawChartGrid(gtx layout.Context, geometry chartGeometry, style chartStyle, show bool, metrics lineChartMetrics) {
 	if !show || geometry.plot.Empty() {
 		return
 	}
@@ -22,7 +22,7 @@ func drawChartGrid(gtx layout.Context, geometry chartGeometry, style chartStyle,
 	}
 }
 
-func drawChartAxes(gtx layout.Context, geometry chartGeometry, style chartStyle, metrics theme.LineChartMetrics) {
+func drawChartAxes(gtx layout.Context, geometry chartGeometry, style chartStyle, metrics lineChartMetrics) {
 	if geometry.plot.Empty() {
 		return
 	}
@@ -43,18 +43,18 @@ func drawChartAxes(gtx layout.Context, geometry chartGeometry, style chartStyle,
 	)
 }
 
-func drawChartSeries(ctx *core.Context, gtx layout.Context, data chartData, geometry chartGeometry, visual theme.LineChartVisual) {
+func drawChartSeries(ctx *core.Context, gtx layout.Context, data chartData, geometry chartGeometry, defaults lineChartDefaults) {
 	if geometry.plot.Empty() {
 		return
 	}
 	area := clip.Rect(geometry.plot).Push(gtx.Ops)
 	for _, series := range data.series {
-		drawOneChartSeries(ctx, gtx, series, geometry, visual.Metrics, visual.Colors.Background)
+		drawOneChartSeries(ctx, gtx, series, geometry, defaults.Metrics, defaults.Colors.Background)
 	}
 	area.Pop()
 }
 
-func drawOneChartSeries(ctx *core.Context, gtx layout.Context, series resolvedSeries, geometry chartGeometry, metrics theme.LineChartMetrics, background color.NRGBA) {
+func drawOneChartSeries(ctx *core.Context, gtx layout.Context, series resolvedSeries, geometry chartGeometry, metrics lineChartMetrics, background color.NRGBA) {
 	segments := seriesPixelSegments(series, geometry)
 	if series.area {
 		for _, segment := range segments {
@@ -67,8 +67,8 @@ func drawOneChartSeries(ctx *core.Context, gtx layout.Context, series resolvedSe
 			for _, point := range segment.points[1:] {
 				area.LineTo(point)
 			}
-			for index := len(segment.stackedOn) - 1; index >= 0; index-- {
-				area.LineTo(segment.stackedOn[index])
+			for _, v := range slices.Backward(segment.stackedOn) {
+				area.LineTo(v)
 			}
 			area.Close()
 			paint.FillShape(gtx.Ops, series.areaColor, clip.Outline{Path: area.End()}.Op())
@@ -109,7 +109,7 @@ func countValidPoints(points []resolvedPoint) int {
 	return count
 }
 
-func drawChartSelection(gtx layout.Context, selection chartSelection, metrics theme.LineChartMetrics, background color.NRGBA) {
+func drawChartSelection(gtx layout.Context, selection chartSelection, metrics lineChartMetrics, background color.NRGBA) {
 	if len(selection.entries) == 0 {
 		return
 	}
@@ -119,7 +119,7 @@ func drawChartSelection(gtx layout.Context, selection chartSelection, metrics th
 	}
 }
 
-func drawChartCrosshair(gtx layout.Context, geometry chartGeometry, selection chartSelection, style chartStyle, metrics theme.LineChartMetrics) {
+func drawChartCrosshair(gtx layout.Context, geometry chartGeometry, selection chartSelection, style chartStyle, metrics lineChartMetrics) {
 	if len(selection.entries) == 0 {
 		return
 	}

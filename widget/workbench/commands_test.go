@@ -17,7 +17,7 @@ import (
 
 func TestCommandsForUsesWindowLanguage(t *testing.T) {
 	controller := NewController(NewState([]Group{{Key: "editor"}}))
-	active := theme.NeutralTheme()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageChinese)
 	commands := controller.CommandsFor(ctx)
 	if len(commands) == 0 {
@@ -33,7 +33,7 @@ func TestCommandScopeRoutesWorkbenchShortcuts(t *testing.T) {
 		Key:  "editor",
 		Tabs: []Tab{{Key: "one", Closable: true}, {Key: "two", Closable: true}},
 	}}))
-	active := theme.NeutralTheme()
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
 	router := new(input.Router)
 	layoutCommandsFrame(ctx, router, controller, time.Unix(1, 0))

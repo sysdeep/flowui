@@ -6,11 +6,11 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/menu"
 )
 
@@ -21,13 +21,6 @@ const (
 	VariantPrimary Variant = iota
 	VariantSecondary
 )
-
-func tableThemeVariant(value Variant) theme.TableVariant {
-	if value == VariantSecondary {
-		return theme.TableSecondary
-	}
-	return theme.TablePrimary
-}
 
 // SelectionMode controls row selection behavior.
 type SelectionMode uint8
@@ -100,7 +93,6 @@ type RowContextMenu func(Row) menu.Widget
 
 // Widget presents structured data with controlled sorting and selection.
 type Widget struct {
-	override           *theme.TableOverride
 	key                string
 	columns            []Column
 	rows               []Row
@@ -142,6 +134,7 @@ type Widget struct {
 	gridLinesSet       bool
 	bordered           bool
 	striped            bool
+	style              style.Style
 }
 
 // New creates a controlled Table.
@@ -155,21 +148,21 @@ func New(key string, columns []Column, rows []Row) Widget {
 }
 
 // NewVirtual creates a Table that requests only rows visible in the viewport.
-// The provider must return deterministic rows with stable, unique keys. Supply
+// The row callback must return deterministic rows with stable, unique keys. Supply
 // disabled virtual row keys through DisabledKeys so select-all state stays
-// virtualized without scanning the provider.
-func NewVirtual(key string, columns []Column, count int, provider RowProvider) Widget {
+// virtualized without scanning every row.
+func NewVirtual(key string, columns []Column, count int, rowProvider RowProvider) Widget {
 	if count < 0 {
 		panic("flowui: virtual table row count must not be negative")
 	}
-	if count > 0 && provider == nil {
-		panic("flowui: virtual table requires a row provider")
+	if count > 0 && rowProvider == nil {
+		panic("flowui: virtual table requires a row callback")
 	}
 	return Widget{
 		key:           key,
 		columns:       columns,
 		rowCount:      count,
-		rowProvider:   provider,
+		rowProvider:   rowProvider,
 		virtual:       true,
 		selectionMode: SelectionNone,
 	}
@@ -366,18 +359,19 @@ func (t Widget) usesUnifiedFrame() bool {
 }
 
 func (t Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return t.layoutWithOverride(ctx, gtx, t.override)
+	return t.layoutWithDefaults(ctx, gtx)
 }
 
-// layoutWithOverride resolves the active provider once for the complete table.
-// The widget retains behavior and geometry only; every visual operation is
-// delegated through the neutral TableVisual protocol.
-func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.TableOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+// layoutWithDefaults resolves the active theme defaults once for the complete
+// table, then resolves the instance style as the last cascade layer.
+func (t Widget) layoutWithDefaults(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	active := core.ActiveTheme(ctx)
-	request := theme.TableRequest{Variant: tableThemeVariant(t.variant), Override: override}
 	state := tableStateFor(ctx, t.key)
-	visual := state.visualCache.resolve(active, request)
+	defaults := state.defaultsCache.resolve(active, tableDefaultsKey{
+		variant:  t.variant,
+		unified:  t.usesUnifiedFrame(),
+		bordered: t.bordered,
+	})
 	state.beginFrame()
 	defer state.endFrame()
 	t.selectedKeySet = state.selectedKeys.Resolve(t.selectedKeys)
@@ -387,23 +381,21 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	} else {
 		state.check(t.columns, t.rows)
 	}
-	t.updateColumnResizers(ctx, gtx, state, visual)
+	t.updateColumnResizers(ctx, gtx, state, defaults)
 
-	if !t.disabled {
-		for _, column := range t.columns {
-			if !column.Sortable {
-				continue
-			}
-			for state.column(column.Key).clickable.Clicked(gtx) {
-				t.requestSort(column.Key)
-			}
+	eventGtx := gtx
+	if t.disabled {
+		eventGtx = eventGtx.Disabled()
+	}
+	for _, column := range t.columns {
+		if column.Sortable {
+			base.RowInteraction(ctx, eventGtx, &state.column(column.Key).clickable, false, func() { t.requestSort(column.Key) })
 		}
-		if t.showsSelectionIndicator() && t.selectionMode == SelectionMultiple {
-			for state.selectAll.Clicked(gtx) {
-				t.toggleAll()
-			}
-		}
-		t.updateRowClicks(gtx, state)
+	}
+	if t.showsSelectionIndicator() && t.selectionMode == SelectionMultiple {
+		base.RowInteraction(ctx, eventGtx, &state.selectAll, false, t.toggleAll)
+	}
+	if !t.disabled && gtx.Enabled() {
 		result := state.updateKeys(gtx, t)
 		if result.focusKey != "" {
 			index := t.rowIndex(result.focusKey)
@@ -420,6 +412,10 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 			t.activateWithModifiers(state, result.actionKey, 0)
 		}
 	}
+	if t.disabled || !gtx.Enabled() {
+		state.updateKeys(eventGtx, t)
+	}
+	t.updateRowClicks(ctx, eventGtx, state)
 	if t.disabled {
 		gtx = gtx.Disabled()
 	}
@@ -437,26 +433,26 @@ func (t Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	hovered = hovered || state.selectAll.Hovered()
 	pressed = pressed || state.selectAll.Pressed()
 	focused = focused || gtx.Focused(&state.selectAll)
-	return layoutui.Styled(ctx, gtx, core.FullKey(ctx, t.key), style.State{
+	styles := t.resolveStyles(ctx, gtx, core.FullKey(ctx, t.key), style.State{
 		Hovered:  hovered,
 		Pressed:  pressed,
 		Focused:  focused,
 		Disabled: t.disabled || !gtx.Enabled(),
 		Selected: t.selectedKey != "" || len(t.selectedKeys) > 0,
 		Loading:  t.loadingMore,
-	}, visual.Override, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return t.layout(ctx, gtx, state, visual)
-	}))
+	}, defaults)
+	return t.layout(ctx, gtx, state, defaults, styles)
 }
 
-func (t Widget) updateColumnResizers(ctx *core.Context, gtx layout.Context, stateValue *tableState, visual theme.TableVisual) {
+func (t Widget) updateColumnResizers(ctx *core.Context, gtx layout.Context, stateValue *tableState, defaults tableDefaults) {
 	enabled := gtx.Enabled() && !t.disabled
-	step := max(gtx.Dp(visual.Metrics.ColumnResizeStep), 1)
+	geometry := defaults.Geometry
+	step := max(gtx.Dp(geometry.ColumnResizeStep), 1)
 	for _, column := range t.columns {
 		if !column.Resizable {
 			continue
 		}
-		minimum := max(gtx.Dp(visual.Metrics.MinColumnWidth), 1)
+		minimum := max(gtx.Dp(geometry.MinColumnWidth), 1)
 		if column.MinWidth > 0 {
 			minimum = max(gtx.Dp(unit.Dp(column.MinWidth)), 1)
 		}
@@ -638,11 +634,11 @@ func (t Widget) rowIndex(key string) int {
 	return -1
 }
 
-func (t Widget) updateRowClicks(gtx layout.Context, stateValue *tableState) {
+func (t Widget) updateRowClicks(ctx *core.Context, gtx layout.Context, stateValue *tableState) {
 	if !t.virtual {
 		for index, row := range t.rows {
 			rowState := stateValue.rowAt(row.Key, index)
-			t.consumeRowClicks(gtx, stateValue, row, rowState)
+			t.consumeRowClicks(ctx, gtx, stateValue, row, rowState)
 		}
 		return
 	}
@@ -655,27 +651,22 @@ func (t Widget) updateRowClicks(gtx layout.Context, stateValue *tableState) {
 		if row.Key != key {
 			continue
 		}
-		t.consumeRowClicks(gtx, stateValue, row, rowState)
+		t.consumeRowClicks(ctx, gtx, stateValue, row, rowState)
 	}
 }
 
-func (t Widget) consumeRowClicks(gtx layout.Context, stateValue *tableState, row Row, rowState *tableRowState) {
-	for {
-		click, ok := rowState.clickable.Update(gtx)
-		if !ok {
-			return
-		}
-		if rowState.clickInInteractiveCell() {
-			continue
-		}
-		if t.rowDisabled(row) {
-			continue
-		}
-		t.activateWithModifiers(stateValue, row.Key, click.Modifiers)
-		if click.NumClicks >= 2 && t.onRowActivate != nil {
-			t.onRowActivate(row.Key)
-		}
-	}
+func (t Widget) consumeRowClicks(ctx *core.Context, gtx layout.Context, stateValue *tableState, row Row, rowState *tableRowState) {
+	base.UpdateRow(ctx, gtx, base.RowInput{
+		Clickable: &rowState.clickable,
+		Disabled:  t.rowDisabled(row),
+		Accept:    func(widget.Click) bool { return !rowState.clickInInteractiveCell() },
+		OnClick: func(click widget.Click) {
+			t.activateWithModifiers(stateValue, row.Key, click.Modifiers)
+			if click.NumClicks >= 2 && t.onRowActivate != nil {
+				t.onRowActivate(row.Key)
+			}
+		},
+	})
 }
 
 func (t Widget) rangeKeys(anchor, target string) []string {
@@ -763,13 +754,10 @@ func sameKeys(a, b []string) bool {
 	return true
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.TableOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the table. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (t Widget) Style(values ...style.Style) Widget {
+	t.style = style.Join(t.style, style.Join(values...))
+	return t
 }

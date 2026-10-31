@@ -43,7 +43,7 @@ type chartDataCache struct {
 	cache chart.DataCache[chartData]
 }
 
-func (c *chartDataCache) resolve(widget Widget, activeTheme *theme.Theme, visual theme.PieChartVisual) chartData {
+func (c *chartDataCache) resolve(widget Widget, activeTheme *theme.Theme, visual pieChartDefaults) chartData {
 	data, generation := c.cache.Resolve(widget.hasDataVersion, widget.dataVersion, activeTheme, unit.Metric{}, func() chartData {
 		return resolveChartData(widget, visual)
 	})
@@ -51,7 +51,7 @@ func (c *chartDataCache) resolve(widget Widget, activeTheme *theme.Theme, visual
 	return data
 }
 
-func resolveChartData(widget Widget, visual theme.PieChartVisual) chartData {
+func resolveChartData(widget Widget, visual pieChartDefaults) chartData {
 	widget.validateRadii()
 	seen := make(map[string]struct{}, len(widget.data))
 	result := chartData{start: -widget.startAngle * math.Pi / 180, dir: 1}

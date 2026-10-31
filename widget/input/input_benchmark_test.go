@@ -14,7 +14,7 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type inputBenchmarkFrame struct {
@@ -25,7 +25,7 @@ type inputBenchmarkFrame struct {
 }
 
 func newInputBenchmarkFrame(maximum image.Point) *inputBenchmarkFrame {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	frame := &inputBenchmarkFrame{
 		ctx: core.New(nil, &activeTheme, locale.LanguageEnglish),
 	}
@@ -75,7 +75,7 @@ func BenchmarkTextAreaLayoutSteadyState(b *testing.B) {
 }
 
 // BenchmarkInputGroupLayoutSteadyState measures a composed field shell after
-// its provider declarations and editor state have been warmed.
+// its default declarations and editor state have been warmed.
 func BenchmarkInputGroupLayoutSteadyState(b *testing.B) {
 	frame := newInputBenchmarkFrame(image.Pt(360, 80))
 	value := Group(New("Ada").Key("query").Hint("Search")).
@@ -122,17 +122,17 @@ func BenchmarkInputGroupActionLayoutSteadyState(b *testing.B) {
 }
 
 func BenchmarkInputVisualDeclarations(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	value := New("Ada").Key("name")
 
 	b.Run("cache-hit", func(b *testing.B) {
 		state := &inputState{}
-		state.visualDeclarations(value, &activeTheme, nil)
+		state.defaults(value, &activeTheme)
 		baseline := state.styleCache.Stats()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			state.visualDeclarations(value, &activeTheme, nil)
+			state.defaults(value, &activeTheme)
 		}
 		b.StopTimer()
 		reportInputDeclarationCacheStats(b, "input-declaration-cache", state.styleCache.Stats(), baseline)
@@ -147,25 +147,25 @@ func BenchmarkInputVisualDeclarations(b *testing.B) {
 			if index&1 != 0 {
 				variant = Secondary
 			}
-			state.visualDeclarations(value.Variant(variant), &activeTheme, nil)
+			state.defaults(value.Variant(variant), &activeTheme)
 		}
 		b.StopTimer()
-		reportInputDeclarationCacheStats(b, "input-declaration-cache", state.styleCache.Stats(), computed.ProviderCacheStats{})
+		reportInputDeclarationCacheStats(b, "input-declaration-cache", state.styleCache.Stats(), computed.VisualCacheStats{})
 	})
 }
 
 func BenchmarkTextAreaVisualDeclarations(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	value := NewTextArea("Ada").Key("notes").Rows(4)
 
 	b.Run("cache-hit", func(b *testing.B) {
 		state := &textAreaState{}
-		state.visualDeclarations(value, &activeTheme, unit.Dp(80), nil)
+		state.defaults(value, &activeTheme, unit.Dp(80))
 		baseline := state.styleCache.Stats()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			state.visualDeclarations(value, &activeTheme, unit.Dp(80), nil)
+			state.defaults(value, &activeTheme, unit.Dp(80))
 		}
 		b.StopTimer()
 		reportInputDeclarationCacheStats(b, "textarea-declaration-cache", state.styleCache.Stats(), baseline)
@@ -177,25 +177,25 @@ func BenchmarkTextAreaVisualDeclarations(b *testing.B) {
 		b.ResetTimer()
 		for index := 0; b.Loop(); index++ {
 			height := unit.Dp(40 + index%9)
-			state.visualDeclarations(value, &activeTheme, height, nil)
+			state.defaults(value, &activeTheme, height)
 		}
 		b.StopTimer()
-		reportInputDeclarationCacheStats(b, "textarea-declaration-cache", state.styleCache.Stats(), computed.ProviderCacheStats{})
+		reportInputDeclarationCacheStats(b, "textarea-declaration-cache", state.styleCache.Stats(), computed.VisualCacheStats{})
 	})
 }
 
 func BenchmarkGroupVisualDeclarations(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	value := Group(New("Ada").Key("query"))
 
 	b.Run("cache-hit", func(b *testing.B) {
 		state := &inputGroupState{}
-		state.visualDeclarations(value, &activeTheme, unit.Dp(36), nil)
+		state.defaults(value, &activeTheme, unit.Dp(36))
 		baseline := state.styleCache.Stats()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for b.Loop() {
-			state.visualDeclarations(value, &activeTheme, unit.Dp(36), nil)
+			state.defaults(value, &activeTheme, unit.Dp(36))
 		}
 		b.StopTimer()
 		reportInputDeclarationCacheStats(b, "input-group-declaration-cache", state.styleCache.Stats(), baseline)
@@ -207,14 +207,14 @@ func BenchmarkGroupVisualDeclarations(b *testing.B) {
 		b.ResetTimer()
 		for index := 0; b.Loop(); index++ {
 			minHeight := unit.Dp(36 + index%9)
-			state.visualDeclarations(value, &activeTheme, minHeight, nil)
+			state.defaults(value, &activeTheme, minHeight)
 		}
 		b.StopTimer()
-		reportInputDeclarationCacheStats(b, "input-group-declaration-cache", state.styleCache.Stats(), computed.ProviderCacheStats{})
+		reportInputDeclarationCacheStats(b, "input-group-declaration-cache", state.styleCache.Stats(), computed.VisualCacheStats{})
 	})
 }
 
-func reportInputDeclarationCacheStats(b *testing.B, prefix string, after, before computed.ProviderCacheStats) {
+func reportInputDeclarationCacheStats(b *testing.B, prefix string, after, before computed.VisualCacheStats) {
 	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), prefix+"-hits/op")
 	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), prefix+"-misses/op")
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), prefix+"-theme-invalidations/op")
@@ -222,26 +222,26 @@ func reportInputDeclarationCacheStats(b *testing.B, prefix string, after, before
 }
 
 func BenchmarkInputDeclarationCacheInvalidation(b *testing.B) {
-	first := *testtheme.Behavior()
-	second := *testtheme.Behavior()
+	first := theme.Light()
+	second := theme.Light()
 
 	b.Run("input", func(b *testing.B) {
 		state := &inputState{}
 		value := New("Ada").Key("name")
-		state.visualDeclarations(value, &first, nil)
+		state.defaults(value, &first)
 		baseline := state.styleCache.Stats()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for index := 0; b.Loop(); index++ {
 			switch index & 3 {
 			case 0:
-				state.visualDeclarations(value, &first, nil)
+				state.defaults(value, &first)
 			case 1:
-				state.visualDeclarations(value.Variant(Secondary), &first, nil)
+				state.defaults(value.Variant(Secondary), &first)
 			case 2:
-				state.visualDeclarations(value.Variant(Secondary), &second, nil)
+				state.defaults(value.Variant(Secondary), &second)
 			default:
-				state.visualDeclarations(value, &second, nil)
+				state.defaults(value, &second)
 			}
 		}
 		b.StopTimer()
@@ -251,20 +251,20 @@ func BenchmarkInputDeclarationCacheInvalidation(b *testing.B) {
 	b.Run("textarea", func(b *testing.B) {
 		state := &textAreaState{}
 		value := NewTextArea("Ada").Key("notes").Rows(4)
-		state.visualDeclarations(value, &first, unit.Dp(80), nil)
+		state.defaults(value, &first, unit.Dp(80))
 		baseline := state.styleCache.Stats()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for index := 0; b.Loop(); index++ {
 			switch index & 3 {
 			case 0:
-				state.visualDeclarations(value, &first, unit.Dp(80), nil)
+				state.defaults(value, &first, unit.Dp(80))
 			case 1:
-				state.visualDeclarations(value, &first, unit.Dp(81), nil)
+				state.defaults(value, &first, unit.Dp(81))
 			case 2:
-				state.visualDeclarations(value, &second, unit.Dp(81), nil)
+				state.defaults(value, &second, unit.Dp(81))
 			default:
-				state.visualDeclarations(value, &second, unit.Dp(80), nil)
+				state.defaults(value, &second, unit.Dp(80))
 			}
 		}
 		b.StopTimer()
@@ -274,20 +274,20 @@ func BenchmarkInputDeclarationCacheInvalidation(b *testing.B) {
 	b.Run("group", func(b *testing.B) {
 		state := &inputGroupState{}
 		value := Group(New("Ada").Key("query"))
-		state.visualDeclarations(value, &first, unit.Dp(36), nil)
+		state.defaults(value, &first, unit.Dp(36))
 		baseline := state.styleCache.Stats()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for index := 0; b.Loop(); index++ {
 			switch index & 3 {
 			case 0:
-				state.visualDeclarations(value, &first, unit.Dp(36), nil)
+				state.defaults(value, &first, unit.Dp(36))
 			case 1:
-				state.visualDeclarations(value, &first, unit.Dp(37), nil)
+				state.defaults(value, &first, unit.Dp(37))
 			case 2:
-				state.visualDeclarations(value, &second, unit.Dp(37), nil)
+				state.defaults(value, &second, unit.Dp(37))
 			default:
-				state.visualDeclarations(value, &second, unit.Dp(36), nil)
+				state.defaults(value, &second, unit.Dp(36))
 			}
 		}
 		b.StopTimer()

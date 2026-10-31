@@ -29,7 +29,6 @@ type Context struct {
 	window                       *app.Window
 	requestWindowClose           func()
 	theme                        *theme.Theme
-	strictVisuals                bool
 	themeGeneration              uint64
 	themeHashTheme               *theme.Theme
 	themeHash                    uint64
@@ -106,41 +105,30 @@ func New(w *app.Window, activeTheme *theme.Theme, language locale.Language) *Con
 // NewWithCatalog creates a per-window frame context with application message
 // overrides. The catalog is copied so its value is isolated from callers.
 //
-// This constructor keeps the low-level, theme-less context path used by unit
-// tests and internal helpers. It does not install a visual provider: migrated
-// widgets stay visually neutral unless the caller explicitly supplies one.
-// Application windows must use NewWithCatalogStrict.
+// This constructor also supports theme-less internal helpers.
 func NewWithCatalog(w *app.Window, activeTheme *theme.Theme, language locale.Language, translations i18n.Catalog) *Context {
 	language = locale.Resolve(language)
-	return newContext(w, activeTheme, language, translations, false)
+	return newContext(w, activeTheme, language, translations)
 }
 
-// NewWithCatalogStrict creates an application context with an explicit,
-// complete component visual provider. It is the only constructor used by the
-// running UI loop. Keeping validation here makes the no-implicit-theme rule
-// hold at the context boundary rather than relying on every widget to remember
-// to validate its own provider.
+// NewWithCatalogStrict creates an application context with an explicit theme.
 func NewWithCatalogStrict(w *app.Window, activeTheme *theme.Theme, language locale.Language, translations i18n.Catalog) (*Context, error) {
 	if activeTheme == nil {
-		return nil, theme.ErrMissingVisualProvider
-	}
-	if err := theme.ValidateVisualProvider(*activeTheme); err != nil {
-		return nil, err
+		return nil, theme.ErrMissingTheme
 	}
 	language = locale.Resolve(language)
-	return newContext(w, activeTheme, language, translations, true), nil
+	return newContext(w, activeTheme, language, translations), nil
 }
 
-func newContext(w *app.Window, activeTheme *theme.Theme, language locale.Language, translations i18n.Catalog, strictVisuals bool) *Context {
+func newContext(w *app.Window, activeTheme *theme.Theme, language locale.Language, translations i18n.Catalog) *Context {
 	if theme.MaterialOf(activeTheme) == nil {
 		theme.SyncMaterialTheme(activeTheme)
 	}
 	return &Context{
-		window:        w,
-		theme:         activeTheme,
-		strictVisuals: strictVisuals,
-		language:      language,
-		translations:  translations.Clone(),
+		window:       w,
+		theme:        activeTheme,
+		language:     language,
+		translations: translations.Clone(),
 	}
 }
 
@@ -188,11 +176,6 @@ func ReplaceTheme(ctx *Context, activeTheme theme.Theme) {
 	if ctx == nil {
 		return
 	}
-	if ctx.strictVisuals {
-		if err := theme.ValidateVisualProvider(activeTheme); err != nil {
-			panic(err)
-		}
-	}
 	theme.SyncMaterialTheme(&activeTheme)
 	ctx.theme = &activeTheme
 	ctx.themeGeneration++ // Bump generation to invalidate memoized results
@@ -202,8 +185,8 @@ func ReplaceTheme(ctx *Context, activeTheme theme.Theme) {
 // ReplaceLanguage updates the language used by localized components.
 //
 // Localized components derive both their strings and their geometry from the
-// language, so this follows the same invalidation contract as ReplaceTheme and
-// ReplaceDesign. Without the appearance-generation bump, component caches keyed
+// language, so this follows the same invalidation contract as ReplaceTheme.
+// Without the generation bump, component caches keyed
 // on ThemeGeneration - menu item widths, tree and list row metrics, chart axis
 // labels - would keep the previous language's dimensions whenever the
 // application changes only the language and not its data version.
@@ -288,25 +271,8 @@ func ActiveTheme(ctx *Context) *theme.Theme {
 	return ctx.theme
 }
 
-// RequireVisualProvider revalidates the active provider at a migrated widget
-// boundary. Strict application contexts must never silently render an empty
-// declaration after a caller mutates or replaces the theme provider; the
-// low-level non-strict context remains available for neutral behavior tests.
-func RequireVisualProvider(ctx *Context) {
-	if ctx == nil || !ctx.strictVisuals {
-		return
-	}
-	active := ActiveTheme(ctx)
-	if active == nil {
-		panic(theme.ErrMissingVisualProvider)
-	}
-	if err := theme.ValidateVisualProvider(*active); err != nil {
-		panic(err)
-	}
-}
-
 // ThemeGeneration returns the current appearance generation counter. The
-// generation is incremented by ReplaceTheme, ReplaceDesign, and ReplaceLanguage
+// generation is incremented by ReplaceTheme and ReplaceLanguage
 // so that memoized computations invalidate when the visual configuration or the
 // localized text that feeds component geometry changes.
 func ThemeGeneration(ctx *Context) uint64 {
@@ -409,10 +375,14 @@ func PushMeasurement(ctx *Context) func() {
 	}
 	snapshot := make(map[string]Kind, len(previous))
 	maps.Copy(snapshot, previous)
+	auto := maps.Clone(ctx.keys.autoCounts)
+	tokens := maps.Clone(ctx.keys.autoTokens)
 	clear(previous)
 	return func() {
 		clear(previous)
 		maps.Copy(previous, snapshot)
+		ctx.keys.autoCounts = auto
+		ctx.keys.autoTokens = tokens
 	}
 }
 
@@ -444,7 +414,6 @@ func BeginFrame(ctx *Context) {
 	ctx.overlays.beginFrame()
 	ctx.states.BeginFrame()
 	ctx.keys.BeginFrame()
-	beginAutoKeyFrame()
 	ctx.exclusive.BeginFrame()
 	ctx.focus.BeginFrame()
 	ctx.semantics = ctx.semantics[:0]
@@ -873,7 +842,7 @@ func EndFrame(ctx *Context) {
 	frameKeys := ctx.keys.Frame()
 	for key := range ctx.fieldFocus {
 		switch frameKeys[key] {
-		case KindInput, KindComboBox, KindSelect, KindSlider, KindDateField, KindDatePicker, KindDateRangePicker:
+		case KindInput, KindComboBox, KindSelect, KindSlider, KindBaseSlider, KindBaseRangeSlider, KindBasePopup, KindBaseSelect, KindBaseTextInput, KindDateField, KindDatePicker, KindDateRangePicker:
 		default:
 			delete(ctx.fieldFocus, key)
 		}

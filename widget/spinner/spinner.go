@@ -1,7 +1,6 @@
 package spinner
 
 import (
-	"github.com/qianniancn/flowui/style"
 	"image"
 
 	"gioui.org/io/semantic"
@@ -11,35 +10,17 @@ import (
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
+	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
 type Widget struct {
-	override    *theme.SpinnerOverride
+	style       style.Style
 	color       Color
 	size        Size
 	label       string
 	visualCache *spinnerVisualCache
 }
-
-type Color = theme.SpinnerColor
-
-const (
-	Accent  = theme.SpinnerAccent
-	Current = theme.SpinnerCurrent
-	Success = theme.SpinnerSuccess
-	Warning = theme.SpinnerWarning
-	Danger  = theme.SpinnerDanger
-)
-
-type Size = theme.SpinnerSize
-
-const (
-	Medium     = theme.SpinnerMedium
-	Small      = theme.SpinnerSmall
-	Large      = theme.SpinnerLarge
-	ExtraLarge = theme.SpinnerExtraLarge
-)
 
 func New() Widget {
 	return Widget{visualCache: &spinnerVisualCache{}}
@@ -61,7 +42,6 @@ func (s Widget) Label(label string) Widget {
 }
 
 func (s Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	resolved := s.resolveStyle(ctx, gtx)
 	return s.layoutResolved(ctx, gtx, resolved)
 }
@@ -75,13 +55,14 @@ func (s Widget) layoutResolved(ctx *core.Context, gtx layout.Context, resolved s
 			offset := image.Pt((size.X-iconSize)/2, (size.Y-iconSize)/2)
 			stack := op.Offset(offset).Push(gtx.Ops)
 			period := theme.ResolveMotionDuration(resolved.motion, resolved.metrics.SpinDuration)
-			resolved.renderer(gtx, theme.SpinnerRenderRequest{
-				Size:        gtx.Metric.PxToDp(iconSize),
-				StrokeRatio: resolved.metrics.StrokeRatio,
-				InsetRatio:  resolved.metrics.InsetRatio,
-				Color:       resolved.color,
-				Period:      period,
-			})
+			spinnerDraw(
+				gtx,
+				gtx.Metric.PxToDp(iconSize),
+				resolved.metrics.StrokeRatio,
+				resolved.metrics.InsetRatio,
+				resolved.color,
+				period,
+			)
 			if period > 0 {
 				gtx.Execute(op.InvalidateCmd{})
 			}
@@ -98,13 +79,10 @@ func (s Widget) layoutResolved(ctx *core.Context, gtx layout.Context, resolved s
 	}))
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.SpinnerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// applied as the last cascade layer when the spinner resolves its style, so
+// Style can sit anywhere in the chain and does not invalidate cached defaults.
+func (s Widget) Style(values ...style.Style) Widget {
+	s.style = style.Join(s.style, style.Join(values...))
+	return s
 }

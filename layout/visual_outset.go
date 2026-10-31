@@ -5,19 +5,16 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/style"
 )
 
 const stateSlotVisualOutset = "visual-outset"
 
 // VisualOutsetState retains visual overflow seen in a clipping viewport. A
 // virtualized list keeps its previous maximum until every item is observed
-// again; non-virtualized content updates exactly each core.
+// again; non-virtualized content updates exactly each frame.
 type VisualOutsetState struct {
-	outset                 core.VisualOutset
-	scrollbarDefaultsCache computed.DeclarationCache[scrollbarDeclarationKey, style.Style]
+	outset core.VisualOutset
 }
 
 func visualOutsetStateFor(ctx *Context, kind core.Kind, owner string) *VisualOutsetState {

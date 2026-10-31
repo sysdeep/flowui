@@ -17,8 +17,8 @@ func progressBarStateFor(ctx *core.Context, key string) *progressBarState {
 
 type progressBarState struct {
 	value            animation.FloatTransition
-	barStyleCache    progressBarVisualCache
-	circleStyleCache progressCircleVisualCache
+	barStyleCache    progressBarStyleCache
+	circleStyleCache progressCircleStyleCache
 }
 
 func (s *progressBarState) progress(gtx layout.Context, target float32, indeterminate bool, duration time.Duration, motion theme.MotionTheme) float32 {

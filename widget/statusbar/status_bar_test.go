@@ -9,13 +9,12 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
 func TestStatusBarFillsWidthAndScopesDefaultColors(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	left := new(statusBarProbe)
 	right := new(statusBarProbe)
@@ -29,11 +28,14 @@ func TestStatusBarFillsWidthAndScopesDefaultColors(t *testing.T) {
 		t.Fatalf("status bar size = %v, want (300,28)", dims.Size)
 	}
 	for _, probe := range []*statusBarProbe{left, right} {
-		if probe.foreground != activeTheme.Palette.SurfaceSecondaryForeground || probe.background != activeTheme.Palette.SurfaceSecondary {
+		if probe.foreground != activeTheme.Colors.SurfaceSecondaryForeground || probe.background != activeTheme.Colors.SurfaceSecondary {
 			t.Fatalf("status bar child colors = %#v/%#v", probe.foreground, probe.background)
 		}
 		if probe.constraints.Min.Y != 0 {
 			t.Fatalf("status bar child minimum height = %d, want 0", probe.constraints.Min.Y)
+		}
+		if probe.constraints.Max.Y < 14 {
+			t.Fatalf("status bar child maximum height = %d, want at least 14", probe.constraints.Max.Y)
 		}
 	}
 }

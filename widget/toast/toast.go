@@ -1,36 +1,14 @@
 package toast
 
 import (
-	"github.com/qianniancn/flowui/style"
 	"image"
 	"time"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
-)
-
-// Variant identifies a toast's semantic visual treatment.
-type Variant = theme.ToastVariant
-
-const (
-	Default = theme.ToastDefault
-	Accent  = theme.ToastAccent
-	Success = theme.ToastSuccess
-	Warning = theme.ToastWarning
-	Danger  = theme.ToastDanger
-)
-
-type Placement uint8
-
-const (
-	Bottom Placement = iota
-	BottomStart
-	BottomEnd
-	Top
-	TopStart
-	TopEnd
+	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/widget/button"
 )
 
 type Item struct {
@@ -43,13 +21,13 @@ type Item struct {
 	loading       bool
 	compact       bool
 	actionLabel   string
-	actionVariant theme.ButtonVariant
+	actionVariant button.Variant
 	timeout       time.Duration
 	hasTimeout    bool
 }
 
 func NewItem(key, title string) Item {
-	return Item{key: key, title: title, actionVariant: theme.ButtonGhost}
+	return Item{key: key, title: title, actionVariant: button.Ghost}
 }
 
 // MessageItem creates a compact, transient message: a single-line title,
@@ -97,7 +75,7 @@ func (t Item) Action(label string) Item {
 	return t
 }
 
-func (t Item) ActionVariant(variant theme.ButtonVariant) Item {
+func (t Item) ActionVariant(variant button.Variant) Item {
 	t.actionVariant = variant
 	return t
 }
@@ -114,9 +92,9 @@ func (t Item) showIndicator() bool {
 }
 
 type Widget struct {
-	override      *theme.ToastOverride
 	key           string
 	items         []Item
+	style         style.Style
 	onClose       func(string)
 	onAction      func(string)
 	placement     Placement
@@ -190,16 +168,12 @@ func (p Widget) Paused(paused bool) Widget {
 }
 
 func (p Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return p.layoutWithOverride(ctx, gtx, p.override)
-}
-
-func (p Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ToastOverride) layout.Dimensions {
-	fullKey, providerState := toastStateFor(ctx, p.key)
-	baseVisual := p.baseVisual(ctx, override)
-	providerState.sync(gtx, p.items, baseVisual.Metrics.DefaultTimeout)
-	providerState.cleanup()
-	if !providerState.visible() {
-		providerState.resetRegion()
+	fullKey, hostState := toastStateFor(ctx, p.key)
+	baseVisual := p.baseVisual(ctx)
+	hostState.sync(gtx, p.items, baseVisual.metrics.DefaultTimeout)
+	hostState.cleanup()
+	if !hostState.visible() {
+		hostState.resetRegion()
 		return layout.Dimensions{}
 	}
 
@@ -209,20 +183,18 @@ func (p Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		Disabled: core.OverlayNaturallyDisabled(gtx),
 		Passive:  true,
 		Layout: func(gtx layout.Context, _ image.Rectangle, _ bool) layout.Dimensions {
-			return p.layoutOverlay(ctx, gtx, providerState, baseVisual, override)
+			return p.layoutOverlay(ctx, gtx, hostState, baseVisual)
 		},
 	})
-	core.AfterOverlays(ctx, providerState.cleanup)
+	core.AfterOverlays(ctx, hostState.cleanup)
 	return layout.Dimensions{}
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ToastOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// applied as the last cascade layer when the toast resolves its panel, text,
+// indicator, action, and close styles, so Style can sit anywhere in the chain
+// and does not invalidate the cached defaults.
+func (p Widget) Style(values ...style.Style) Widget {
+	p.style = style.Join(p.style, style.Join(values...))
+	return p
 }

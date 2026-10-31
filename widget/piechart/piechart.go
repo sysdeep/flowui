@@ -13,7 +13,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -52,7 +51,7 @@ func (d Data) Hidden(hidden bool) Data {
 }
 
 type Widget struct {
-	override                *theme.PieChartOverride
+	style                   style.Style
 	key                     string
 	data                    []Data
 	dataVersion             uint64
@@ -252,24 +251,23 @@ func (w Widget) Disabled(disabled bool) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
+	return w.layoutWithStyle(ctx, gtx)
 }
 
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.PieChartOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
+func (w Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
-	return layoutui.Resolved(ctx, gtx, resolved, pieChartVisualWidget{value: w, visual: visual})
+	defaults := w.resolveDefaults(active)
+	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, defaults.Defaults, style.Style{}, style.Style{}, w.style)
+	return layoutui.Resolved(ctx, gtx, resolved, pieChartDefaultsWidget{value: w, defaults: defaults})
 }
 
-type pieChartVisualWidget struct {
-	value  Widget
-	visual *theme.PieChartVisual
+type pieChartDefaultsWidget struct {
+	value    Widget
+	defaults pieChartDefaults
 }
 
-func (v pieChartVisualWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return v.value.layout(ctx, gtx, *v.visual)
+func (v pieChartDefaultsWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	return v.value.layout(ctx, gtx, v.defaults)
 }
 
 func (w Widget) legendVisible(data chartData) bool {
@@ -305,13 +303,10 @@ func validateFinite(name string, value float32) {
 	}
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.PieChartOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

@@ -5,9 +5,9 @@ import "time"
 // nodeGraphBehaviorMetrics is the widget-owned interaction and visibility
 // contract. Values that are expressed in pixels are converted at the call
 // site using the current world scale; values expressed in graph units are
-// deliberately independent of the active visual provider.
+// deliberately independent of the active visual recipe.
 //
-// This table is intentionally separate from theme.NodeGraphMetrics. A theme
+// This table is intentionally separate from nodeGraphMetrics. A theme
 // may change how a graph looks, but it must not change what is clickable,
 // draggable, focusable, or eligible for culling.
 type nodeGraphBehaviorMetrics struct {
@@ -31,7 +31,7 @@ type nodeGraphBehaviorMetrics struct {
 	edgeHitRadiusPx       float32
 
 	// A Bezier edge's hit-test route uses this graph-space minimum control
-	// distance. It is independent of the provider's visual route metrics.
+	// distance. It is independent of the recipe's visual route metrics.
 	edgeHitMinimumDistance float32
 
 	focusRevealMarginPx float32
@@ -40,7 +40,7 @@ type nodeGraphBehaviorMetrics struct {
 	doubleClickWait     time.Duration
 
 	// Resize constraints below are neutral interaction guards. Normal node
-	// measurement still comes from theme.NodeGraphMetrics.
+	// measurement still comes from nodeGraphMetrics.
 	resizeMinimumWidth  float32
 	resizeMinimumHeight float32
 }

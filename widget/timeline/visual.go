@@ -8,39 +8,31 @@ import (
 )
 
 type timelineVisualCache struct {
-	cache      computed.ProviderCache[struct{}, theme.TimelineVisual]
+	cache      computed.VisualCache[struct{}, timelineVisual]
 	visualHost timelineVisualHost
 }
 
 type timelineVisualHost struct {
 	value  Widget
-	visual theme.TimelineVisual
+	visual timelineVisual
 }
 
 func (v *timelineVisualHost) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	return v.value.layout(ctx, gtx, v.visual)
 }
 
-// TimelineVisualCacheStats exposes provider cache counters for diagnostics and
-// benchmark assertions without exposing the cache implementation.
-type TimelineVisualCacheStats = computed.ProviderCacheStats
-
-func (c *timelineVisualCache) Stats() TimelineVisualCacheStats {
+func (c *timelineVisualCache) Stats() computed.VisualCacheStats {
 	if c == nil {
-		return TimelineVisualCacheStats{}
+		return computed.VisualCacheStats{}
 	}
 	return c.cache.Stats()
 }
 
-func (w Widget) resolveVisual(active *theme.Theme, override *theme.TimelineOverride) theme.TimelineVisual {
-	load := func(value *theme.TimelineOverride) theme.TimelineVisual {
-		return theme.ResolveVisual(active, theme.TimelineRequest{Override: value},
-			theme.ComponentVisualProvider.Timeline, theme.ValidateTimelineVisual)
+func (w Widget) resolveVisual(active *theme.Theme) timelineVisual {
+	if w.visualCache == nil {
+		return buildTimeline(active)
 	}
-	if override != nil || w.visualCache == nil {
-		return load(override)
-	}
-	return w.visualCache.cache.Resolve(active, struct{}{}, func() theme.TimelineVisual {
-		return load(nil)
+	return w.visualCache.cache.Resolve(active, struct{}{}, func() timelineVisual {
+		return buildTimeline(active)
 	})
 }

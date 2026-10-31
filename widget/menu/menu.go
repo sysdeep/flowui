@@ -6,10 +6,10 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/i18n"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type ItemKind uint8
@@ -44,6 +44,17 @@ const (
 	IndicatorNone IndicatorType = iota
 	IndicatorCheckmark
 	IndicatorDot
+)
+
+// MenuTextRole identifies the semantic text slot drawn by a menu.
+type MenuTextRole uint8
+
+const (
+	MenuTextEmpty MenuTextRole = iota
+	MenuTextSection
+	MenuTextItem
+	MenuTextDescription
+	MenuTextShortcut
 )
 
 // ActionEvent describes an activated menu item and its path from the root
@@ -86,7 +97,7 @@ type Section struct {
 }
 
 type Widget struct {
-	override             *theme.MenuOverride
+	style                style.Style
 	key                  string
 	derivedOwner         string
 	derivedRole          string
@@ -283,31 +294,29 @@ func (m Widget) MaxWidth(dp int) Widget {
 }
 
 func (m Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return m.layoutWithOverride(ctx, gtx, m.override)
-}
-
-func (m Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.MenuOverride) layout.Dimensions {
 	state := m.stateFor(ctx)
-	visual := m.visualWithCache(ctx, override, &state.visualCache)
+	visual := m.visualWithCache(ctx, &state.visualCache)
 	return m.layoutRootWithVisual(ctx, gtx, state, !m.disabled, visual)
 }
 
-func (m Widget) layoutRootWithVisual(ctx *core.Context, gtx layout.Context, state *menuState, interactive bool, visual theme.MenuVisual) layout.Dimensions {
+func (m Widget) layoutRootWithVisual(ctx *core.Context, gtx layout.Context, state *menuState, interactive bool, visual RuntimeVisual) layout.Dimensions {
 	hovered, pressed, focused := false, false, false
 	for _, item := range state.items {
 		hovered = hovered || item.clickable.Hovered()
 		pressed = pressed || item.clickable.Pressed()
 		focused = focused || gtx.Focused(&item.clickable)
 	}
-	root := style.Join(visual.Root, visual.Override)
-	return layoutui.Styled(ctx, gtx, state.key, style.State{
+	// The instance style is the last cascade layer; the cached defaults carry
+	// only the theme-derived appearance.
+	root := computed.Resolve(ctx, gtx, state.key, style.State{
 		Hovered:  hovered,
 		Pressed:  pressed,
 		Focused:  focused,
 		Disabled: m.disabled || !gtx.Enabled(),
 		Selected: m.selectedKey != "" || len(m.selectedKeys) > 0,
 		Open:     state.openSubmenu != "",
-	}, root, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	}, visual.defaults.Root, style.Style{}, style.Style{}, m.style)
+	return layoutui.Resolved(ctx, gtx, root, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		return m.layoutWithVisual(ctx, gtx, state, interactive, visual)
 	}))
 }
@@ -355,6 +364,7 @@ func (m Widget) submenu(state *menuState, item Item) Widget {
 	child.hasCloseOnSelect = m.hasCloseOnSelect
 	child.disabled = m.disabled
 	child.compact = m.compact
+	child.style = style.Join(child.style, m.style)
 	child.dataVersion = m.dataVersion
 	child.hasDataVersion = m.hasDataVersion
 	child.autoSeparateSections = m.autoSeparateSections
@@ -539,13 +549,10 @@ func itemHasSubmenu(item Item) bool {
 	return item.Kind == ItemSubmenu || len(item.Children) > 0 || len(item.Sections) > 0
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
-func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.MenuOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
-	return w
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
+func (m Widget) Style(values ...style.Style) Widget {
+	m.style = style.Join(m.style, style.Join(values...))
+	return m
 }

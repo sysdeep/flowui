@@ -14,7 +14,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/modal"
 )
@@ -86,12 +85,8 @@ func TestAlertDialogMapsContainerVariantsToModal(t *testing.T) {
 }
 
 func TestAlertDialogCustomIconReceivesStatusColors(t *testing.T) {
-	activeTheme := testtheme.Behavior()
-	provider, err := theme.ComponentProvider(activeTheme)
-	if err != nil {
-		t.Fatal(err)
-	}
-	visual := provider.AlertDialog(activeTheme, theme.AlertDialogRequest{Status: theme.AlertSuccess})
+	activeTheme := new(theme.Light())
+	visual := buildAlertDialogDefaults(activeTheme, StatusSuccess)
 	ctx := core.New(nil, activeTheme, locale.LanguageEnglish)
 	customIcon := &probeWidget{size: image.Pt(20, 20)}
 	gtx := alertDialogTestLayoutContext(nil, time.Time{})
@@ -102,15 +97,15 @@ func TestAlertDialogCustomIconReceivesStatusColors(t *testing.T) {
 	if customIcon.layouts != 1 {
 		t.Fatalf("custom icon layouts = %d, want 1", customIcon.layouts)
 	}
-	if customIcon.foreground != visual.IconForeground || customIcon.background != visual.IconBackground {
-		t.Fatalf("custom icon colors = %#v/%#v, want provider colors %#v/%#v", customIcon.foreground, customIcon.background, visual.IconForeground, visual.IconBackground)
+	if customIcon.foreground != visual.icon.foreground || customIcon.background != visual.icon.background {
+		t.Fatalf("custom icon colors = %#v/%#v, want visual colors %#v/%#v", customIcon.foreground, customIcon.background, visual.icon.foreground, visual.icon.background)
 	}
 }
 
 func TestAlertDialogCustomBodyDoesNotExposeReplacedDescription(t *testing.T) {
 	customBody := &probeWidget{size: image.Pt(100, 24)}
 	dialog := New("Custom body", "Default description").Key("custom").Open(true).Body(customBody)
-	header := dialog.defaultHeader(nil)
+	header := dialog.defaultHeader()
 	if header.description != "" {
 		t.Fatalf("custom body retained replaced semantic description %q", header.description)
 	}
@@ -124,8 +119,8 @@ func TestAlertDialogHeaderExposesTitleAndDescriptionSemantics(t *testing.T) {
 		Source:      router.Source(),
 		Ops:         &ops,
 	}
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
-	New("Delete project?", "This action cannot be undone.").Key("delete").Open(true).defaultHeader(nil).Layout(ctx, gtx)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+	New("Delete project?", "This action cannot be undone.").Key("delete").Open(true).defaultHeader().Layout(ctx, gtx)
 	router.Frame(&ops)
 	if !semanticTreeContains(router.AppendSemantics(nil), "Delete project?", "This action cannot be undone.") {
 		t.Fatal("alert dialog header semantics did not expose its title and description")
@@ -133,7 +128,7 @@ func TestAlertDialogHeaderExposesTitleAndDescriptionSemantics(t *testing.T) {
 }
 
 func TestAlertDialogDefaultsBlockBackdropAndEscape(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	closeRequests := 0
 	dialog := New("Delete?", "This action cannot be undone.").Key("locked").Open(true).
@@ -161,7 +156,7 @@ func TestAlertDialogCanEnableBackdropAndEscapeDismissal(t *testing.T) {
 		"escape":   func(dialog Widget) Widget { return dialog.KeyboardDismissDisabled(false) },
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 			router := new(input.Router)
 			closeRequests := 0
 			dialog := configure(New("Confirm?", "Choose an action.").Key(name).Open(true)).
@@ -228,5 +223,47 @@ func TestUncontrolledPreservesClosedInitialState(t *testing.T) {
 	dialog := New("", "").Key("dialog").Uncontrolled()
 	if dialog.hasOpen || !dialog.hasDefaultOpen || dialog.defaultOpen {
 		t.Fatalf("Uncontrolled() = hasOpen=%v hasDefault=%v defaultOpen=%v", dialog.hasOpen, dialog.hasDefaultOpen, dialog.defaultOpen)
+	}
+}
+
+func TestAlertDialogUncontrolledOpenSurvivesComposition(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		configure func(Widget) Widget
+	}{
+		{name: "default open", configure: func(value Widget) Widget { return value.DefaultOpen(true) }},
+		{name: "uncontrolled initial open", configure: func(value Widget) Widget { return value.Open(true).Uncontrolled() }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+			router := new(input.Router)
+			requests := 0
+			value := tt.configure(New("Confirm?", "Choose an action.").Key("confirm")).
+				KeyboardDismissDisabled(false).OnOpenChange(func(bool) { requests++ })
+			start := time.Unix(1, 0)
+			layoutAlertDialogFrame(ctx, router, value, start)
+			layoutAlertDialogFrame(ctx, router, value, start.Add(time.Second))
+			if !core.HasTopOverlay(ctx) {
+				t.Fatal("uncontrolled initial-open state did not reach Modal")
+			}
+			router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+			layoutAlertDialogFrame(ctx, router, value, start.Add(2*time.Second))
+			layoutAlertDialogFrame(ctx, router, value, start.Add(3*time.Second))
+			layoutAlertDialogFrame(ctx, router, value, start.Add(4*time.Second))
+			layoutAlertDialogFrame(ctx, router, value, start.Add(5*time.Second))
+			if requests != 1 || core.HasTopOverlay(ctx) {
+				t.Fatalf("after dismissal: requests=%d visible=%v", requests, core.HasTopOverlay(ctx))
+			}
+		})
+	}
+}
+
+func TestAlertDialogControlledValueOverridesDefault(t *testing.T) {
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
+	router := new(input.Router)
+	value := New("Confirm?", "Choose an action.").Key("confirm").DefaultOpen(true).Open(false)
+	layoutAlertDialogFrame(ctx, router, value, time.Unix(1, 0))
+	if core.HasTopOverlay(ctx) {
+		t.Fatal("controlled closed alert dialog used its default-open value")
 	}
 }

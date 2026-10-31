@@ -8,12 +8,11 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 // Widget presents compact application state at the bottom of a window.
 type Widget struct {
-	override    *theme.StatusBarOverride
+	style       style.Style
 	left        core.Widget
 	right       core.Widget
 	visualCache *statusBarVisualCache
@@ -24,11 +23,7 @@ func New(left, right core.Widget) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
-}
-
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.StatusBarOverride) layout.Dimensions {
-	visual := w.visualWithCache(ctx, override)
+	visual := w.visualWithCache(ctx)
 	size := gtx.Constraints.Constrain(image.Pt(gtx.Constraints.Max.X, gtx.Dp(visual.Metrics.Height)))
 	rootGtx := gtx
 	rootGtx.Constraints = layout.Exact(size)
@@ -51,7 +46,7 @@ func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 		visual.Defaults,
 		visual.Variant,
 		style.Style{},
-		visual.Override,
+		w.style,
 	)
 	if len(resolved.Transitions) != 0 {
 		resolved = computed.ApplyTransitions(ctx, rootGtx, core.ClaimKey(ctx, core.KindStyle, "status-bar"), resolved)
@@ -59,13 +54,10 @@ func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, overri
 	return layoutui.Resolved(ctx, rootGtx, resolved, content)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.StatusBarOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

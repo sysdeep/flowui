@@ -4,19 +4,20 @@ import (
 	"image"
 	"image/color"
 
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/paint"
 	"github.com/qianniancn/flowui/i18n"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 const stateSlotColorArea = "color-area"
 
 type ColorAreaWidget struct {
-	override *theme.ColorPickerOverride
+	style    style.Style
 	key      string
 	value    color.NRGBA
 	label    string
@@ -27,9 +28,9 @@ type ColorAreaWidget struct {
 }
 
 type colorAreaState struct {
-	control     colorControlState
-	color       colorValueState
-	visualCache colorPickerVisualCache
+	control       colorControlState
+	color         colorValueState
+	defaultsCache colorAreaDefaultsCache
 }
 
 func ColorArea(key string, value color.NRGBA) ColorAreaWidget {
@@ -62,13 +63,13 @@ func (area ColorAreaWidget) withColorState(state *colorValueState) ColorAreaWidg
 }
 
 func (area ColorAreaWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return area.layoutWithOverride(ctx, gtx, area.override)
+	return area.layoutWithStyle(ctx, gtx)
 }
 
-func (area ColorAreaWidget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.ColorPickerOverride) layout.Dimensions {
+func (area ColorAreaWidget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 	key := core.ClaimKey(ctx, core.KindColorArea, area.key)
 	areaState := core.UseState[colorAreaState](ctx, key, stateSlotColorArea)
-	visual := areaState.visualCache.resolve(core.ActiveTheme(ctx), colorPickerRequest(override))
+	defaults := colorAreaDefaultsFor(ctx, &areaState.defaultsCache)
 	valueState := &areaState.color
 	if area.color != nil {
 		valueState = area.color
@@ -77,7 +78,7 @@ func (area ColorAreaWidget) layoutWithOverride(ctx *core.Context, gtx layout.Con
 	}
 
 	enabled := gtx.Enabled() && !area.disabled
-	side := min(gtx.Dp(visual.Area.Size), min(gtx.Constraints.Max.X, gtx.Constraints.Max.Y))
+	side := min(gtx.Dp(defaults.Size), min(gtx.Constraints.Max.X, gtx.Constraints.Max.Y))
 	size := image.Pt(max(side, 0), max(side, 0))
 	areaGtx := gtx
 	areaGtx.Constraints = layout.Exact(size)
@@ -92,28 +93,45 @@ func (area ColorAreaWidget) layoutWithOverride(ctx *core.Context, gtx layout.Con
 	}
 
 	focused := gtx.Focused(&areaState.control)
-	return layoutui.Styled(ctx, gtx, key, style.State{
-		Pressed:      areaState.control.dragging,
+	state := style.State{
+		Pressed:      areaState.control.Dragging,
 		Focused:      focused,
 		FocusVisible: core.FocusVisible(ctx, &areaState.control, focused),
 		Disabled:     !enabled,
-		Dragging:     areaState.control.dragging,
-	}, visual.Override, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		opacity := paint.PushOpacity(gtx.Ops, func() float32 {
-			if enabled {
-				return 1
-			}
-			return visual.DisabledOpacity
-		}())
-		visual.Area.Render(gtx, theme.ColorAreaRenderRequest{
-			Size:     size,
-			Value:    colorPickerHSV(current),
-			Dragging: areaState.control.dragging,
-			Focus:    areaState.control.focusOpacity(ctx, gtx, visual.Motion),
-			ShowDots: area.showDots,
-		})
+		Dragging:     areaState.control.Dragging,
+	}
+	resolved := computed.Resolve(
+		ctx,
+		gtx,
+		key,
+		state,
+		defaults.Defaults,
+		style.Style{},
+		style.Style{},
+		area.style,
+	)
+	return layoutui.Resolved(ctx, gtx, resolved, core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		thumbSize := defaults.ThumbSize
+		if areaState.control.Dragging {
+			thumbSize = defaults.DraggingThumbSize
+		}
+		opacity := paint.PushOpacity(gtx.Ops, colorControlOpacity(enabled, defaults.DisabledOpacity))
+		colorDrawColorArea(
+			gtx,
+			size,
+			current,
+			max(gtx.Dp(defaults.Radius), 0),
+			max(gtx.Dp(thumbSize), 1),
+			max(gtx.Dp(defaults.ThumbBorderWidth), 1),
+			max(gtx.Dp(defaults.FocusRingWidth), 1),
+			areaState.control.focusOpacity(ctx, gtx, defaults.Motion),
+			defaults.FocusColor,
+			area.showDots,
+			max(gtx.Dp(defaults.DotSize), 1),
+			max(gtx.Dp(defaults.DotGap), 1),
+		)
 		opacity.Pop()
-		addColorControlInput(gtx, &areaState.control, size, enabled, true, area.semanticLabel(ctx), formatHexColor(area.value, area.value.A != 255))
+		areaState.control.AddInput(gtx, &areaState.control, image.Rectangle{Max: size}, enabled, pointer.CursorCrosshair, area.semanticLabel(ctx), formatHexColor(area.value, area.value.A != 255))
 		return layout.Dimensions{Size: size}
 	}))
 }
@@ -125,13 +143,9 @@ func (area ColorAreaWidget) semanticLabel(ctx *core.Context) string {
 	return ctx.Text(i18n.ColorPickerArea)
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is the
+// last cascade layer at layout time, so Style can sit anywhere in the chain.
 func (w ColorAreaWidget) Style(values ...style.Style) ColorAreaWidget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.ColorPickerOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

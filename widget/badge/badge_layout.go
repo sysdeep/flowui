@@ -8,7 +8,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type recordedBadgeChild struct {
@@ -21,10 +20,10 @@ func (b Widget) layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 	if b.anchor == nil {
 		return layout.Dimensions{}
 	}
-	return b.layoutWithVisual(ctx, gtx, b.visualWithCache(ctx, nil))
+	return b.layoutWithVisual(ctx, gtx, b.visualWithCache(ctx))
 }
 
-func (b Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual theme.BadgeVisual) layout.Dimensions {
+func (b Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual badgeVisual) layout.Dimensions {
 	anchor := recordBadgeChild(ctx, gtx, b.anchor)
 	badgeGtx := gtx
 	badgeGtx.Constraints.Min = image.Point{}
@@ -32,7 +31,7 @@ func (b Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual t
 
 	anchor.placement.PlaceOffset(image.Point{})
 	anchor.call.Add(gtx.Ops)
-	position := badgePosition(anchor.dims.Size, badge.dims.Size, b.placement, visual.Metrics.PlacementOffsetRatio)
+	position := badgePosition(anchor.dims.Size, badge.dims.Size, b.placement, visual.PlacementOffsetRatio)
 	badge.placement.PlaceOffset(position)
 	offset := op.Offset(position).Push(gtx.Ops)
 	badge.call.Add(gtx.Ops)
@@ -40,7 +39,7 @@ func (b Widget) layoutWithVisual(ctx *core.Context, gtx layout.Context, visual t
 	return anchor.dims
 }
 
-func (b Widget) recordBadge(ctx *core.Context, gtx layout.Context, visual theme.BadgeVisual) recordedBadgeChild {
+func (b Widget) recordBadge(ctx *core.Context, gtx layout.Context, visual badgeVisual) recordedBadgeChild {
 	macro := op.Record(gtx.Ops)
 	dims, placement := core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
 		return b.layoutBadgeWithVisual(ctx, gtx, visual)
@@ -57,10 +56,10 @@ func recordBadgeChild(ctx *core.Context, gtx layout.Context, child core.Widget) 
 }
 
 func (b Widget) layoutBadge(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return b.layoutBadgeWithVisual(ctx, gtx, b.visualWithCache(ctx, nil))
+	return b.layoutBadgeWithVisual(ctx, gtx, b.visualWithCache(ctx))
 }
 
-func (b Widget) layoutBadgeWithVisual(ctx *core.Context, gtx layout.Context, visual theme.BadgeVisual) layout.Dimensions {
+func (b Widget) layoutBadgeWithVisual(ctx *core.Context, gtx layout.Context, visual badgeVisual) layout.Dimensions {
 	resolved := b.resolveStyle(ctx, gtx, visual)
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		if label := b.semanticLabel(); label != "" {

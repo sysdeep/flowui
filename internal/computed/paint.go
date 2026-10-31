@@ -25,7 +25,8 @@ func Brush(source style.PaintSource) (draw.Brush, bool) {
 	return draw.Brush{}, false
 }
 
-func Color(source style.ColorSource) (color.NRGBA, bool) {
+// Color extracts a solid color from a color or paint source. Gradients are not solid colors.
+func Color(source style.PaintSource) (color.NRGBA, bool) {
 	switch value := source.(type) {
 	case style.SolidColor:
 		return value.Color, true

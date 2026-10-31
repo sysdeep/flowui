@@ -10,7 +10,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 )
 
 type recordedInputGroupChild struct {
@@ -18,9 +17,9 @@ type recordedInputGroupChild struct {
 	size image.Point
 }
 
-func (g GroupWidget) layoutFrame(ctx *core.Context, gtx layout.Context, state *inputGroupState, style inputGroupResolvedStyle, enabled bool, editor layout.Widget, actionVisual theme.InputActionVisual) layout.Dimensions {
+func (g GroupWidget) layoutFrame(ctx *core.Context, gtx layout.Context, state *inputGroupState, style inputGroupResolvedStyle, enabled bool, editor layout.Widget, actionDefaults groupActionDefaults) layout.Dimensions {
 	content := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-		return g.layoutContent(ctx, gtx, state, style, editor, actionVisual)
+		return g.layoutContent(ctx, gtx, state, style, editor, actionDefaults)
 	})
 	return layoutui.InteractiveResolved(ctx, gtx, style.root, content, func(gtx layout.Context, visual layout.Widget) layout.Dimensions {
 		dims := visual(gtx)
@@ -29,8 +28,7 @@ func (g GroupWidget) layoutFrame(ctx *core.Context, gtx layout.Context, state *i
 	})
 }
 
-func (g GroupWidget) layoutContent(ctx *core.Context, gtx layout.Context, state *inputGroupState, style inputGroupResolvedStyle, editor layout.Widget, actionVisual theme.InputActionVisual) layout.Dimensions {
-	actionMetrics := actionVisual.Metrics
+func (g GroupWidget) layoutContent(ctx *core.Context, gtx layout.Context, state *inputGroupState, style inputGroupResolvedStyle, editor layout.Widget, actionDefaults groupActionDefaults) layout.Dimensions {
 	constraints := gtx.Constraints
 	minHeight := constraints.Min.Y
 	paddingLeftDp, paddingRightDp := resolvedHorizontalPadding(style.content)
@@ -41,8 +39,8 @@ func (g GroupWidget) layoutContent(ctx *core.Context, gtx layout.Context, state 
 	verticalPadding := gtx.Dp(verticalPaddingDp)
 	prefixLeftDp, prefixRightDp := paddingLeftDp, paddingRightDp
 	if g.prefixAction {
-		prefixLeftDp = actionMetrics.SlotPadding
-		prefixRightDp = actionMetrics.SlotPadding
+		prefixLeftDp = actionDefaults.slotPadding
+		prefixRightDp = actionDefaults.slotPadding
 	}
 	if left, right, ok := resolvedExplicitHorizontalPadding(style.prefix); ok {
 		prefixLeftDp, prefixRightDp = left, right
@@ -50,8 +48,8 @@ func (g GroupWidget) layoutContent(ctx *core.Context, gtx layout.Context, state 
 	prefixLeft, prefixRight := gtx.Dp(prefixLeftDp), gtx.Dp(prefixRightDp)
 	suffixLeftDp, suffixRightDp := paddingLeftDp, paddingRightDp
 	if g.suffixAction {
-		suffixLeftDp = actionMetrics.SlotPadding
-		suffixRightDp = actionMetrics.SlotPadding
+		suffixLeftDp = actionDefaults.slotPadding
+		suffixRightDp = actionDefaults.slotPadding
 	}
 	if left, right, ok := resolvedExplicitHorizontalPadding(style.suffix); ok {
 		suffixLeftDp, suffixRightDp = left, right
@@ -63,8 +61,8 @@ func (g GroupWidget) layoutContent(ctx *core.Context, gtx layout.Context, state 
 	}
 	divider := max(gtx.Dp(dividerDp), 0)
 
-	prefix := recordInputGroupWidget(ctx, gtx, g.prefix, style.prefix, actionVisual, g.prefixAction)
-	suffix := recordInputGroupWidget(ctx, gtx, g.suffix, style.suffix, actionVisual, g.suffixAction)
+	prefix := recordInputGroupWidget(ctx, gtx, g.prefix, style.prefix, actionDefaults, g.prefixAction)
+	suffix := recordInputGroupWidget(ctx, gtx, g.suffix, style.suffix, actionDefaults, g.suffixAction)
 	prefixWidth := inputGroupSlotWidth(prefix, prefixLeft, prefixRight, divider, g.prefix != nil)
 	suffixWidth := inputGroupSlotWidth(suffix, suffixLeft, suffixRight, divider, g.suffix != nil)
 	leftPaddingDp := paddingLeftDp
@@ -86,7 +84,7 @@ func (g GroupWidget) layoutContent(ctx *core.Context, gtx layout.Context, state 
 	minEditorHeight := 0
 	maxEditorHeight := constraints.Max.Y
 	if g.multiline {
-		lineHeight := max(gtx.Sp(style.editor.LineHeight), 0)
+		lineHeight := max(gtx.Sp(style.lineHeight), 0)
 		contentHeight := inputGroupTextAreaContentHeight(lineHeight, g.textArea.resolvedRows(), constraints.Max.Y)
 		minEditorHeight = max(gtx.Dp(resolvedMinHeight(style.content)), contentHeight+verticalPadding*2)
 		minEditorHeight = min(minEditorHeight, constraints.Max.Y)
@@ -206,21 +204,25 @@ func inputGroupChildY(height, childHeight, top int, alignTop bool) int {
 	return max((height-childHeight)/2, 0)
 }
 
-func recordInputGroupWidget(ctx *core.Context, gtx layout.Context, widget core.Widget, resolved style.ResolvedStyle, actionVisual theme.InputActionVisual, actionSlot bool) recordedInputGroupChild {
+func recordInputGroupWidget(ctx *core.Context, gtx layout.Context, widget core.Widget, resolved style.ResolvedStyle, actionDefaults groupActionDefaults, actionSlot bool) recordedInputGroupChild {
 	if widget == nil {
 		return recordedInputGroupChild{}
+	}
+	// Horizontal slot padding is positioned by the group around this child.
+	if resolved.Box != nil && resolved.Box.Padding != nil {
+		box := *resolved.Box
+		padding := *box.Padding
+		padding.Left, padding.Right = 0, 0
+		box.Padding = &padding
+		resolved.Box = &box
 	}
 	child := widget
 	if actionSlot {
 		if action, ok := widget.(GroupActionWidget); ok {
+			// The group already resolved the theme defaults both action slots
+			// share; the action's own Style still resolves as the last layer.
 			child = core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-				if action.override == nil {
-					return action.layoutWithVisual(ctx, gtx, actionVisual)
-				}
-				// The action owns an instance declaration, so it resolves a
-				// bundle that carries it instead of the group's preview.
-				visual := inputGroupActionVisualCached(ctx, action.key, theme.InputActionRequest{Override: action.override})
-				return action.layoutWithVisual(ctx, gtx, visual)
+				return action.layoutWithDefaults(ctx, gtx, actionDefaults)
 			})
 		}
 	}
@@ -249,4 +251,21 @@ func addRecordedInputGroupChild(gtx layout.Context, child recordedInputGroupChil
 	stack := op.Offset(offset).Push(gtx.Ops)
 	child.call.Add(gtx.Ops)
 	stack.Pop()
+}
+
+func inputGroupTextAreaHeight(gtx layout.Context, resolved style.ResolvedStyle, lineHeight unit.Sp, rows int) unit.Dp {
+	if rows <= 0 || lineHeight <= 0 {
+		return 0
+	}
+	height := gtx.Sp(lineHeight) * rows
+	if resolved.Box != nil {
+		if resolved.Box.Padding != nil {
+			padding := resolved.Box.Padding
+			height += gtx.Dp(padding.Top + padding.Bottom)
+		}
+		if resolved.Box.MinHeight != nil {
+			height = max(height, gtx.Dp(*resolved.Box.MinHeight))
+		}
+	}
+	return gtx.Metric.PxToDp(height)
 }

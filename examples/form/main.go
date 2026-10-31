@@ -5,7 +5,8 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/input"
 	textpkg "github.com/qianniancn/flowui/widget/text"
@@ -40,13 +41,12 @@ func View(ctx *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 		layout.Box(
 			layout.Column(
 				textpkg.New("FlowUI Form").Size(24),
-				layout.Box(
-					input.New(m.Name).Key("name").
-						Hint("Name").
-						OnChange(func(text string) {
-							send(NameChanged{Name: text})
-						}),
-				).Style(style.New().Width(320)),
+				input.New(m.Name).Key("name").
+					Hint("Name").
+					OnChange(func(text string) {
+						send(NameChanged{Name: text})
+					}).
+					Width(320),
 				textpkg.New(greeting).Size(18),
 			).Gap(12),
 		).Style(style.New().Padding(24)),
@@ -57,6 +57,6 @@ func main() {
 	ui.Run(ui.NewProgram(Model{},
 		Update, View), window.Title("FlowUI Form"),
 		window.Size(900, 600),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 }

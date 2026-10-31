@@ -15,7 +15,6 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/menu"
@@ -26,8 +25,8 @@ func TestTitleBarStyleUsesValueSemantics(t *testing.T) {
 	base := New("workspace", "FlowUI", nil)
 	configured := base.Leading(fixedMenu{size: image.Pt(20, 20)}).ShowClose(false)
 	styled := (configured).Style(style.Style{}.Height(40))
-	if styled.override.Declaration.Resolve(style.State{}).Box == nil {
-		t.Fatal("TitleBar style did not stay at the Provider boundary")
+	if styled.style.Resolve(style.State{}).Box == nil {
+		t.Fatal("TitleBar style did not reach the visual recipe")
 	}
 	if base.leading != nil || !base.showClose || configured.leading == nil || configured.showClose {
 		t.Fatal("TitleBar configuration did not preserve value semantics")
@@ -35,13 +34,13 @@ func TestTitleBarStyleUsesValueSemantics(t *testing.T) {
 }
 
 func TestTitleBarLabelPartUsesCommonBoxRenderer(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(300, 100)}, Ops: new(op.Ops)}
-	base := New("base", "FlowUI", nil).resolveStyle(ctx, gtx, "base", false, nil)
-	styledValue := (New("styled", "FlowUI", nil)).Style(style.Style{}.Part(style.PartLabel, style.Style{}.PaddingY(7)))
-	styled := styledValue.resolveStyle(ctx, gtx, "styled", false, styledValue.override)
+	base := New("base", "FlowUI", nil).resolveStyle(ctx, gtx, "base", false)
+	styledValue := (New("styled", "FlowUI", nil)).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7)))
+	styled := styledValue.resolveStyle(ctx, gtx, "styled", false)
 	baseDims := layoutTitle(ctx, gtx, "FlowUI", base.title)
 	gtx.Ops = new(op.Ops)
 	styledDims := layoutTitle(ctx, gtx, "FlowUI", styled.title)
@@ -51,42 +50,42 @@ func TestTitleBarLabelPartUsesCommonBoxRenderer(t *testing.T) {
 }
 
 func TestTitleBarCloseControlIsFlushAndUsesLightHoverGlyph(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(600, 100)}, Ops: new(op.Ops)}
 	bar := New("workspace", "FlowUI", nil)
-	resolved := bar.resolveStyle(ctx, gtx, "workspace", false, nil)
+	resolved := bar.resolveStyle(ctx, gtx, "workspace", false)
 	if resolved.root.Box == nil || resolved.root.Box.Padding == nil {
 		t.Fatal("title bar root padding is missing")
 	}
 	padding := resolved.root.Box.Padding
-	if padding.Left != activeTheme.Components.TitleBar.PaddingX || padding.Right != 0 {
+	if padding.Left != titleBarDefaultPaddingX || padding.Right != 0 {
 		t.Fatalf("title bar horizontal padding = left %v, right %v", padding.Left, padding.Right)
 	}
-	if resolved.leading.Box == nil || resolved.leading.Box.Padding == nil || resolved.leading.Box.Padding.Right != activeTheme.Components.TitleBar.LeadingGap {
+	if resolved.leading.Box == nil || resolved.leading.Box.Padding == nil || resolved.leading.Box.Padding.Right != titleBarDefaultLeadingGap {
 		t.Fatalf("title bar leading style = %#v", resolved.leading.Box)
 	}
 	restoreStyle := core.PushInheritedStyle(ctx, style.TextDeclaration(resolved.root.Text))
 	defer restoreStyle()
 
 	closeHover := computed.ResolvePart(ctx, gtx, "workspace-control", style.PartItem, style.State{Hovered: true},
-		resolved.visual.Defaults, resolved.visual.CloseControlStyle, style.Style{}, resolved.visual.Override)
+		resolved.visual.Defaults, resolved.visual.CloseControlStyle, style.Style{}, style.Style{})
 	if closeHover.Text == nil {
 		t.Fatal("close hover text style is missing")
 	}
-	if got, ok := computed.Color(closeHover.Text.Color); !ok || got != activeTheme.Palette.AccentForeground {
-		t.Fatalf("close hover glyph color = %v, want %v", got, activeTheme.Palette.AccentForeground)
+	if got, ok := computed.Color(closeHover.Text.Color); !ok || got != activeTheme.Colors.Tones[theme.TonePrimary].OnFill {
+		t.Fatalf("close hover glyph color = %v, want %v", got, activeTheme.Colors.Tones[theme.TonePrimary].OnFill)
 	}
-	got, ok := resolved.visual.ForegroundColor(closeHover)
-	if !ok || got != activeTheme.Palette.AccentForeground {
-		t.Fatalf("drawn close hover glyph color = %v, want %v", got, activeTheme.Palette.AccentForeground)
+	got, ok := computed.Color(closeHover.Text.Color)
+	if !ok || got != activeTheme.Colors.Tones[theme.TonePrimary].OnFill {
+		t.Fatalf("drawn close hover glyph color = %v, want %v", got, activeTheme.Colors.Tones[theme.TonePrimary].OnFill)
 	}
 }
 
 func TestTitleBarFillsWidthAndLimitsMoveRegion(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	bar := New("workspace", "main.go - FlowUI", fixedMenu{size: image.Pt(120, 32)})
@@ -114,8 +113,8 @@ func TestTitleBarFillsWidthAndLimitsMoveRegion(t *testing.T) {
 }
 
 func TestTitleBarTracksMaximizedWindowState(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	bar := New("workspace", "FlowUI", nil)
@@ -137,8 +136,8 @@ func TestTitleBarTracksMaximizedWindowState(t *testing.T) {
 }
 
 func TestTitleBarSlotsStayOutsideMoveRegionsAndControlsCanBeHidden(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	bar := New("workspace", "FlowUI", fixedMenu{size: image.Pt(80, 32)}).
@@ -172,8 +171,8 @@ func TestTitleBarSlotsStayOutsideMoveRegionsAndControlsCanBeHidden(t *testing.T)
 }
 
 func TestTitleBarNativeDecorationFallbackOmitsWindowInteractions(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	bar := New("workspace", "FlowUI", fixedMenu{size: image.Pt(80, 32)}).
@@ -206,8 +205,8 @@ func TestTitleBarPlatformModeMatchesSupport(t *testing.T) {
 }
 
 func TestTitleBarCustomHeightAndCloseHandler(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	closeRequests := 0
@@ -231,8 +230,8 @@ func TestTitleBarCustomHeightAndCloseHandler(t *testing.T) {
 }
 
 func TestTitleBarDefaultCloseUsesWindowLifecycle(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	closeRequests := 0
 	core.SetWindowCloseRequest(ctx, func() { closeRequests++ })
@@ -252,8 +251,8 @@ func TestTitleBarDefaultCloseUsesWindowLifecycle(t *testing.T) {
 }
 
 func TestTitleBarPreservesWindowControlsWhenCenterIsWide(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	closeRequests := 0
@@ -274,8 +273,8 @@ func TestTitleBarPreservesWindowControlsWhenCenterIsWide(t *testing.T) {
 }
 
 func TestTitleBarCenterKeepsItsOwnHeight(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	var centerConstraints layout.Constraints
@@ -296,9 +295,8 @@ func TestTitleBarCenterKeepsItsOwnHeight(t *testing.T) {
 }
 
 func TestTitleBarTracksMenubarPopupAfterLeadingContent(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	action := ""
@@ -317,18 +315,18 @@ func TestTitleBarTracksMenubarPopupAfterLeadingContent(t *testing.T) {
 	layoutTitleBarOverlayFrame(ctx, router, bar, now, image.Pt(640, 44))
 	router.Queue(pointer.Event{
 		Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1,
-		Buttons: pointer.ButtonPrimary, Position: f32.Pt(120, 20),
+		Buttons: pointer.ButtonPrimary, Position: f32.Pt(140, 20),
 	})
 	layoutTitleBarOverlayFrame(ctx, router, bar, now.Add(time.Millisecond), image.Pt(640, 44))
 	router.Queue(pointer.Event{
 		Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1,
-		Position: f32.Pt(120, 20),
+		Position: f32.Pt(140, 20),
 	})
 	layoutTitleBarOverlayFrame(ctx, router, bar, now.Add(2*time.Millisecond), image.Pt(640, 44))
 	menuOpenDuration := 150 * time.Millisecond
 	layoutTitleBarOverlayFrame(ctx, router, bar, now.Add(menuOpenDuration+time.Millisecond), image.Pt(640, 44))
 
-	// The leading slot moves the menu to roughly x=116. This point is inside
+	// The leading slot moves the menu to roughly x=124. This point is inside
 	// the correctly anchored popup but outside a popup incorrectly left at x=8.
 	router.Queue(pointer.Event{
 		Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1,
@@ -346,8 +344,8 @@ func TestTitleBarTracksMenubarPopupAfterLeadingContent(t *testing.T) {
 }
 
 func TestTitleBarControlLabelsAndGlyphs(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
-	activeTheme.VisualProvider = testtheme.BehaviorProvider()
+	activeTheme := theme.Light()
+
 	ctx := core.New(nil, &activeTheme, locale.LanguageChinese)
 	if got := controlLabel(ctx, system.ActionMaximize, false); got != "最大化" {
 		t.Fatalf("maximize label = %q", got)

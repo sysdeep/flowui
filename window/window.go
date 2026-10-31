@@ -19,7 +19,7 @@ type Config struct {
 	Native         []app.Option
 	InitialActions system.Action
 	ThemeOps       []func(*theme.Theme)
-	// InitialTheme is the explicitly selected visual provider used before the
+	// InitialTheme is the explicitly selected theme used before the
 	// queued theme operations are applied. ThemeSet distinguishes an explicit
 	// zero-value theme from a missing theme; windows must not silently fall back
 	// to a framework default appearance.

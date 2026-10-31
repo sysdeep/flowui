@@ -11,7 +11,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/theme"
 )
 
@@ -23,7 +22,7 @@ type sliderBenchmarkFrame struct {
 }
 
 func newSliderBenchmarkFrame(maximum image.Point) *sliderBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &sliderBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -86,14 +85,14 @@ func BenchmarkSliderComponentTreeSteadyState(b *testing.B) {
 }
 
 func BenchmarkSliderVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	var cache VisualCache
-	cache.Resolve(active, Horizontal)
+	active := new(theme.Light())
+	var cache sliderDefaultsCache
+	resolveSliderDefaults(&cache, active, Horizontal)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = cache.Resolve(active, Horizontal)
+		_ = resolveSliderDefaults(&cache, active, Horizontal)
 	}
 	b.StopTimer()
 	stats := cache.Stats()
@@ -104,15 +103,15 @@ func BenchmarkSliderVisualCacheHit(b *testing.B) {
 }
 
 func BenchmarkSliderVisualCacheMiss(b *testing.B) {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	b.ReportAllocs()
 	for index := 0; b.Loop(); index++ {
-		var cache VisualCache
+		var cache sliderDefaultsCache
 		orientation := Horizontal
 		if index&1 != 0 {
 			orientation = Vertical
 		}
-		_ = cache.Resolve(active, orientation)
+		_ = resolveSliderDefaults(&cache, active, orientation)
 	}
 	b.StopTimer()
 	b.ReportMetric(0, "slider-visual-cache-hits/op")
@@ -122,18 +121,18 @@ func BenchmarkSliderVisualCacheMiss(b *testing.B) {
 }
 
 func BenchmarkSliderVisualCacheThemeInvalidation(b *testing.B) {
-	active := testtheme.Behavior()
-	replacement := testtheme.Behavior()
-	var cache VisualCache
-	cache.Resolve(active, Horizontal)
+	active := new(theme.Light())
+	replacement := new(theme.Light())
+	var cache sliderDefaultsCache
+	resolveSliderDefaults(&cache, active, Horizontal)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {
 		if index&1 == 0 {
-			_ = cache.Resolve(active, Horizontal)
+			_ = resolveSliderDefaults(&cache, active, Horizontal)
 		} else {
-			_ = cache.Resolve(replacement, Horizontal)
+			_ = resolveSliderDefaults(&cache, replacement, Horizontal)
 		}
 	}
 	b.StopTimer()
@@ -141,4 +140,4 @@ func BenchmarkSliderVisualCacheThemeInvalidation(b *testing.B) {
 	b.ReportMetric(float64(stats.ThemeInvalidations)/float64(b.N), "slider-visual-cache-theme-invalidations/op")
 }
 
-var _ theme.SliderOrientation = Horizontal
+var _ Orientation = Horizontal

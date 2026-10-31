@@ -2,8 +2,6 @@ package linechart
 
 import (
 	"image/color"
-
-	"github.com/qianniancn/flowui/theme"
 )
 
 type chartStyle struct {
@@ -16,18 +14,18 @@ type chartStyle struct {
 	opacity     float32
 }
 
-func lineChartStyleFor(visual theme.LineChartVisual, disabled bool) chartStyle {
+func lineChartStyleFor(defaults lineChartDefaults, disabled bool) chartStyle {
 	opacity := float32(1)
 	if disabled {
-		opacity = visual.DisabledOpacity
+		opacity = defaults.DisabledOpacity
 	}
 	return chartStyle{
-		axis:        visual.Colors.Axis,
-		axisLabel:   visual.Colors.AxisLabel,
-		grid:        visual.Colors.Grid,
-		crosshair:   visual.Colors.Crosshair,
-		background:  visual.Colors.Background,
-		legendHover: visual.Colors.LegendHover,
+		axis:        defaults.Colors.Axis,
+		axisLabel:   defaults.Colors.AxisLabel,
+		grid:        defaults.Colors.Grid,
+		crosshair:   defaults.Colors.Crosshair,
+		background:  defaults.Colors.Background,
+		legendHover: defaults.Colors.LegendHover,
 		opacity:     opacity,
 	}
 }

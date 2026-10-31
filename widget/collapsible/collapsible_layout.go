@@ -13,12 +13,12 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/button"
 	componenttext "github.com/qianniancn/flowui/widget/text"
 )
 
-func layoutItem(ctx *core.Context, gtx layout.Context, state *collapsibleItemState, item Item, expanded, disabled bool, visual theme.CollapsibleVisual) layout.Dimensions {
+func layoutItem(ctx *core.Context, gtx layout.Context, behavior base.DisclosureState, item Item, expanded, disabled bool, visual collapsibleVisual, triggerStyle style.Style) layout.Dimensions {
 	target := float32(0)
 	if expanded {
 		target = 1
@@ -44,7 +44,7 @@ func layoutItem(ctx *core.Context, gtx layout.Context, state *collapsibleItemSta
 		Label(item.Label).
 		Variant(variant).
 		Disabled(disabled).
-		FullWidth()).Style(visual.Trigger)
+		FillWidth()).Style(triggerStyle)
 
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	var triggerDims, contentDims layout.Dimensions
@@ -52,7 +52,9 @@ func layoutItem(ctx *core.Context, gtx layout.Context, state *collapsibleItemSta
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			triggerDims, triggerPlacement = core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
-				return button.LayoutWithClickableNoEvents(trigger, ctx, gtx, &state.clickable)
+				return behavior.LayoutTrigger(ctx, gtx, trigger.Visual(base.ButtonState{
+					Interaction: behavior.Interaction, Key: behavior.Key,
+				}))
 			})
 			return triggerDims
 		}),
@@ -73,7 +75,7 @@ type triggerContent struct {
 	indicatorProgress float32
 	expanded          bool
 	disabled          bool
-	visual            theme.CollapsibleVisual
+	visual            collapsibleVisual
 }
 
 func (c triggerContent) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -116,14 +118,11 @@ func (value collapsibleLabel) Layout(ctx *core.Context, gtx layout.Context) layo
 
 type indicatorWidget struct {
 	progress float32
-	visual   theme.CollapsibleVisual
+	visual   collapsibleVisual
 }
 
 func (w indicatorWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	if w.visual.Indicator == nil {
-		panic("flowui: collapsible visual has no indicator renderer")
-	}
-	return w.visual.Indicator(gtx, theme.CollapsibleIndicatorRequest{
+	return drawCollapsibleIndicator(core.ActiveTheme(ctx), gtx, collapsibleIndicatorRequest{
 		Progress: w.progress,
 		Disabled: !gtx.Enabled(),
 	})

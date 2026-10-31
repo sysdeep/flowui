@@ -16,7 +16,7 @@ import (
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 const colorPickerEnterDuration = 150 * time.Millisecond
@@ -54,7 +54,7 @@ func TestColorPickerHistoryExcludesPresets(t *testing.T) {
 }
 
 func TestColorPickerPointerTriggerFocusIsNotKeyboardVisible(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	picker := New("brand", color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}).Label("Accent color")
 	start := time.Unix(1, 0)
@@ -76,7 +76,7 @@ func TestColorPickerPointerTriggerFocusIsNotKeyboardVisible(t *testing.T) {
 }
 
 func TestColorPickerKeyboardTriggerFocusRemainsVisible(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	picker := New("brand", color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}).Label("Accent color")
 	start := time.Unix(1, 0)
@@ -122,7 +122,7 @@ func TestIndependentColorComponentsUseValueSemantics(t *testing.T) {
 }
 
 func TestColorSwatchUsesStandardSizes(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	now := time.Unix(1, 0)
 	for _, test := range []struct {
@@ -143,7 +143,7 @@ func TestColorSwatchUsesStandardSizes(t *testing.T) {
 }
 
 func TestColorSwatchPickerDispatchesSelection(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	red := color.NRGBA{R: 255, A: 255}
 	blue := color.NRGBA{B: 255, A: 255}
@@ -165,20 +165,20 @@ func TestColorSwatchPickerDispatchesSelection(t *testing.T) {
 	}
 }
 
-func TestColorSwatchReusesStandaloneVisualCache(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+func TestColorSwatchReusesStandaloneDefaultsCache(t *testing.T) {
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	swatch := ColorSwatch(color.NRGBA{R: 42, G: 128, B: 220, A: 255})
 	now := time.Unix(1, 0)
 	layoutColorWidgetFrame(ctx, router, swatch, now)
 	layoutColorWidgetFrame(ctx, router, swatch, now.Add(time.Millisecond))
-	cache, ok := core.PeekState[colorPickerVisualCache](ctx, standaloneColorPickerVisualKey, standaloneColorPickerVisualSlot)
+	cache, ok := core.PeekState[colorSwatchDefaultsCache](ctx, standaloneColorSwatchDefaultsKey, standaloneColorSwatchDefaultsSlot)
 	if !ok {
-		t.Fatal("missing standalone ColorSwatch visual cache")
+		t.Fatal("missing standalone ColorSwatch defaults cache")
 	}
-	stats := cache.cache.Stats()
+	stats := cache.stats()
 	if stats.Misses != 1 || stats.Hits < 1 {
-		t.Fatalf("standalone visual cache stats = %+v, want one miss and a hit", stats)
+		t.Fatalf("standalone defaults cache stats = %+v, want one miss and a hit", stats)
 	}
 }
 
@@ -236,7 +236,7 @@ func TestColorSliderRetainsRightHueEndpoint(t *testing.T) {
 }
 
 func BenchmarkColorPickerChangingColor(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	operations := new(op.Ops)
 	start := time.Unix(1, 0)
@@ -279,7 +279,7 @@ func TestHexColorFormattingAndParsing(t *testing.T) {
 }
 
 func TestColorPickerAreaPointerChangesControlledValue(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	value := color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}
 	initial := value
@@ -302,7 +302,7 @@ func TestColorPickerAreaPointerChangesControlledValue(t *testing.T) {
 
 	router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: f32.Pt(124, 166)})
 	layoutColorPickerFrame(ctx, router, picker(), start.Add(2*time.Millisecond+colorPickerEnterDuration))
-	if !state.open || !areaState.control.dragging {
+	if !state.open || !areaState.control.Dragging {
 		t.Fatal("color picker closed when color area pointer was pressed")
 	}
 
@@ -327,7 +327,10 @@ func TestColorPickerAreaPointerChangesControlledValue(t *testing.T) {
 		t.Fatal("color picker closed when color area pointer was released")
 	}
 
-	state.dismiss[0].Click()
+	router.Queue(
+		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 3, Buttons: pointer.ButtonPrimary, Position: f32.Pt(390, 490)},
+		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 3, Position: f32.Pt(390, 490)},
+	)
 	layoutColorPickerFrame(ctx, router, picker(), start.Add(6*time.Millisecond+colorPickerEnterDuration))
 	if state.open {
 		t.Fatal("outside click did not close color picker")
@@ -335,7 +338,7 @@ func TestColorPickerAreaPointerChangesControlledValue(t *testing.T) {
 }
 
 func TestColorPickerHueKeyboardAndEscape(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	initial := color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}
 	var changed color.NRGBA
@@ -370,7 +373,7 @@ func TestColorPickerHueKeyboardAndEscape(t *testing.T) {
 }
 
 func TestColorPickerOutsideDismissCommitsHistoryOnce(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	initial := color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}
 	picker := New("brand", initial).HistorySize(4)
@@ -381,7 +384,10 @@ func TestColorPickerOutsideDismissCommitsHistoryOnce(t *testing.T) {
 	state.trigger.Click()
 	layoutColorPickerFrame(ctx, router, picker, start.Add(time.Millisecond))
 	layoutColorPickerFrame(ctx, router, picker, start.Add(time.Millisecond+colorPickerEnterDuration))
-	state.dismiss[0].Click()
+	router.Queue(
+		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 3, Buttons: pointer.ButtonPrimary, Position: f32.Pt(390, 490)},
+		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 3, Position: f32.Pt(390, 490)},
+	)
 	layoutColorPickerFrame(ctx, router, picker, start.Add(2*time.Millisecond+colorPickerEnterDuration))
 
 	if state.open {
@@ -400,7 +406,7 @@ func TestColorPickerOutsideDismissCommitsHistoryOnce(t *testing.T) {
 
 func TestColorPickerAlphaSliderKeyboardAndDisabledPicker(t *testing.T) {
 	initial := color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 93}
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	value := initial
 	var changed color.NRGBA
@@ -436,7 +442,7 @@ func TestColorPickerAlphaSliderKeyboardAndDisabledPicker(t *testing.T) {
 		t.Fatalf("alpha Home value = %#v, want alpha 0", changed)
 	}
 
-	disabledCtx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	disabledCtx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	disabledRouter := new(input.Router)
 	disabled := New("disabled", initial).Disabled(true)
 	layoutColorPickerFrame(disabledCtx, disabledRouter, disabled, start)
@@ -486,7 +492,7 @@ func TestColorPickerHexFieldCommitsValidValuesAndRejectsInvalidInput(t *testing.
 						value = next
 					})
 			}
-			ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 			router := new(input.Router)
 			start := time.Unix(1, 0)
 			layoutColorPickerFrame(ctx, router, picker(), start)
@@ -542,7 +548,7 @@ func TestColorPickerRGBFieldsCommitChannelsAndRejectInvalidInput(t *testing.T) {
 						value = next
 					})
 			}
-			ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 			router := new(input.Router)
 			start := time.Unix(1, 0)
 			layoutColorPickerFrame(ctx, router, picker(), start)
@@ -571,7 +577,7 @@ func TestColorPickerRGBFieldsCommitChannelsAndRejectInvalidInput(t *testing.T) {
 		})
 	}
 
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	start := time.Unix(1, 0)
 	picker := New("rgb-only", color.NRGBA{R: 1, G: 2, B: 3, A: 4}).ShowRGB(true)
@@ -612,7 +618,7 @@ func TestColorPickerPresetSelectionHonorsDisabledAndCurrentItems(t *testing.T) {
 						value = next
 					})
 			}
-			ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 			router := new(input.Router)
 			start := time.Unix(1, 0)
 			layoutColorPickerFrame(ctx, router, picker(), start)
@@ -667,7 +673,7 @@ func TestColorSwatchPickerDisabledAndCurrentItemsDoNotDispatch(t *testing.T) {
 					callbacks++
 					value = next
 				})
-			ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 			router := new(input.Router)
 			layoutColorWidgetFrame(ctx, router, picker, time.Unix(1, 0))
 			state, ok := core.PeekState[colorSwatchPickerState](ctx, "palette", stateSlotColorSwatchPicker)
@@ -728,7 +734,7 @@ func TestColorPickerControlledAndUncontrolledValuesPersistAcrossFrames(t *testin
 				}
 				return result
 			}
-			ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 			router := new(input.Router)
 			start := time.Unix(1, 0)
 			layoutColorPickerFrame(ctx, router, frame(), start)
@@ -807,7 +813,7 @@ func TestColorPickerHistoryTracksDiscreteCommitsOnly(t *testing.T) {
 			Presets([]color.NRGBA{preset}).
 			OnChange(func(next color.NRGBA) { value = next })
 	}
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	start := time.Unix(1, 0)
 	layoutColorPickerFrame(ctx, router, picker(), start)
@@ -824,7 +830,7 @@ func TestColorPickerHistoryTracksDiscreteCommitsOnly(t *testing.T) {
 	layoutColorPickerFrame(ctx, router, picker(), start.Add(3*time.Millisecond+colorPickerEnterDuration))
 	router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(164, 126)})
 	layoutColorPickerFrame(ctx, router, picker(), start.Add(4*time.Millisecond+colorPickerEnterDuration))
-	if !areaState.control.dragging && len(state.history) != 0 {
+	if !areaState.control.Dragging && len(state.history) != 0 {
 		t.Fatalf("area drag history = %#v, want no continuous commit", state.history)
 	}
 

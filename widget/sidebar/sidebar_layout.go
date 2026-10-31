@@ -12,24 +12,80 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/animation"
 	"github.com/qianniancn/flowui/i18n"
+	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/dropdown"
-
+	"github.com/qianniancn/flowui/widget/internal/textrender"
+	"github.com/qianniancn/flowui/widget/menu"
 	"github.com/qianniancn/flowui/widget/tooltip"
 )
 
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, state *sidebarState, entries []entry, visual theme.SidebarVisual) layout.Dimensions {
-	tokens := visual.Metrics
-	padding := tokens.Padding
-	expandedWidth := tokens.Width
-	collapsedWidth := tokens.CollapsedWidth
+// sidebarResolved is one layout pass's theme defaults plus the resolved root and
+// static label layers. It carries no renderer indirection.
+type sidebarResolved struct {
+	defaults     sidebarDefaults
+	root         style.ResolvedStyle
+	emptyLabel   style.ResolvedStyle
+	sectionLabel style.ResolvedStyle
+	foreground   color.NRGBA
+	background   color.NRGBA
+	styleKey     string
+}
+
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, state *sidebarState, entries []entry) layout.Dimensions {
+	active := core.ActiveTheme(ctx)
+	defaults := state.defaults.resolve(active, w.metrics(active))
+	styleKey := core.FullKey(ctx, w.key)
+	root := computed.Resolve(
+		ctx,
+		gtx,
+		styleKey,
+		style.State{Disabled: w.disabled},
+		defaults.style,
+		style.Style{},
+		style.Style{},
+		w.style,
+	)
+	sem := active.Semantic()
+	resolved := sidebarResolved{
+		defaults:   defaults,
+		root:       root,
+		foreground: textrender.ColorOr(root, sem.SurfaceForeground),
+		background: sidebarBackground(root, sem.Surface),
+		styleKey:   styleKey,
+	}
+	muted := style.New().TextColor(style.Solid(sem.MutedForeground))
+	resolved.emptyLabel = computed.ResolvePartStatic(
+		ctx,
+		style.PartLabel,
+		style.State{},
+		defaults.style,
+		style.Join(muted, style.New().FontSize(defaults.metrics.ItemTextSize)),
+		style.Style{},
+		w.style,
+	)
+	resolved.sectionLabel = computed.ResolvePartStatic(
+		ctx,
+		style.PartLabel,
+		style.State{},
+		defaults.style,
+		style.Join(muted, style.New().FontSize(defaults.metrics.SectionTextSize)),
+		style.Style{},
+		w.style,
+	)
+
+	metrics := defaults.metrics
+	padding := metrics.Padding
+	expandedWidth := metrics.Width
+	collapsedWidth := metrics.CollapsedWidth
 	target := float32(1)
-	easing := animation.EasingFor(visual.ExpansionEasing)
+	easing := animation.EasingFor(defaults.expansionEasing)
 	if w.collapsed {
 		target = 0
-		easing = animation.EasingFor(visual.CollapseEasing)
+		easing = animation.EasingFor(defaults.collapseEasing)
 	}
 	expansion := animation.Tween("expansion", target).
 		Easing(easing).
@@ -47,7 +103,7 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, state *sidebarStat
 	macro := op.Record(rootGtx.Ops)
 	var content layout.Dimensions
 	func() {
-		restore := core.PushColors(ctx, visual.Foreground, visual.Background)
+		restore := core.PushColors(ctx, resolved.foreground, resolved.background)
 		defer restore()
 		content = layoutui.TrackedInset(ctx, rootGtx, layout.UniformInset(padding), func(gtx layout.Context) layout.Dimensions {
 			children := make([]core.Widget, 0, 3)
@@ -55,67 +111,64 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, state *sidebarStat
 				children = append(children, sidebarTransitionContent(w.header, w.targetContentOpacity(expansion), w.expandedLayoutWidth(expandedContentWidth)))
 			}
 			children = append(children, layoutui.Expanded(core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-				return w.layoutEntries(ctx, gtx, state, entries, expansion, visual)
+				return w.layoutEntries(ctx, gtx, state, entries, expansion, resolved)
 			})))
 			if w.footer != nil {
 				children = append(children, sidebarTransitionContent(w.footer, w.targetContentOpacity(expansion), w.expandedLayoutWidth(expandedContentWidth)))
 			}
-			return layoutui.TrackedFlex(ctx, gtx, layout.Vertical, tokens.ContentGap, layout.Start, children...)
+			return layoutui.TrackedFlex(ctx, gtx, layout.Vertical, metrics.ContentGap, layout.Start, children...)
 		})
 	}()
 	call := macro.Stop()
 
-	if visual.Root != nil {
-		visual.Root(rootGtx, size)
-	}
+	drawSidebarRoot(rootGtx, size, active, root)
 	area := clip.Rect{Max: size}.Push(rootGtx.Ops)
 	call.Add(rootGtx.Ops)
 	area.Pop()
 	return layout.Dimensions{Size: size, Baseline: content.Baseline}
 }
 
-func (w Widget) layoutEntries(ctx *core.Context, gtx layout.Context, state *sidebarState, entries []entry, expansion float32, visual theme.SidebarVisual) layout.Dimensions {
+func (w Widget) layoutEntries(ctx *core.Context, gtx layout.Context, state *sidebarState, entries []entry, expansion float32, resolved sidebarResolved) layout.Dimensions {
+	metrics := resolved.defaults.metrics
 	if len(entries) == 0 {
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			if visual.Text == nil {
-				return layout.Dimensions{}
-			}
-			return visual.Text(gtx, theme.SidebarTextRequest{Text: w.resolvedEmptyText(ctx), Size: visual.Metrics.ItemTextSize, Color: visual.MutedForeground})
+			return textrender.Label(core.ActiveTheme(ctx), gtx, w.resolvedEmptyText(ctx), resolved.emptyLabel, metrics.ItemTextSize)
 		})
 	}
-	tokens := visual.Metrics
 	state.list.Axis = layout.Vertical
-	state.list.Gap = gtx.Dp(tokens.ItemGap)
+	state.list.Gap = gtx.Dp(metrics.ItemGap)
 	state.list.Alignment = layout.Start
 	state.list.ScrollToEnd = false
 	state.list.ScrollAnyAxis = false
 	return layoutui.TrackedScrollbarWithVisualOutset(ctx, gtx, &state.list, &state.bar, &state.visualOutset, len(entries), w.disabled, true, func(gtx layout.Context, index int) layout.Dimensions {
 		entry := &entries[index]
 		if entry.section {
-			return w.layoutSection(ctx, gtx, entry.title, expansion, visual)
+			return w.layoutSection(ctx, gtx, entry.title, expansion, resolved)
 		}
-		return w.layoutItem(ctx, gtx, state, state.item(entry.item.Key), entry, expansion, visual)
+		return w.layoutItem(ctx, gtx, state, state.item(entry.item.Key), entry, expansion, resolved)
 	})
 }
 
-func (w Widget) layoutSection(ctx *core.Context, gtx layout.Context, title string, expansion float32, visual theme.SidebarVisual) layout.Dimensions {
-	tokens := visual.Metrics
-	height := min(gtx.Dp(tokens.SectionHeight), gtx.Constraints.Max.Y)
+func (w Widget) layoutSection(ctx *core.Context, gtx layout.Context, title string, expansion float32, resolved sidebarResolved) layout.Dimensions {
+	metrics := resolved.defaults.metrics
+	height := min(gtx.Dp(metrics.SectionHeight), gtx.Constraints.Max.Y)
 	sectionGtx := gtx
 	sectionGtx.Constraints.Min.Y = height
 	sectionGtx.Constraints.Max.Y = height
 	fade := paint.PushOpacity(gtx.Ops, w.targetContentOpacity(expansion))
 	defer fade.Pop()
 	if w.collapsed {
-		if visual.Section == nil {
-			return layout.Dimensions{}
-		}
-		return visual.Section(sectionGtx, theme.SidebarSectionRequest{Collapsed: true})
+		return layout.Center.Layout(sectionGtx, func(gtx layout.Context) layout.Dimensions {
+			width := max(gtx.Constraints.Max.X-gtx.Dp(metrics.SectionSeparatorInset)*2, 0)
+			lineHeight := max(gtx.Dp(metrics.BorderWidth), 1)
+			rect := image.Rect(0, 0, width, lineHeight)
+			paint.FillShape(gtx.Ops, core.ActiveTheme(ctx).Semantic().Border, clip.Rect(rect).Op())
+			return layout.Dimensions{Size: rect.Size()}
+		})
 	}
-	if visual.Section == nil {
-		return layout.Dimensions{}
-	}
-	return visual.Section(sectionGtx, theme.SidebarSectionRequest{Title: title})
+	return layout.W.Layout(sectionGtx, func(gtx layout.Context) layout.Dimensions {
+		return textrender.Label(core.ActiveTheme(ctx), gtx, title, resolved.sectionLabel, metrics.SectionTextSize)
+	})
 }
 
 func (w Widget) targetContentOpacity(expansion float32) float32 {
@@ -144,58 +197,88 @@ func sidebarTransitionContent(child core.Widget, opacity float32, width int) cor
 	})
 }
 
-func (w Widget) layoutItem(ctx *core.Context, gtx layout.Context, sidebarState *sidebarState, itemState *sidebarItemState, entry *entry, expansion float32, visual theme.SidebarVisual) layout.Dimensions {
+// resolveItem resolves one item's surface, label, and default switcher glyph.
+// The item part supplies the text color, which is inherited by the label and
+// glyph parts so an item-level declaration reaches all of them. The instance
+// style is the last layer in both cascades.
+func (w Widget) resolveItem(
+	ctx *core.Context,
+	gtx layout.Context,
+	resolved sidebarResolved,
+	key string,
+	state style.State,
+) (item, label, icon style.ResolvedStyle) {
+	itemKey := core.DerivedKey(ctx, resolved.styleKey, "item:"+key)
+	item = computed.ResolvePart(
+		ctx,
+		gtx,
+		itemKey,
+		style.PartItem,
+		state,
+		resolved.defaults.style,
+		style.Style{},
+		style.Style{},
+		w.style,
+	)
+	var parts [2]style.ResolvedStyle
+	computed.ResolvePartsInto(
+		ctx,
+		gtx,
+		itemKey,
+		state,
+		sidebarContentParts[:],
+		parts[:],
+		resolved.defaults.style,
+		style.TextDeclaration(item.Text),
+		style.Style{},
+		w.style,
+	)
+	return item, parts[0], parts[1]
+}
+
+func (w Widget) layoutItem(ctx *core.Context, gtx layout.Context, sidebarState *sidebarState, itemState *sidebarItemState, entry *entry, expansion float32, resolved sidebarResolved) layout.Dimensions {
 	item := entry.item
-	tokens := visual.Metrics
+	metrics := resolved.defaults.metrics
 	disabled := w.itemDisabled(item)
-	if gtx.Focused(&itemState.clickable) {
-		sidebarState.focusedKey = item.Key
-	}
-	if !disabled {
-		for itemState.clickable.Clicked(gtx) {
-			if len(item.Children) > 0 && !w.collapsed {
-				w.requestOpen(item.Key, !entry.expanded)
-			} else {
-				w.activate(item.Key)
-			}
+	interaction := base.RowInteraction(ctx, gtx, &itemState.clickable, disabled, func() {
+		if len(item.Children) > 0 && !w.collapsed {
+			w.requestOpen(item.Key, !entry.expanded)
+		} else {
+			w.activate(item.Key)
 		}
-	}
-	itemHeight := tokens.ItemHeight
+	})
+	disabled = interaction.Disabled
+	itemHeight := metrics.ItemHeight
 	height := min(max(gtx.Dp(itemHeight), gtx.Constraints.Min.Y), gtx.Constraints.Max.Y)
 	size := image.Pt(gtx.Constraints.Max.X, height)
 	itemGtx := gtx
 	itemGtx.Constraints = layout.Exact(size)
-	presses := core.ActivePresses(itemState.clickable.History())
-	if !disabled {
-		core.FocusOnPress(ctx, &itemState.clickable, itemState.clickable.History(), presses)
-	}
 	selected := item.Key == w.selectedKey
-	hovered := itemState.clickable.Hovered() && !disabled
-	itemVisual := theme.SidebarItemVisual{}
-	focusVisible := core.FocusVisible(ctx, &itemState.clickable, itemGtx.Focused(&itemState.clickable))
-	if visual.Item != nil {
-		itemVisual = sidebarState.sidebarItemVisualFor(ctx, visual, theme.SidebarItemRequest{
-			Selected: selected, Hovered: hovered,
-			Pressed: itemState.clickable.Pressed() && !disabled,
-			Focused: focusVisible, Disabled: disabled,
-		})
-	}
-	if w.collapsed || w.expandAction != ExpandActionHover || len(item.Children) == 0 || !hovered || entry.expanded {
+	focusVisible := interaction.FocusVisible
+	itemVisual, labelVisual, iconVisual := w.resolveItem(ctx, gtx, resolved, item.Key, style.State{
+		Hovered:      interaction.Hovered,
+		Pressed:      interaction.Pressed,
+		Focused:      interaction.Focused,
+		FocusVisible: focusVisible,
+		Disabled:     disabled,
+		Selected:     selected,
+	})
+	if w.collapsed || w.expandAction != ExpandActionHover || len(item.Children) == 0 || !interaction.Hovered || entry.expanded {
 		itemState.hoverOpenRequested = false
 	} else if !itemState.hoverOpenRequested {
 		itemState.hoverOpenRequested = true
 		w.requestOpen(item.Key, true)
 	}
-	focus := itemState.focus.Opacity(gtx, focusVisible && !disabled, visual.Motion)
+	focus := itemState.focus.Opacity(gtx, focusVisible && !disabled, resolved.defaults.motion)
 	if w.collapsed && len(item.Children) > 0 {
-		return w.layoutCollapsedSubmenu(ctx, itemGtx, entry, itemVisual, selected, disabled, focus, visual)
+		return w.layoutCollapsedSubmenu(ctx, itemGtx, entry, itemVisual, labelVisual, iconVisual, selected, disabled, focus, resolved)
 	}
 
 	if !w.collapsed || expansion > 0 || item.Label == "" {
-		return w.layoutItemTrigger(ctx, itemGtx, size, itemState, entry, itemVisual, selected, disabled, focus, expansion, visual)
+		return w.layoutItemTrigger(ctx, itemGtx, size, itemState, entry, itemVisual, labelVisual, iconVisual, selected, disabled, focus, expansion, resolved)
 	}
 	trigger := core.WidgetFunc(func(ctx *core.Context, triggerGtx layout.Context) layout.Dimensions {
-		return w.layoutItemTrigger(ctx, triggerGtx, size, itemState, entry, itemVisual, selected, disabled, focus, expansion, visual)
+		return w.layoutItemTrigger(ctx, triggerGtx, size, itemState, entry, itemVisual, labelVisual, iconVisual, selected, disabled, focus, expansion, resolved)
 	})
 	return tooltip.New("sidebar-item-label:"+item.Key, trigger, item.Label).
 		Placement(core.PopoverRight).
@@ -203,17 +286,17 @@ func (w Widget) layoutItem(ctx *core.Context, gtx layout.Context, sidebarState *
 		Layout(ctx, itemGtx)
 }
 
-func (w Widget) layoutItemTrigger(ctx *core.Context, gtx layout.Context, size image.Point, itemState *sidebarItemState, entry *entry, itemVisual theme.SidebarItemVisual, selected, disabled bool, focus, expansion float32, visual theme.SidebarVisual) layout.Dimensions {
+func (w Widget) layoutItemTrigger(ctx *core.Context, gtx layout.Context, size image.Point, itemState *sidebarItemState, entry *entry, itemVisual, labelVisual, iconVisual style.ResolvedStyle, selected, disabled bool, focus, expansion float32, resolved sidebarResolved) layout.Dimensions {
 	gtx.Constraints = layout.Exact(size)
 	if disabled {
 		gtx = gtx.Disabled()
 	}
 	return itemState.clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return w.layoutItemSurface(ctx, gtx, entry, itemVisual, selected, !disabled, focus, expansion, visual)
+		return w.layoutItemSurface(ctx, gtx, entry, itemVisual, labelVisual, iconVisual, selected, !disabled, focus, expansion, resolved)
 	})
 }
 
-func (w Widget) layoutItemSurface(ctx *core.Context, gtx layout.Context, entry *entry, itemVisual theme.SidebarItemVisual, selected, enabled bool, focus, expansion float32, visual theme.SidebarVisual) layout.Dimensions {
+func (w Widget) layoutItemSurface(ctx *core.Context, gtx layout.Context, entry *entry, itemVisual, labelVisual, iconVisual style.ResolvedStyle, selected, enabled bool, focus, expansion float32, resolved sidebarResolved) layout.Dimensions {
 	item := entry.item
 	semantic.Button.Add(gtx.Ops)
 	semantic.LabelOp(item.Label).Add(gtx.Ops)
@@ -224,27 +307,27 @@ func (w Widget) layoutItemSurface(ctx *core.Context, gtx layout.Context, entry *
 	}
 
 	size := gtx.Constraints.Min
+	foreground := textrender.ColorOr(labelVisual, resolved.foreground)
+	background := sidebarBackground(itemVisual, color.NRGBA{})
 	macro := op.Record(gtx.Ops)
 	var contentDims layout.Dimensions
 	var contentPlacement core.OverlayPlacement
 	func() {
-		restore := core.PushColors(ctx, itemVisual.Foreground, itemVisual.Background)
+		restore := core.PushColors(ctx, foreground, background)
 		defer restore()
 		contentGtx := gtx
 		contentGtx.Constraints.Min = image.Pt(size.X, 0)
 		contentGtx.Constraints.Max = size
 		contentDims, contentPlacement = core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
-			return w.layoutItemContent(ctx, contentGtx, entry, itemVisual.Foreground, expansion, visual)
+			return w.layoutItemContent(ctx, contentGtx, entry, foreground, labelVisual, iconVisual, expansion, resolved)
 		})
 	}()
 	content := macro.Stop()
 	contentOffset := image.Pt(0, max((size.Y-contentDims.Size.Y)/2, 0))
 	contentPlacement.PlaceOffset(contentOffset)
 
-	opacity := paint.PushOpacity(gtx.Ops, itemVisual.Opacity)
-	if visual.RenderItem != nil {
-		visual.RenderItem(gtx, size, itemVisual, focus)
-	}
+	opacity := paint.PushOpacity(gtx.Ops, sidebarOpacity(itemVisual, 1))
+	drawSidebarItem(gtx, size, itemVisual, focus, resolved.defaults.metrics.ItemRadius)
 	offset := op.Offset(contentOffset).Push(gtx.Ops)
 	content.Add(gtx.Ops)
 	offset.Pop()
@@ -259,19 +342,19 @@ func sidebarGroupDescription(ctx *core.Context, expanded bool) string {
 	return ctx.Text(i18n.SidebarGroupExpand)
 }
 
-func (w Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, entry *entry, foreground color.NRGBA, expansion float32, visual theme.SidebarVisual) layout.Dimensions {
+func (w Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, entry *entry, foreground color.NRGBA, labelVisual, iconVisual style.ResolvedStyle, expansion float32, resolved sidebarResolved) layout.Dimensions {
 	item := entry.item
-	tokens := visual.Metrics
+	metrics := resolved.defaults.metrics
 	width := gtx.Constraints.Max.X
-	itemPadding := tokens.ItemPaddingX
+	itemPadding := metrics.ItemPaddingX
 	padding := gtx.Dp(itemPadding)
-	gap := gtx.Dp(tokens.ItemContentGap)
-	outerPadding := tokens.Padding
-	collapsedWidth := tokens.CollapsedWidth
+	gap := gtx.Dp(metrics.ItemContentGap)
+	outerPadding := metrics.Padding
+	collapsedWidth := metrics.CollapsedWidth
 	collapsedContentWidth := min(max(gtx.Dp(collapsedWidth)-gtx.Dp(outerPadding)*2, 0), width)
 	indent := 0
 	if !w.collapsed {
-		indent = gtx.Dp(tokens.InlineIndent) * entry.depth
+		indent = gtx.Dp(metrics.InlineIndent) * entry.depth
 	}
 	contentWidth := max(width-indent, 0)
 	childGtx := gtx
@@ -280,14 +363,14 @@ func (w Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, entry *
 
 	var switcher sidebarContent
 	if !w.collapsed && len(item.Children) > 0 {
-		switcher = recordSidebarContent(ctx, childGtx, sidebarItemSwitcher(item, entry.expanded, foreground, tokens.SwitcherSize, visual.Switcher))
+		switcher = recordSidebarContent(ctx, childGtx, sidebarItemSwitcher(item, entry.expanded, foreground, iconVisual, metrics.SwitcherSize))
 	}
 
 	var leading, initial sidebarContent
 	if item.Leading != nil {
 		leading = recordSidebarContent(ctx, childGtx, item.Leading)
 	} else if expansion < 1 {
-		initial = recordSidebarLabel(ctx, childGtx, item.Label, foreground, tokens.ItemTextSize, true, visual.Text)
+		initial = recordSidebarLabel(ctx, childGtx, item.Label, labelVisual, metrics.ItemTextSize, true)
 	}
 
 	var trailing sidebarContent
@@ -319,7 +402,7 @@ func (w Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, entry *
 			labelRight -= gap
 		}
 		labelGtx.Constraints.Max.X = max(labelRight-labelX, 0)
-		label = recordSidebarLabel(ctx, labelGtx, item.Label, foreground, tokens.ItemTextSize, false, visual.Text)
+		label = recordSidebarLabel(ctx, labelGtx, item.Label, labelVisual, metrics.ItemTextSize, false)
 	}
 
 	height := max(leading.dims.Size.Y, initial.dims.Size.Y, label.dims.Size.Y, trailing.dims.Size.Y, switcher.dims.Size.Y)
@@ -338,23 +421,26 @@ func (w Widget) layoutItemContent(ctx *core.Context, gtx layout.Context, entry *
 	return layout.Dimensions{Size: image.Pt(width, height)}
 }
 
-func (w Widget) layoutCollapsedSubmenu(ctx *core.Context, gtx layout.Context, entry *entry, itemVisual theme.SidebarItemVisual, selected, disabled bool, focus float32, visual theme.SidebarVisual) layout.Dimensions {
+func (w Widget) layoutCollapsedSubmenu(ctx *core.Context, gtx layout.Context, entry *entry, itemVisual, labelVisual, iconVisual style.ResolvedStyle, selected, disabled bool, focus float32, resolved sidebarResolved) layout.Dimensions {
 	trigger := core.WidgetFunc(func(ctx *core.Context, triggerGtx layout.Context) layout.Dimensions {
-		return w.layoutItemSurface(ctx, triggerGtx, entry, itemVisual, selected, !disabled, focus, 0, visual)
+		return w.layoutItemSurface(ctx, triggerGtx, entry, itemVisual, labelVisual, iconVisual, selected, !disabled, focus, 0, resolved)
 	})
-	popup := dropdown.New("sidebar-submenu:"+entry.item.Key, trigger, w.sidebarDropdownItems(entry.item.Children)).
+	menuKey := "sidebar-submenu:" + entry.item.Key + ":menu"
+	menuWidget := menu.New(menuKey, w.sidebarDropdownItems(entry.item.Children)).
+		AutoWidth().
+		SelectionMode(menu.SelectionSingle).
+		SelectedKey(w.selectedKey).
+		OnActionEvent(func(event menu.ActionEvent) { w.activate(event.Key) })
+	if w.hasDataVersion {
+		menuWidget = menuWidget.DataVersion(w.dataVersion)
+	}
+	popup := dropdown.New("sidebar-submenu:"+entry.item.Key, trigger, nil).
+		Menu(menuWidget).
 		Placement(core.PopoverRightStart).
 		// A collapsed navigation item opens its flyout on hover. ExpandAction
 		// only controls inline groups while the sidebar is expanded.
 		TriggerMode(dropdown.TriggerHover).
-		AutoWidth().
-		SelectionMode(dropdown.SelectionSingle).
-		SelectedKey(w.selectedKey).
-		Disabled(disabled || w.disabled).
-		OnActionEvent(func(event dropdown.ActionEvent) { w.activate(event.Key) })
-	if w.hasDataVersion {
-		popup = popup.DataVersion(w.dataVersion)
-	}
+		Disabled(disabled || w.disabled)
 	return popup.Layout(ctx, gtx)
 }
 
@@ -373,7 +459,7 @@ func (w Widget) sidebarDropdownItems(items []Item) []dropdown.Item {
 	return result
 }
 
-func sidebarItemSwitcher(item Item, expanded bool, foreground color.NRGBA, size unit.Dp, render theme.SidebarSwitcherRenderer) core.Widget {
+func sidebarItemSwitcher(item Item, expanded bool, foreground color.NRGBA, iconVisual style.ResolvedStyle, fallbackSize unit.Dp) core.Widget {
 	value := item.Switcher
 	if expanded && item.ExpandedSwitcher != nil {
 		value = item.ExpandedSwitcher
@@ -381,12 +467,10 @@ func sidebarItemSwitcher(item Item, expanded bool, foreground color.NRGBA, size 
 	if value != nil {
 		return value
 	}
-	if render == nil {
-		panic(theme.ErrIncompleteVisualProvider)
-	}
-	request := theme.SidebarSwitcherRequest{Expanded: expanded, Foreground: foreground, Size: size}
+	color := textrender.ColorOr(iconVisual, foreground)
+	size := sidebarIconSize(iconVisual, fallbackSize)
 	return core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
-		return render(gtx, request)
+		return layoutSidebarSwitcher(gtx, expanded, color, size)
 	})
 }
 
@@ -420,11 +504,15 @@ func drawSidebarContent(gtx layout.Context, content sidebarContent, position ima
 
 // recordSidebarLabel records plain text directly. Labels cannot register
 // overlays, so a placement transform would only add per-item work.
-func recordSidebarLabel(ctx *core.Context, gtx layout.Context, label string, foreground color.NRGBA, size unit.Sp, initial bool, render theme.SidebarTextRenderer) sidebarContent {
-	if render == nil {
-		return sidebarContent{}
+func recordSidebarLabel(ctx *core.Context, gtx layout.Context, label string, part style.ResolvedStyle, size unit.Sp, initial bool) sidebarContent {
+	value := label
+	if initial {
+		for _, runeValue := range value {
+			value = string(runeValue)
+			break
+		}
 	}
 	macro := op.Record(gtx.Ops)
-	dims := render(gtx, theme.SidebarTextRequest{Text: label, Color: foreground, Size: size, Initial: initial})
+	dims := textrender.Label(core.ActiveTheme(ctx), gtx, value, part, size)
 	return sidebarContent{call: macro.Stop(), dims: dims}
 }

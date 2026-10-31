@@ -10,7 +10,8 @@ import (
 	"fmt"
 
 	"github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme/base"
+
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/alertdialog"
 	"github.com/qianniancn/flowui/widget/button"
@@ -113,7 +114,7 @@ func main() {
 
 	application = ui.NewApplication()
 	application.Run(ui.NewWindow("main", program,
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 		window.Title("FlowUI Close Guard"),
 		window.Size(720, 480),
 	))

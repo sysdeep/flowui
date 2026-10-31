@@ -4,23 +4,11 @@ import (
 	"gioui.org/layout"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
-)
-
-// Status identifies the semantic tone of an alert.
-type Status = theme.AlertStatus
-
-const (
-	Default = theme.AlertDefault
-	Accent  = theme.AlertAccent
-	Success = theme.AlertSuccess
-	Warning = theme.AlertWarning
-	Danger  = theme.AlertDanger
 )
 
 // Widget presents persistent, in-page feedback without interrupting the user.
 type Widget struct {
-	override    *theme.AlertOverride
+	style       style.Style
 	key         string
 	title       string
 	description string
@@ -78,16 +66,13 @@ func (a Widget) Action(action core.Widget) Widget {
 }
 
 func (a Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return a.layoutWithOverride(ctx, gtx, a.override)
+	return a.layoutWithStyle(ctx, gtx)
 }
 
-// Style merges instance declarations into the alert. The declaration reaches
-// the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the alert. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (a Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if a.override == nil {
-		a.override = &theme.AlertOverride{}
-	}
-	a.override.Declaration = style.Join(a.override.Declaration, declaration)
+	a.style = style.Join(a.style, style.Join(values...))
 	return a
 }

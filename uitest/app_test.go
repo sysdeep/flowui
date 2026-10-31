@@ -76,6 +76,45 @@ func TestAppHarnessDrivesInitUpdateAndCommands(t *testing.T) {
 	}
 }
 
+func TestAppHarnessLatestMappedBatchUsesUpdateOrder(t *testing.T) {
+	type message struct {
+		request bool
+		value   int
+	}
+	release := make(chan struct{})
+	oldDone := make(chan struct{})
+	newDone := make(chan struct{})
+	h := uitest.NewApp(0, func(model *int, msg message) ui.Cmd[message] {
+		if !msg.request {
+			*model = msg.value
+			return nil
+		}
+		cmd := ui.MapCmd(ui.LatestCmd("search", func(_ context.Context, send ui.Send[int]) error {
+			send(msg.value)
+			return nil
+		}), func(value int) message { return message{value: value} })
+		return ui.Batch(func(ctx context.Context, send ui.Send[message]) error {
+			if msg.value == 1 {
+				<-release
+				defer close(oldDone)
+			} else {
+				defer close(newDone)
+			}
+			return cmd(ctx, send)
+		}, func(context.Context, ui.Send[message]) error { return nil })
+	})
+	t.Cleanup(func() { _ = h.Close() })
+	h.Send(message{request: true, value: 1})
+	h.Send(message{request: true, value: 2})
+	h.Frame()
+	waitTestValue(t, newDone)
+	close(release)
+	waitTestValue(t, oldDone)
+	if got := h.Frame(); got != 2 {
+		t.Fatalf("latest result=%d, want 2", got)
+	}
+}
+
 func TestAppHarnessReportsEffectErrorsAndCancelsOnClose(t *testing.T) {
 	type message struct{ fail bool }
 	want := errors.New("failed")

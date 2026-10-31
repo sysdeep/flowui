@@ -10,8 +10,8 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type badgeProbe struct {
@@ -28,7 +28,7 @@ func (p *badgeProbe) Layout(ctx *core.Context, gtx layout.Context) layout.Dimens
 	return layout.Dimensions{Size: gtx.Constraints.Constrain(p.size)}
 }
 
-func TestBadgePlacementsMatchProviderOffset(t *testing.T) {
+func TestBadgePlacementsMatchOffset(t *testing.T) {
 	anchor := image.Pt(40, 40)
 	badge := image.Pt(16, 16)
 	tests := []struct {
@@ -55,7 +55,7 @@ func TestBadgeDoesNotChangeAnchorDimensions(t *testing.T) {
 	}
 }
 
-func TestDotBadgeUsesProviderMinimumSize(t *testing.T) {
+func TestDotBadgeUsesMinimumSize(t *testing.T) {
 	ctx := badgeTestContext()
 	for _, test := range []struct {
 		size Size
@@ -68,21 +68,21 @@ func TestDotBadgeUsesProviderMinimumSize(t *testing.T) {
 	}
 }
 
-func TestBadgeCustomContentReceivesResolvedProviderColors(t *testing.T) {
+func TestBadgeCustomContentReceivesResolvedVisualColors(t *testing.T) {
 	content := &badgeProbe{size: image.Pt(10, 10)}
 	ctx := badgeTestContext()
 	value := New(nil, "").Content(content).Color(ColorSuccess).Variant(VariantSoft)
 	gtx := badgeLayoutContext(nil)
-	visual := value.visualWithCache(ctx, nil)
+	visual := value.visualWithCache(ctx)
 	resolved := value.resolveStyle(ctx, gtx, visual)
 	value.layoutBadgeWithVisual(ctx, gtx, visual)
 	wantForeground, ok := solidTextColor(resolved.label)
 	if !ok {
-		t.Fatal("provider label declaration has no solid foreground")
+		t.Fatal("visual label declaration has no solid foreground")
 	}
 	wantBackground, ok := solidBackground(resolved.root)
 	if !ok {
-		t.Fatal("provider root declaration has no solid background")
+		t.Fatal("visual root declaration has no solid background")
 	}
 	if content.layouts != 1 || content.foreground != wantForeground || content.background != wantBackground {
 		t.Fatalf("Badge content context = layouts %d foreground %v/%v background %v/%v", content.layouts, content.foreground, wantForeground, content.background, wantBackground)
@@ -100,7 +100,7 @@ func TestBadgeExposesAccessibleLabel(t *testing.T) {
 }
 
 func badgeTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	return core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 }
 
 func badgeLayoutContext(router *input.Router) layout.Context {

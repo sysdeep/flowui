@@ -11,7 +11,6 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -24,7 +23,7 @@ type nodeGraphBenchmarkFrame struct {
 }
 
 func newNodeGraphBenchmarkFrame(maximum image.Point) *nodeGraphBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &nodeGraphBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -87,36 +86,30 @@ func nodeGraphBenchmarkTree() nodeGraphBenchmarkTreeWidget {
 	return nodeGraphBenchmarkTreeWidget{values: values}
 }
 
-func reportNodeGraphVisualStats(b *testing.B, after, before NodeGraphVisualCacheStats) {
+func reportnodeGraphDefaultsStats(b *testing.B, after, before nodeGraphDefaultsCacheStats) {
 	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "nodegraph-visual-cache-hits/op")
 	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "nodegraph-visual-cache-misses/op")
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "nodegraph-visual-cache-theme-invalidations/op")
 	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "nodegraph-visual-cache-key-invalidations/op")
 }
 
-func BenchmarkNodeGraphProviderVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	cache := nodeGraphVisualCache{}
-	cache.cache.Resolve(active, struct{}{}, func() theme.NodeGraphVisual {
-		provider, err := theme.ComponentProvider(active)
-		if err != nil {
-			b.Fatal(err)
-		}
-		visual := provider.NodeGraph(active, theme.NodeGraphRequest{})
-		theme.ValidateNodeGraphVisual(visual)
-		return visual
+func BenchmarkNodeGraphDefaultVisualCacheHit(b *testing.B) {
+	active := new(theme.Light())
+	cache := nodeGraphDefaultsCache{}
+	cache.cache.Resolve(active, struct{}{}, func() nodeGraphDefaults {
+		return defaultNodeGraphDefaults(active)
 	})
 	before := cache.Stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		cache.cache.Resolve(active, struct{}{}, func() theme.NodeGraphVisual {
+		cache.cache.Resolve(active, struct{}{}, func() nodeGraphDefaults {
 			b.Helper()
 			panic("node graph visual cache miss")
 		})
 	}
 	b.StopTimer()
-	reportNodeGraphVisualStats(b, cache.Stats(), before)
+	reportnodeGraphDefaultsStats(b, cache.Stats(), before)
 }
 
 func BenchmarkNodeGraphLayoutSteadyState(b *testing.B) {
@@ -152,11 +145,11 @@ func BenchmarkNodeGraphComponentTreeVisualCacheHit(b *testing.B) {
 		frame.layout(value)
 	}
 	b.StopTimer()
-	reportNodeGraphVisualStats(b, nodeGraphTreeVisualStats(value), before)
+	reportnodeGraphDefaultsStats(b, nodeGraphTreeVisualStats(value), before)
 }
 
-func nodeGraphTreeVisualStats(value nodeGraphBenchmarkTreeWidget) NodeGraphVisualCacheStats {
-	var total NodeGraphVisualCacheStats
+func nodeGraphTreeVisualStats(value nodeGraphBenchmarkTreeWidget) nodeGraphDefaultsCacheStats {
+	var total nodeGraphDefaultsCacheStats
 	for _, item := range value.values {
 		stats := item.visualCache.Stats()
 		total.Hits += stats.Hits
@@ -171,8 +164,8 @@ func BenchmarkNodeGraphComponentTreeVisualCacheMiss(b *testing.B) {
 	frame := newNodeGraphBenchmarkFrame(image.Pt(720, 24000))
 	value := nodeGraphBenchmarkTree()
 	frame.layout(value)
-	first := *testtheme.Behavior()
-	second := *testtheme.Behavior()
+	first := theme.Light()
+	second := theme.Light()
 	before := nodeGraphTreeVisualStats(value)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -185,12 +178,12 @@ func BenchmarkNodeGraphComponentTreeVisualCacheMiss(b *testing.B) {
 		frame.layout(value)
 	}
 	b.StopTimer()
-	reportNodeGraphVisualStats(b, nodeGraphTreeVisualStats(value), before)
+	reportnodeGraphDefaultsStats(b, nodeGraphTreeVisualStats(value), before)
 }
 
 func BenchmarkNodeGraphStyledOverrideBypass(b *testing.B) {
 	frame := newNodeGraphBenchmarkFrame(image.Pt(640, 360))
-	value := (nodeGraphBenchmarkValue(0)).Style(style.Style{}.PaddingX(2))
+	value := (nodeGraphBenchmarkValue(0)).Style(style.Style{}.Padding(2))
 	frame.layout(value)
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -10,9 +10,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
-	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 )
 
 const lucideStrokeScale = 12
@@ -30,15 +28,6 @@ type Widget struct {
 	hasColor    bool
 	baseline    unit.Dp
 	hasBaseline bool
-	visualCache *iconVisualCache
-}
-
-type iconVisualKey struct {
-	Foreground color.NRGBA
-}
-
-type iconVisualCache struct {
-	cache computed.ProviderCache[iconVisualKey, theme.IconVisual]
 }
 
 type cacheKey struct {
@@ -67,7 +56,7 @@ var renderers = struct {
 }
 
 func New(data []byte) Widget {
-	return Widget{data: data, visualCache: &iconVisualCache{}}
+	return Widget{data: data}
 }
 
 func (w Widget) Size(dp float32) Widget {
@@ -100,16 +89,16 @@ func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 	if w.data == nil {
 		return layout.Dimensions{}
 	}
-	visual := w.visualWithCache(ctx)
+	sizeDefault := unit.Dp(24)
 	size := w.size
 	if size == 0 {
-		size = visual.Size
+		size = sizeDefault
 	}
 	target := gtx.Dp(size)
 	outerSize := gtx.Constraints.Constrain(image.Pt(target, target))
 	diameter := min(outerSize.X, outerSize.Y)
 
-	col := visual.Color
+	col := ctx.ForegroundColor()
 	if w.hasColor {
 		col = w.color
 	}
@@ -128,26 +117,14 @@ func (w Widget) Measure(ctx *core.Context, gtx layout.Context) layout.Dimensions
 	if w.data == nil {
 		return layout.Dimensions{}
 	}
-	visual := w.visualWithCache(ctx)
+	sizeDefault := unit.Dp(24)
 	size := w.size
 	if size == 0 {
-		size = visual.Size
+		size = sizeDefault
 	}
 	target := gtx.Dp(size)
 	measuredSize := gtx.Constraints.Constrain(image.Pt(target, target))
 	return layout.Dimensions{Size: measuredSize, Baseline: w.baselineFor(gtx, measuredSize)}
-}
-
-func (w Widget) visualWithCache(ctx *core.Context) theme.IconVisual {
-	active := core.ActiveTheme(ctx)
-	request := theme.IconRequest{Foreground: ctx.ForegroundColor()}
-	resolve := func() theme.IconVisual {
-		return theme.ResolveVisual(active, request, theme.ComponentVisualProvider.Icon, theme.ValidateIconVisual)
-	}
-	if w.visualCache == nil {
-		return resolve()
-	}
-	return w.visualCache.cache.Resolve(active, iconVisualKey{Foreground: request.Foreground}, resolve)
 }
 
 func (w Widget) baselineFor(gtx layout.Context, size image.Point) int {

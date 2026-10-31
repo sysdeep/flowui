@@ -15,9 +15,9 @@ import (
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
+	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
 )
@@ -40,20 +40,15 @@ func (s *modalState) progress(gtx layout.Context, open bool, motions ...theme.Mo
 }
 
 func newContext(_ any) *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	return core.New(nil, new(theme.Light()), locale.LanguageAuto)
 }
 
 func newContextWithTheme(_ any, value *theme.Theme) *core.Context {
-	if value != nil && value.VisualProvider == nil {
-		clone := *value
-		clone.VisualProvider = testtheme.BehaviorProvider()
-		value = &clone
-	}
 	return core.New(nil, value, locale.LanguageAuto)
 }
 
 func DefaultTheme() theme.Theme {
-	return theme.NeutralTheme()
+	return theme.Light()
 }
 
 func testComponentState[T any](ctx *core.Context, key, slot string) *T {
@@ -114,24 +109,42 @@ func TestModalRetainsCloseButtonAcrossFrames(t *testing.T) {
 	}
 }
 
-func TestModalVisualResolversUseEffectiveOpenState(t *testing.T) {
+func TestModalDefaultsUseEffectiveOpenState(t *testing.T) {
 	measure := func(open bool) image.Point {
 		ctx, state := modalTestContextWithState("settings")
 		gtx := testLayoutContext()
 		gtx.Constraints = layout.Exact(image.Pt(260, 180))
 		body := &constraintProbeWidget{size: image.Pt(80, 24)}
 		modal := New("Settings", body).Key("settings").CloseButton(false)
-		visual := modalTestVisual(ctx, modal)
-		visual.Defaults = visual.Defaults.On(style.Open, style.Style{}.Padding(20))
+		defaults := modalTestDefaults(ctx, modal)
+		defaults.defaults = defaults.defaults.On(style.Open, style.Style{}.Padding(20))
 		state.open = open
-		modal.layoutDialogFrameWithVisual(ctx, gtx, state, visual)
+		modal.layoutDialogFrame(ctx, gtx, state, defaults)
 		return image.Pt(body.constraints.Max.X, body.constraints.Max.Y)
 	}
 
 	closedSize := measure(false)
 	openSize := measure(true)
 	if openSize == closedSize {
-		t.Fatalf("effective open state did not reach visual resolver: closed=%v open=%v", closedSize, openSize)
+		t.Fatalf("effective open state did not reach style resolver: closed=%v open=%v", closedSize, openSize)
+	}
+}
+
+func TestModalStyleIsLastCascadeLayer(t *testing.T) {
+	ctx := newContext(nil)
+	modal := New("Settings", text.New("Body")).Key("settings").Open(true).
+		Style(style.New().Padding(24))
+	defaults := modalTestDefaults(ctx, modal)
+
+	resolved := computed.ResolveStatic(ctx, style.State{}, defaults.defaults, style.Style{}, style.Style{}, modal.style)
+	if resolved.Box == nil || resolved.Box.Padding == nil || resolved.Box.Padding.Top != 24 {
+		t.Fatalf("instance style did not reach the root cascade: %#v", resolved.Box)
+	}
+
+	plain := New("Settings", text.New("Body")).Key("settings").Open(true)
+	plainDefaults := modalTestDefaults(ctx, plain)
+	if defaults.defaults.Hash64() != plainDefaults.defaults.Hash64() {
+		t.Fatal("instance style leaked into the cached theme defaults")
 	}
 }
 
@@ -144,7 +157,7 @@ func TestModalOpenFocusesTrap(t *testing.T) {
 	if state == nil {
 		t.Fatal("open modal did not keep state")
 	}
-	if !router.Source().Focused(&state.focusTarget) {
+	if !router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatal("modal did not move focus into trap")
 	}
 	if router.Source().Focused(&state.close) {
@@ -161,7 +174,7 @@ func TestModalOpenWithoutCloseButtonFocusesTrap(t *testing.T) {
 	if state == nil {
 		t.Fatal("open modal did not keep state")
 	}
-	if !router.Source().Focused(&state.focusTarget) {
+	if !router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatal("modal without close button did not move focus into trap")
 	}
 }
@@ -173,12 +186,12 @@ func TestModalNaturallyDisabledDefersInitialFocusUntilEnabled(t *testing.T) {
 
 	layoutModalFrameEnabled(ctx, router, modal, false)
 	state := testComponentState[modalState](ctx, "settings", stateSlotModal)
-	if router.Source().Focused(&state.focusTarget) {
+	if router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatal("naturally disabled modal took focus")
 	}
 
 	layoutModalFrameEnabled(ctx, router, modal, true)
-	if !router.Source().Focused(&state.focusTarget) {
+	if !router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatal("enabled modal did not consume its deferred focus request")
 	}
 }
@@ -197,19 +210,19 @@ func TestStackedModalRestoresUnderlyingFocusScopeAfterExit(t *testing.T) {
 	layoutModalPairFrameAt(ctx, router, outer, inner(), start.Add(modalEnterDuration))
 	outerState := testComponentState[modalState](ctx, "outer", stateSlotModal)
 	innerState := testComponentState[modalState](ctx, "inner", stateSlotModal)
-	if !router.Source().Focused(&innerState.focusTarget) {
+	if !router.Source().Focused(innerState.dialog.FocusTarget()) {
 		t.Fatal("top stacked modal did not own focus")
 	}
 
 	innerOpen = false
 	closingAt := start.Add(modalEnterDuration + time.Millisecond)
 	layoutModalPairFrameAt(ctx, router, outer, inner(), closingAt)
-	if !router.Source().Focused(&innerState.focusTarget) {
+	if !router.Source().Focused(innerState.dialog.FocusTarget()) {
 		t.Fatal("exiting modal released focus before its animation completed")
 	}
 
 	layoutModalPairFrameAt(ctx, router, outer, inner(), closingAt.Add(modalEnterDuration))
-	if !router.Source().Focused(&outerState.focusTarget) {
+	if !router.Source().Focused(outerState.dialog.FocusTarget()) {
 		t.Fatal("underlying modal did not regain focus after the top modal exited")
 	}
 }
@@ -233,7 +246,7 @@ func TestModalExitMovesInternalFocusToTrap(t *testing.T) {
 
 	open = false
 	layoutModalFrameAt(ctx, router, build(), start.Add(modalEnterDuration+time.Millisecond))
-	if !router.Source().Focused(&state.focusTarget) {
+	if !router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatal("modal exit did not move disabled content focus back into the trap")
 	}
 }
@@ -277,12 +290,10 @@ func TestModalFocusWrapsAtBoundaries(t *testing.T) {
 	router.MoveFocus(key.FocusForward)
 	layoutModalFrame(ctx, router, modal)
 
-	if !router.Source().Focused(&state.focusTarget) {
+	if !router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatalf(
-			"tab past modal close button did not wrap to trap: focusTarget=%v focusStart=%v focusEnd=%v close=%v",
-			router.Source().Focused(&state.focusTarget),
-			router.Source().Focused(&state.focusStart),
-			router.Source().Focused(&state.focusEnd),
+			"tab past modal close button did not wrap to trap: focusTarget=%v close=%v",
+			router.Source().Focused(state.dialog.FocusTarget()),
 			router.Source().Focused(&state.close),
 		)
 	}
@@ -297,7 +308,7 @@ func TestModalNestedOverlayFocusCannotEscapeToBackground(t *testing.T) {
 
 	layoutModalWithBackgroundFrame(ctx, router, modal, background)
 	state := testComponentState[modalState](ctx, "settings", stateSlotModal)
-	if !router.Source().Focused(&state.focusTarget) {
+	if !router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatal("modal with an initially open nested overlay did not take focus")
 	}
 	router.Source().Execute(key.FocusCmd{Tag: &nested.button})
@@ -310,7 +321,7 @@ func TestModalNestedOverlayFocusCannotEscapeToBackground(t *testing.T) {
 	if router.Source().Focused(background) {
 		t.Fatal("Tab from nested overlay escaped to the background")
 	}
-	if !router.Source().Focused(&state.focusTarget) {
+	if !router.Source().Focused(state.dialog.FocusTarget()) {
 		t.Fatal("Tab from nested overlay did not wrap to the modal focus trap")
 	}
 }
@@ -482,36 +493,37 @@ func TestModalCloseButtonPointerFocusIsNotKeyboardVisible(t *testing.T) {
 	}
 }
 
-func TestModalDismissAreaRequestsClose(t *testing.T) {
-	ctx, state := modalTestContextWithState("settings")
-	closed := false
-	modal := New("Settings", text.New("Body")).Key("settings").Open(true).
-		OnOpenChange(func(open bool) {
-			closed = !open
+func TestModalOutsideClickPolicy(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		dismissable  bool
+		wantRequests int
+	}{
+		{name: "dismissable", dismissable: true, wantRequests: 1},
+		{name: "non-dismissable", dismissable: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := newContext(nil)
+			router := new(input.Router)
+			requests := 0
+			value := New("Settings", text.New("Body")).Key("settings").Open(true).
+				Dismissable(tt.dismissable).OnOpenChange(func(bool) { requests++ })
+			start := time.Unix(1, 0)
+			layoutModalFrameAt(ctx, router, value, start)
+			layoutModalFrameAt(ctx, router, value, start.Add(time.Second))
+			router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1,
+				Buttons: pointer.ButtonPrimary, Position: f32.Pt(4, 4)})
+			layoutModalFrameAt(ctx, router, value, start.Add(2*time.Second))
+			if requests != 0 {
+				t.Fatal("modal dismissed before the outside click completed")
+			}
+			router.Queue(pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, PointerID: 1,
+				Position: f32.Pt(4, 4)})
+			layoutModalFrameAt(ctx, router, value, start.Add(3*time.Second))
+			if requests != tt.wantRequests {
+				t.Fatalf("outside click requests = %d, want %d", requests, tt.wantRequests)
+			}
 		})
-	layoutModalFrame(ctx, new(input.Router), modal)
-	state.dismiss[0].Click()
-	layoutModalFrame(ctx, new(input.Router), modal)
-
-	if !closed {
-		t.Fatal("dismiss area did not request close")
-	}
-}
-
-func TestModalDismissableFalseIgnoresDismissArea(t *testing.T) {
-	ctx, state := modalTestContextWithState("settings")
-	closed := false
-	modal := New("Settings", text.New("Body")).Key("settings").Open(true).
-		Dismissable(false).
-		OnOpenChange(func(open bool) {
-			closed = !open
-		})
-	layoutModalFrame(ctx, new(input.Router), modal)
-	state.dismiss[0].Click()
-	layoutModalFrame(ctx, new(input.Router), modal)
-
-	if closed {
-		t.Fatal("non-dismissable modal closed from dismiss area")
 	}
 }
 
@@ -554,15 +566,85 @@ func TestModalKeyboardDismissDisabledIgnoresEscape(t *testing.T) {
 	}
 }
 
-func TestModalDialogConstraintsUsesTheme(t *testing.T) {
+func TestStackedModalEscapeOnlyClosesInputOwner(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	outerRequests, innerRequests := 0, 0
+	outer := New("Outer", text.New("Body")).Key("outer").Open(true).
+		OnOpenChange(func(bool) { outerRequests++ })
+	inner := New("Inner", text.New("Body")).Key("inner").Open(true).
+		OnOpenChange(func(bool) { innerRequests++ })
+	start := time.Unix(1, 0)
+	layoutModalPairFrameAt(ctx, router, outer, inner, start)
+	layoutModalPairFrameAt(ctx, router, outer, inner, start.Add(time.Second))
+	router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	layoutModalPairFrameAt(ctx, router, outer, inner, start.Add(2*time.Second))
+	if outerRequests != 0 || innerRequests != 1 {
+		t.Fatalf("Escape requests: outer=%d inner=%d", outerRequests, innerRequests)
+	}
+}
+
+func TestModalNestedPopupOwnsEscapeBeforeDialog(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	modalRequests, popupRequests := 0, 0
+	popupOpen := true
+	body := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+		return base.Popup("nested", popupOpen).
+			OnDismiss(func() { popupOpen = false; popupRequests++ }).
+			Trigger(func(base.PopupState) core.Widget {
+				return fixedModalWidget{size: image.Pt(80, 24)}
+			}).
+			Panel(func(base.PopupState) core.Widget {
+				return fixedModalWidget{size: image.Pt(80, 24)}
+			}).Layout(ctx, gtx)
+	})
+	value := New("Settings", body).Key("settings").Open(true).
+		OnOpenChange(func(bool) { modalRequests++ })
+	start := time.Unix(1, 0)
+	layoutModalFrameAt(ctx, router, value, start)
+	layoutModalFrameAt(ctx, router, value, start.Add(time.Second))
+	router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	layoutModalFrameAt(ctx, router, value, start.Add(2*time.Second))
+	if popupRequests != 1 || modalRequests != 0 {
+		t.Fatalf("first Escape: popup=%d modal=%d", popupRequests, modalRequests)
+	}
+	layoutModalFrameAt(ctx, router, value, start.Add(3*time.Second))
+	router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	layoutModalFrameAt(ctx, router, value, start.Add(4*time.Second))
+	if popupRequests != 1 || modalRequests != 1 {
+		t.Fatalf("second Escape: popup=%d modal=%d", popupRequests, modalRequests)
+	}
+}
+
+func TestModalSimultaneousCloseSourcesRequestOnce(t *testing.T) {
+	ctx := newContext(nil)
+	router := new(input.Router)
+	requests := 0
+	value := New("Settings", text.New("Body")).Key("settings").Open(true).
+		OnOpenChange(func(bool) { requests++ })
+	start := time.Unix(1, 0)
+	layoutModalFrameAt(ctx, router, value, start)
+	layoutModalFrameAt(ctx, router, value, start.Add(time.Second))
+	state := testComponentState[modalState](ctx, "settings", stateSlotModal)
+	state.close.Click()
+	router.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	layoutModalFrameAt(ctx, router, value, start.Add(2*time.Second))
+	if requests != 1 {
+		t.Fatalf("simultaneous close sources produced %d requests, want 1", requests)
+	}
+}
+
+func TestModalDialogConstraintsUseLocalMetrics(t *testing.T) {
 	theme := DefaultTheme()
-	theme.Components.Modal.MediumWidth = 360
-	theme.Components.Modal.Margin = 10
 	ctx := newContextWithTheme(nil, &theme)
 	gtx := testLayoutContext()
 
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true)
-	constraints := modal.dialogConstraintsWithVisual(ctx, gtx, image.Pt(500, 300), modalTestVisual(ctx, modal))
+	defaults := modalTestDefaults(ctx, modal)
+	defaults.metrics.MediumWidth = 360
+	defaults.metrics.Margin = 10
+	constraints := modal.dialogConstraints(ctx, gtx, image.Pt(500, 300), defaults)
 
 	if constraints.Min.X != 360 || constraints.Max.X != 360 {
 		t.Fatalf("modal width constraints = %+v, want width 360", constraints)
@@ -580,7 +662,7 @@ func TestScrollOutsideKeepsScrollingWithoutScrollbarGutter(t *testing.T) {
 	modal := New("Settings", body).Key("settings").Open(true).
 		Scroll(ScrollOutside)
 
-	dims := modal.layoutDialogFrameWithVisual(ctx, gtx, state, modalTestVisual(ctx, modal))
+	dims := modal.layoutDialogFrame(ctx, gtx, state, modalTestDefaults(ctx, modal))
 
 	if dims.Size.Y > gtx.Constraints.Max.Y {
 		t.Fatalf("outside scroll dialog height = %d, want <= %d", dims.Size.Y, gtx.Constraints.Max.Y)
@@ -588,7 +670,7 @@ func TestScrollOutsideKeepsScrollingWithoutScrollbarGutter(t *testing.T) {
 	if state.outsideList.Position.Length <= dims.Size.Y {
 		t.Fatalf("outside scroll content length = %d, want greater than viewport %d", state.outsideList.Position.Length, dims.Size.Y)
 	}
-	wantWidth := gtx.Constraints.Max.X - gtx.Dp(core.ActiveTheme(ctx).Components.Modal.Padding)*2
+	wantWidth := gtx.Constraints.Max.X - gtx.Dp(defaultModalMetrics.Padding)*2
 	if body.constraints.Max.X != wantWidth {
 		t.Fatalf("outside scroll body width = %d, want %d without scrollbar gutter", body.constraints.Max.X, wantWidth)
 	}
@@ -602,7 +684,7 @@ func TestScrollOutsideKeepsFullSurfaceHeight(t *testing.T) {
 		Size(Full).
 		Scroll(ScrollOutside)
 
-	dims := modal.layoutDialogFrameWithVisual(ctx, gtx, state, modalTestVisual(ctx, modal))
+	dims := modal.layoutDialogFrame(ctx, gtx, state, modalTestDefaults(ctx, modal))
 
 	if dims.Size != image.Pt(260, 160) {
 		t.Fatalf("full outside scroll dimensions = %v, want (260,160)", dims.Size)
@@ -620,7 +702,7 @@ func TestScrollOutsideKeepsCoverSurfaceHeight(t *testing.T) {
 		Size(Cover).
 		Scroll(ScrollOutside)
 
-	dims := modal.layoutDialogFrameWithVisual(ctx, gtx, state, modalTestVisual(ctx, modal))
+	dims := modal.layoutDialogFrame(ctx, gtx, state, modalTestDefaults(ctx, modal))
 
 	if dims.Size != image.Pt(260, 160) {
 		t.Fatalf("cover outside scroll dimensions = %v, want (260,160)", dims.Size)
@@ -644,7 +726,7 @@ func TestLargeSizesRelaxFooterSectionMinimumConstraints(t *testing.T) {
 				Size(size).
 				Footer(footer)
 
-			dims := modal.layoutDialogFrameWithVisual(ctx, gtx, state, modalTestVisual(ctx, modal))
+			dims := modal.layoutDialogFrame(ctx, gtx, state, modalTestDefaults(ctx, modal))
 
 			if dims.Size != image.Pt(260, 160) {
 				t.Fatalf("%s dimensions = %v, want (260,160)", name, dims.Size)
@@ -693,9 +775,9 @@ func TestPlacement(t *testing.T) {
 	gtx := testLayoutContext()
 
 	topModal := New("Top", text.New("Body")).Key("top").Open(true).Placement(Top)
-	top := topModal.dialogPositionWithVisual(ctx, gtx, image.Pt(400, 300), image.Pt(200, 80), modalTestVisual(ctx, topModal))
+	top := topModal.dialogPosition(ctx, gtx, image.Pt(400, 300), image.Pt(200, 80), modalTestDefaults(ctx, topModal))
 	bottomModal := New("Bottom", text.New("Body")).Key("bottom").Open(true).Placement(Bottom)
-	bottom := bottomModal.dialogPositionWithVisual(ctx, gtx, image.Pt(400, 300), image.Pt(200, 80), modalTestVisual(ctx, bottomModal))
+	bottom := bottomModal.dialogPosition(ctx, gtx, image.Pt(400, 300), image.Pt(200, 80), modalTestDefaults(ctx, bottomModal))
 
 	if top.Y >= bottom.Y {
 		t.Fatalf("top placement y = %d, bottom y = %d, want top before bottom", top.Y, bottom.Y)
@@ -722,7 +804,7 @@ func TestModalProgressAnimation(t *testing.T) {
 	}
 }
 
-func TestModalProgressUsesProviderMotion(t *testing.T) {
+func TestModalProgressUsesThemeMotion(t *testing.T) {
 	state := new(modalState)
 	start := time.Unix(1, 0)
 	motion := theme.MotionTheme{
@@ -734,19 +816,19 @@ func TestModalProgressUsesProviderMotion(t *testing.T) {
 	gtx := testLayoutContext()
 	gtx.Now = start
 	if got := state.progress(gtx, true, motion); got != 0 {
-		t.Fatalf("initial provider progress = %v, want 0", got)
+		t.Fatalf("initial visual progress = %v, want 0", got)
 	}
 	gtx.Now = start.Add(50 * time.Millisecond)
 	if got := state.progress(gtx, true, motion); got < .49 || got > .51 {
-		t.Fatalf("provider progress at half duration = %v, want about .5", got)
+		t.Fatalf("visual progress at half duration = %v, want about .5", got)
 	}
 	gtx.Now = start.Add(100 * time.Millisecond)
 	if got := state.progress(gtx, true, motion); got != 1 {
-		t.Fatalf("provider progress at duration = %v, want 1", got)
+		t.Fatalf("visual progress at duration = %v, want 1", got)
 	}
 }
 
-func TestModalProgressRespectsDisabledProviderMotion(t *testing.T) {
+func TestModalProgressRespectsDisabledThemeMotion(t *testing.T) {
 	state := new(modalState)
 	start := time.Unix(1, 0)
 	motion := theme.MotionTheme{
@@ -762,7 +844,7 @@ func TestModalProgressRespectsDisabledProviderMotion(t *testing.T) {
 	}
 }
 
-func TestModalDialogScaleUsesThemeStartScale(t *testing.T) {
+func TestModalDialogScaleUsesStartScale(t *testing.T) {
 	if got := modalDialogScale(0.8, 0); got != 0.8 {
 		t.Fatalf("dialog scale at start = %v, want 0.8", got)
 	}
@@ -787,7 +869,7 @@ func TestModalResolvedAnimationDefaultsToFadeScale(t *testing.T) {
 func TestModalFadeAnimationDoesNotTransformDialog(t *testing.T) {
 	ctx := newContext(nil)
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true).Animation(AnimationFade)
-	motion := modal.dialogMotionWithVisual(ctx, testLayoutContext(), image.Rect(10, 20, 110, 120), 0.5, true, modalTestVisual(ctx, modal))
+	motion := modal.dialogMotion(ctx, testLayoutContext(), image.Rect(10, 20, 110, 120), 0.5, true, modalTestDefaults(ctx, modal))
 
 	sx, hx, ox, hy, sy, oy := motion.transform.Elems()
 	if sx != 1 || hx != 0 || ox != 0 || hy != 0 || sy != 1 || oy != 0 {
@@ -803,10 +885,10 @@ func TestModalSlideDownAnimationOffsetsFromTop(t *testing.T) {
 	gtx := testLayoutContext()
 	progress := float32(0.25)
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true).Animation(AnimationSlideDown)
-	motion := modal.dialogMotionWithVisual(ctx, gtx, image.Rect(10, 20, 110, 120), progress, true, modalTestVisual(ctx, modal))
+	motion := modal.dialogMotion(ctx, gtx, image.Rect(10, 20, 110, 120), progress, true, modalTestDefaults(ctx, modal))
 
 	_, _, ox, _, _, oy := motion.transform.Elems()
-	want := -float32(gtx.Dp(core.ActiveTheme(ctx).Components.Modal.AnimationDistance)) * (1 - progress)
+	want := -float32(gtx.Dp(defaultModalMetrics.AnimationDistance)) * (1 - progress)
 	if ox != 0 || oy != want {
 		t.Fatalf("slide down offset = (%v,%v), want (0,%v)", ox, oy, want)
 	}
@@ -817,10 +899,10 @@ func TestModalMotionBoundsUsesAnimatedRect(t *testing.T) {
 	gtx := testLayoutContext()
 	rect := image.Rect(10, 20, 110, 120)
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true).Animation(AnimationSlideDown)
-	motion := modal.dialogMotionWithVisual(ctx, gtx, rect, 0, true, modalTestVisual(ctx, modal))
+	motion := modal.dialogMotion(ctx, gtx, rect, 0, true, modalTestDefaults(ctx, modal))
 
 	got := core.AffineRectBounds(rect, motion.transform)
-	want := rect.Add(image.Pt(0, -gtx.Dp(core.ActiveTheme(ctx).Components.Modal.AnimationDistance)))
+	want := rect.Add(image.Pt(0, -gtx.Dp(defaultModalMetrics.AnimationDistance)))
 	if got != want {
 		t.Fatalf("motion bounds = %v, want %v", got, want)
 	}
@@ -831,10 +913,10 @@ func TestModalSlideUpAnimationOffsetsFromBottom(t *testing.T) {
 	gtx := testLayoutContext()
 	progress := float32(0.25)
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true).Animation(AnimationSlideUp)
-	motion := modal.dialogMotionWithVisual(ctx, gtx, image.Rect(10, 20, 110, 120), progress, true, modalTestVisual(ctx, modal))
+	motion := modal.dialogMotion(ctx, gtx, image.Rect(10, 20, 110, 120), progress, true, modalTestDefaults(ctx, modal))
 
 	_, _, ox, _, _, oy := motion.transform.Elems()
-	want := float32(gtx.Dp(core.ActiveTheme(ctx).Components.Modal.AnimationDistance)) * (1 - progress)
+	want := float32(gtx.Dp(defaultModalMetrics.AnimationDistance)) * (1 - progress)
 	if ox != 0 || oy != want {
 		t.Fatalf("slide up offset = (%v,%v), want (0,%v)", ox, oy, want)
 	}
@@ -846,13 +928,17 @@ func TestModalBounceScaleOvershootsOnlyWhenOpening(t *testing.T) {
 	rect := image.Rect(10, 20, 110, 120)
 
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true).Animation(AnimationBounceScale)
-	openMotion := modal.dialogMotionWithVisual(ctx, gtx, rect, 0.65, true, modalTestVisual(ctx, modal))
+	defaults := modalTestDefaults(ctx, modal)
+	defaults.metrics.AnimationScale = .95
+	defaults.metrics.AnimationBounceScale = 1.035
+	defaults.metrics.AnimationBounceSettleScale = .992
+	openMotion := modal.dialogMotion(ctx, gtx, rect, 0.65, true, defaults)
 	openScale, _, _, _, _, _ := openMotion.transform.Elems()
 	if openScale <= 1 {
 		t.Fatalf("opening bounce scale = %v, want overshoot", openScale)
 	}
 
-	closeMotion := modal.dialogMotionWithVisual(ctx, gtx, rect, 0.65, false, modalTestVisual(ctx, modal))
+	closeMotion := modal.dialogMotion(ctx, gtx, rect, 0.65, false, defaults)
 	closeScale, _, _, _, _, _ := closeMotion.transform.Elems()
 	if closeScale <= 0 || closeScale >= 1 {
 		t.Fatalf("closing bounce scale = %v, want clean scale below 1", closeScale)
@@ -869,7 +955,9 @@ func TestModalZoomOutAnimationStartsLarge(t *testing.T) {
 	ctx := newContext(nil)
 	gtx := testLayoutContext()
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true).Animation(AnimationZoomOut)
-	motion := modal.dialogMotionWithVisual(ctx, gtx, image.Rect(10, 20, 110, 120), 0, true, modalTestVisual(ctx, modal))
+	defaults := modalTestDefaults(ctx, modal)
+	defaults.metrics.AnimationZoomScale = 1.04
+	motion := modal.dialogMotion(ctx, gtx, image.Rect(10, 20, 110, 120), 0, true, defaults)
 
 	scale, _, _, _, _, _ := motion.transform.Elems()
 	if scale <= 1 {
@@ -884,7 +972,11 @@ func TestModalPopAnimationOvershoots(t *testing.T) {
 	ctx := newContext(nil)
 	gtx := testLayoutContext()
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true).Animation(AnimationPop)
-	motion := modal.dialogMotionWithVisual(ctx, gtx, image.Rect(10, 20, 110, 120), 0.58, true, modalTestVisual(ctx, modal))
+	defaults := modalTestDefaults(ctx, modal)
+	defaults.metrics.AnimationPopStartScale = .92
+	defaults.metrics.AnimationPopOvershootScale = 1.025
+	defaults.metrics.AnimationPopSettleScale = .997
+	motion := modal.dialogMotion(ctx, gtx, image.Rect(10, 20, 110, 120), 0.58, true, defaults)
 
 	scale, _, _, _, _, _ := motion.transform.Elems()
 	if scale <= 1 {
@@ -897,19 +989,16 @@ func TestModalPopAnimationOvershoots(t *testing.T) {
 
 func TestModalBackdropStyle(t *testing.T) {
 	activeTheme := DefaultTheme()
-	activeTheme.Components.Modal.BlurBackdrop.A = 200
-	provider := testtheme.BehaviorProvider()
-
-	blur := provider.Modal(&activeTheme, theme.ModalRequest{Backdrop: theme.ModalBackdropBlur})
-	blurred := style.CascadePart(style.State{}, style.PartBackdrop, blur.Defaults)
+	blur := buildModalDefaults(&activeTheme, Medium, BackdropBlur)
+	blurred := style.CascadePart(style.State{}, style.PartBackdrop, blur.defaults)
 	if blurred.Paint == nil || blurred.Paint.Background == nil {
 		t.Fatalf("blur backdrop declaration is incomplete: %#v", blurred.Paint)
 	}
-	if got := blurred.Paint.Background.(style.SolidColor).Color.A; got != 200 {
-		t.Fatalf("blur backdrop alpha = %d, want 200", got)
+	if got := blurred.Paint.Background.(style.SolidColor).Color.A; got != 0x7a {
+		t.Fatalf("blur backdrop alpha = %d, want 122", got)
 	}
-	transparent := provider.Modal(&activeTheme, theme.ModalRequest{Backdrop: theme.ModalBackdropTransparent})
-	transparentBackdrop := style.CascadePart(style.State{}, style.PartBackdrop, transparent.Defaults)
+	transparent := buildModalDefaults(&activeTheme, Medium, BackdropTransparent)
+	transparentBackdrop := style.CascadePart(style.State{}, style.PartBackdrop, transparent.defaults)
 	if transparentBackdrop.Paint == nil || transparentBackdrop.Paint.Background == nil {
 		t.Fatalf("transparent backdrop declaration is incomplete: %#v", transparentBackdrop.Paint)
 	}
@@ -919,16 +1008,16 @@ func TestModalBackdropStyle(t *testing.T) {
 }
 
 func TestModalBackdropPartOverridesColorAndOpacity(t *testing.T) {
-	activeTheme := theme.NeutralTheme()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	want := style.RGB(0x123456)
 	custom := style.Style{}.
 		Part(style.PartBackdrop, style.Style{}.Background(want).Opacity(.35))
-	visual := testtheme.BehaviorProvider().Modal(&activeTheme, theme.ModalRequest{})
+	defaults := buildModalDefaults(&activeTheme, Medium, BackdropOpaque)
 
 	resolved := computed.ResolvePartStatic(
 		ctx, style.PartBackdrop, style.State{Open: true},
-		visual.Defaults,
+		defaults.defaults,
 		style.Style{}, style.Style{}, custom,
 	)
 	if resolved.Paint == nil || resolved.Paint.Background != want || resolved.Paint.Opacity == nil || *resolved.Paint.Opacity != .35 {
@@ -939,15 +1028,15 @@ func TestModalBackdropPartOverridesColorAndOpacity(t *testing.T) {
 func TestModalBodyTextStyle(t *testing.T) {
 	ctx := newContext(nil)
 	modal := New("Settings", text.New("Body")).Key("settings").Open(true)
-	body, ok := modal.styleBodyWithVisual(ctx, text.New("Body"), modalTestVisual(ctx, modal)).(text.Widget)
+	body, ok := modal.styleBody(ctx, text.New("Body"), modalTestDefaults(ctx, modal)).(text.Widget)
 	if !ok {
 		t.Fatal("styled body is not TextWidget")
 	}
 	resolved := text.ResolveStatic(ctx, body)
-	if resolved.Text == nil || resolved.Text.FontSize == nil || *resolved.Text.FontSize != core.ActiveTheme(ctx).Components.Modal.BodyTextSize {
+	if resolved.Text == nil || resolved.Text.FontSize == nil || *resolved.Text.FontSize != 14 {
 		t.Fatalf("body text style = %#v", resolved.Text)
 	}
-	if col := resolved.Text.Color.(style.SolidColor).Color; col != core.ActiveTheme(ctx).Palette.MutedForeground {
+	if col := resolved.Text.Color.(style.SolidColor).Color; col != core.ActiveTheme(ctx).Colors.MutedForeground {
 		t.Fatalf("body text color = %#v, want muted foreground", col)
 	}
 }
@@ -959,8 +1048,8 @@ func modalTestContextWithState(key string) (*core.Context, *modalState) {
 	return ctx, state
 }
 
-func modalTestVisual(ctx *core.Context, value Widget) theme.ModalVisual {
-	return value.visualWithCache(ctx, nil, nil)
+func modalTestDefaults(ctx *core.Context, value Widget) modalDefaults {
+	return value.defaultsWithCache(ctx, nil)
 }
 
 type fixedModalWidget struct {

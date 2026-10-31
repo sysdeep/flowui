@@ -11,7 +11,7 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 )
 
 type candlestickBenchmarkFrame struct {
@@ -22,7 +22,7 @@ type candlestickBenchmarkFrame struct {
 }
 
 func newCandlestickBenchmarkFrame(count int) *candlestickBenchmarkFrame {
-	active := *testtheme.Behavior()
+	active := theme.Light()
 	frame := &candlestickBenchmarkFrame{ctx: core.New(nil, &active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(640, 360)},
@@ -68,7 +68,7 @@ func (frame *candlestickBenchmarkFrame) layoutTree() {
 
 func (frame *candlestickBenchmarkFrame) cacheStats() (hits, misses, themeInvalidations, keyInvalidations uint64) {
 	for index := range frame.values {
-		stats := frame.values[index].visualCache.Stats()
+		stats := frame.values[index].defaultsCache.Stats()
 		hits += stats.Hits
 		misses += stats.Misses
 		themeInvalidations += stats.ThemeInvalidations
@@ -81,10 +81,10 @@ func reportCandlestickCacheStats(b *testing.B, after, before [4]uint64) {
 	if b.N == 0 {
 		return
 	}
-	b.ReportMetric(float64(after[0]-before[0])/float64(b.N), "candlestick-visual-cache-hits/op")
-	b.ReportMetric(float64(after[1]-before[1])/float64(b.N), "candlestick-visual-cache-misses/op")
-	b.ReportMetric(float64(after[2]-before[2])/float64(b.N), "candlestick-visual-cache-theme-invalidations/op")
-	b.ReportMetric(float64(after[3]-before[3])/float64(b.N), "candlestick-visual-cache-key-invalidations/op")
+	b.ReportMetric(float64(after[0]-before[0])/float64(b.N), "candlestick-defaults-cache-hits/op")
+	b.ReportMetric(float64(after[1]-before[1])/float64(b.N), "candlestick-defaults-cache-misses/op")
+	b.ReportMetric(float64(after[2]-before[2])/float64(b.N), "candlestick-defaults-cache-theme-invalidations/op")
+	b.ReportMetric(float64(after[3]-before[3])/float64(b.N), "candlestick-defaults-cache-key-invalidations/op")
 }
 
 func BenchmarkCandlestickLayoutSteadyState(b *testing.B) {
@@ -128,8 +128,8 @@ func BenchmarkCandlestickComponentTreeVisualCacheMiss(b *testing.B) {
 	frame.layoutTree()
 	before := [4]uint64{}
 	before[0], before[1], before[2], before[3] = frame.cacheStats()
-	light := *testtheme.Behavior()
-	dark := *testtheme.Behavior()
+	light := theme.Light()
+	dark := theme.Light()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; b.Loop(); index++ {

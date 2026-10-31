@@ -12,11 +12,11 @@ import (
 	"gioui.org/unit"
 	"gioui.org/x/richtext"
 	"gioui.org/x/styledtext"
-
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/ui"
 	widgetcode "github.com/qianniancn/flowui/widget/code"
+	"github.com/qianniancn/flowui/widget/divider"
 	"github.com/qianniancn/flowui/widget/table"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/yuin/goldmark/ast"
@@ -61,9 +61,9 @@ func (d markdownDocument) block(key string, node ast.Node) ui.Widget {
 		}
 		return layout.Column(items...).Gap(12)
 	case *ast.Blockquote:
-		return layout.Box(d.blocks(key, node)).Style(style.New().PaddingLeft(16))
+		return layout.Box(d.blocks(key, node)).Style(style.New().Padding(0, 0, 0, 16))
 	case *ast.ThematicBreak:
-		return layout.Divider()
+		return divider.New()
 	default:
 		// Display unsupported block source (such as HTML) as text.
 		return text.New(string(node.Lines().Value(d.source))).Size(13)
@@ -150,7 +150,7 @@ func (d markdownDocument) tableBlocks(key string, rows [][]ast.Node) ui.Widget {
 				fields = append(fields, value)
 			}
 			if len(children) > 0 {
-				children = append(children, layout.Divider())
+				children = append(children, divider.New())
 			}
 			children = append(children, layout.Box(layout.Column(fields...).Gap(8)).
 				Style(style.New().FillWidth().Padding(10)))

@@ -5,8 +5,9 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
+	"github.com/qianniancn/flowui/widget/divider"
 	"github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/window"
@@ -81,7 +82,7 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 			layout.Scroll(layout.Column(
 				text.New("FlowUI Input").Size(24),
 				text.New(status).Size(16),
-				layout.Divider(),
+				divider.New(),
 				layout.Wrap(
 					layout.Column(
 						section("Variants",
@@ -124,11 +125,9 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 							).Gap(12),
 						),
 						section("Full width",
-							layout.Box(
-								textField("full-width", fieldFull, m.Full, "Full width input", send).
-									Variant(input.Secondary).
-									FullWidth(),
-							).Style(style.New().Width(320)),
+							textField("full-width", fieldFull, m.Full, "Full width input", send).
+								Variant(input.Secondary).
+								FillWidth(),
 						),
 					).Gap(18),
 				).Gap(32).LineGap(24).AlignStart(),
@@ -148,7 +147,7 @@ func section(title string, child ui.Widget) ui.Widget {
 func labeledInput(title, key string, field input.Widget) ui.Widget {
 	return layout.Column(
 		text.NewLabel(title).For(key),
-		layout.Box(field).Style(style.New().Width(320)),
+		field.Width(320),
 	).Gap(6)
 }
 
@@ -186,6 +185,6 @@ func main() {
 	},
 		Update, View), window.Title("FlowUI Inputs"),
 		window.Size(900, 760),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 }

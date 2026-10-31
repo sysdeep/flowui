@@ -16,25 +16,17 @@ import (
 )
 
 func TestNewUsesProvidedTheme(t *testing.T) {
-	theme := theme.NeutralTheme()
-	theme.Palette.Accent = color.NRGBA{R: 1, G: 2, B: 3, A: 255}
-	theme = paletteTheme(theme)
-	ctx := New(nil, &theme, locale.LanguageAuto)
-	if ActiveTheme(ctx) != &theme {
+	active := theme.Light()
+	active.Colors.Tones[theme.TonePrimary].Fill = color.NRGBA{R: 1, G: 2, B: 3, A: 255}
+
+	ctx := New(nil, &active, locale.LanguageAuto)
+	if ActiveTheme(ctx) != &active {
 		t.Fatal("context did not use provided theme")
 	}
 	snapshot := ctx.Theme()
-	snapshot.Palette.Accent = color.NRGBA{}
-	if ActiveTheme(ctx).Palette.Accent != theme.Palette.Accent {
+	snapshot.Colors.Tones[theme.TonePrimary].Fill = color.NRGBA{}
+	if ActiveTheme(ctx).Colors.Tones[theme.TonePrimary].Fill != active.Colors.Tones[theme.TonePrimary].Fill {
 		t.Fatal("mutating the public theme snapshot changed the active theme")
-	}
-}
-
-func TestNewDoesNotInstallVisualProvider(t *testing.T) {
-	value := theme.NeutralTheme()
-	ctx := New(nil, &value, locale.LanguageAuto)
-	if ActiveTheme(ctx).VisualProvider != nil {
-		t.Fatal("non-strict context installed an implicit visual provider")
 	}
 }
 
@@ -46,7 +38,7 @@ func TestNewWithoutThemeStaysNeutral(t *testing.T) {
 	if got := ActiveMaterial(ctx); got != nil {
 		t.Fatal("theme-less context installed an implicit material theme")
 	}
-	if got := ctx.Theme(); got.Palette != (theme.Palette{}) || got.VisualProvider != nil {
+	if got := ctx.Theme(); got.Colors != (theme.Semantic{}) {
 		t.Fatalf("theme-less context snapshot = %#v, want neutral zero theme", got)
 	}
 	if got := ctx.ForegroundColor(); got != (color.NRGBA{}) {
@@ -59,8 +51,8 @@ func TestNewWithoutThemeStaysNeutral(t *testing.T) {
 
 func TestCachedThemeHashCachesByThemePointer(t *testing.T) {
 	ctx := New(nil, nil, locale.LanguageAuto)
-	first := theme.NeutralTheme()
-	second := theme.NeutralTheme()
+	first := theme.Light()
+	second := theme.Light()
 	calls := 0
 	compute := func() uint64 {
 		calls++
@@ -90,285 +82,19 @@ func TestCachedThemeHashCachesByThemePointer(t *testing.T) {
 	}
 }
 
-func TestNewWithCatalogStrictRequiresCompleteVisualProvider(t *testing.T) {
-	if _, err := NewWithCatalogStrict(nil, nil, locale.LanguageAuto, i18n.Catalog{}); err != theme.ErrMissingVisualProvider {
-		t.Fatalf("nil theme error = %v, want %v", err, theme.ErrMissingVisualProvider)
+func TestNewWithCatalogStrictRequiresTheme(t *testing.T) {
+	if _, err := NewWithCatalogStrict(nil, nil, locale.LanguageAuto, i18n.Catalog{}); err != theme.ErrMissingTheme {
+		t.Fatalf("nil theme error = %v", err)
 	}
-	value := theme.NeutralTheme()
-	if _, err := NewWithCatalogStrict(nil, &value, locale.LanguageAuto, i18n.Catalog{}); err != theme.ErrMissingVisualProvider {
-		t.Fatalf("theme without provider error = %v, want %v", err, theme.ErrMissingVisualProvider)
-	}
-	value.VisualProvider = testButtonOnlyVisualProvider{}
-	if _, err := NewWithCatalogStrict(nil, &value, locale.LanguageAuto, i18n.Catalog{}); err == nil {
-		t.Fatal("incomplete provider was accepted")
-	}
-}
-
-func TestStrictContextRejectsInvalidThemeReplacement(t *testing.T) {
-	ctx, err := NewWithCatalogStrict(nil, func() *theme.Theme {
-		provider := theme.NeutralTheme()
-		provider.VisualProvider = testCompleteVisualProvider{}
-		return &provider
-	}(), locale.LanguageAuto, i18n.Catalog{})
+	active := theme.Light()
+	ctx, err := NewWithCatalogStrict(nil, &active, locale.LanguageAuto, i18n.Catalog{})
 	if err != nil {
-		t.Fatalf("strict context construction failed: %v", err)
+		t.Fatalf("valid theme rejected: %v", err)
 	}
-	mustPanic(t, func() { ReplaceTheme(ctx, theme.NeutralTheme()) })
-}
-
-func TestRequireVisualProviderRejectsMutationInStrictContext(t *testing.T) {
-	active := theme.NeutralTheme()
-	active.VisualProvider = testCompleteVisualProvider{}
-	ctx, err := NewWithCatalogStrict(nil, &active, locale.LanguageEnglish, i18n.Catalog{})
-	if err != nil {
-		t.Fatalf("strict context construction failed: %v", err)
-	}
-	// The context retains the caller's theme pointer, so an in-place mutation
-	// can bypass ReplaceTheme's validation unless widgets recheck at use time.
-	ActiveTheme(ctx).VisualProvider = nil
-	mustPanic(t, func() { RequireVisualProvider(ctx) })
-}
-
-func TestStrictContextAcceptsThirdThemeProvider(t *testing.T) {
-	active := theme.NeutralTheme()
-	active.VisualProvider = testCompleteVisualProvider{}
-	ctx, err := NewWithCatalogStrict(nil, &active, locale.LanguageEnglish, i18n.Catalog{})
-	if err != nil {
-		t.Fatalf("third theme was rejected by strict context: %v", err)
-	}
-	if ActiveTheme(ctx).VisualProvider == nil {
-		t.Fatal("strict context dropped the third theme provider")
-	}
-}
-
-type testButtonOnlyVisualProvider struct{}
-
-func (testButtonOnlyVisualProvider) Button(*theme.Theme, theme.ButtonRequest) theme.ButtonVisual {
-	return theme.ButtonVisual{}
-}
-
-func (testButtonOnlyVisualProvider) ListBox(*theme.Theme, theme.ListBoxRequest) theme.ListBoxVisual {
-	return theme.ListBoxVisual{}
-}
-
-// testCompleteVisualProvider only exists to exercise the strict context
-// boundary without coupling this package's construction test to a shipped
-// theme's concrete type.
-type testCompleteVisualProvider struct{}
-
-func (testCompleteVisualProvider) Button(*theme.Theme, theme.ButtonRequest) theme.ButtonVisual {
-	return theme.ButtonVisual{}
-}
-
-func (testCompleteVisualProvider) CloseButton(*theme.Theme, theme.CloseButtonRequest) theme.CloseButtonVisual {
-	return theme.CloseButtonVisual{}
-}
-
-func (testCompleteVisualProvider) Chip(*theme.Theme, theme.ChipRequest) theme.ChipVisual {
-	return theme.ChipVisual{}
-}
-
-func (testCompleteVisualProvider) Badge(*theme.Theme, theme.BadgeRequest) theme.BadgeVisual {
-	return theme.BadgeVisual{}
-}
-
-func (testCompleteVisualProvider) Avatar(*theme.Theme, theme.AvatarRequest) theme.AvatarVisual {
-	return theme.AvatarVisual{}
-}
-
-func (testCompleteVisualProvider) Description(*theme.Theme, theme.DescriptionRequest) theme.DescriptionVisual {
-	return theme.DescriptionVisual{}
-}
-
-func (testCompleteVisualProvider) Label(*theme.Theme, theme.LabelRequest) theme.LabelVisual {
-	return theme.LabelVisual{}
-}
-
-func (testCompleteVisualProvider) Text(*theme.Theme, theme.TextRequest) theme.TextVisual {
-	return theme.TextVisual{}
-}
-
-func (testCompleteVisualProvider) Icon(*theme.Theme, theme.IconRequest) theme.IconVisual {
-	return theme.IconVisual{}
-}
-
-func (testCompleteVisualProvider) Surface(*theme.Theme, theme.SurfaceRequest) theme.SurfaceVisual {
-	return theme.SurfaceVisual{}
-}
-
-func (testCompleteVisualProvider) Card(*theme.Theme, theme.CardRequest) theme.CardVisual {
-	return theme.CardVisual{}
-}
-
-func (testCompleteVisualProvider) StatusBar(*theme.Theme, theme.StatusBarRequest) theme.StatusBarVisual {
-	return theme.StatusBarVisual{}
-}
-
-func (testCompleteVisualProvider) TitleBar(*theme.Theme, theme.TitleBarRequest) theme.TitleBarVisual {
-	return theme.TitleBarVisual{}
-}
-
-func (testCompleteVisualProvider) Toolbar(*theme.Theme, theme.ToolbarRequest) theme.ToolbarVisual {
-	return theme.ToolbarVisual{}
-}
-
-func (testCompleteVisualProvider) Alert(*theme.Theme, theme.AlertRequest) theme.AlertVisual {
-	return theme.AlertVisual{}
-}
-
-func (testCompleteVisualProvider) Input(*theme.Theme, theme.InputRequest) theme.InputVisual {
-	return theme.InputVisual{}
-}
-
-func (testCompleteVisualProvider) InputAction(*theme.Theme, theme.InputActionRequest) theme.InputActionVisual {
-	return theme.InputActionVisual{}
-}
-
-func (testCompleteVisualProvider) DatePicker(*theme.Theme, theme.DatePickerRequest) theme.DatePickerVisual {
-	return theme.DatePickerVisual{}
-}
-
-func (testCompleteVisualProvider) Select(*theme.Theme, theme.SelectRequest) theme.SelectVisual {
-	return theme.SelectVisual{}
-}
-
-func (testCompleteVisualProvider) Combo(*theme.Theme, theme.ComboRequest) theme.ComboVisual {
-	return theme.ComboVisual{}
-}
-
-func (testCompleteVisualProvider) ListBox(*theme.Theme, theme.ListBoxRequest) theme.ListBoxVisual {
-	return theme.ListBoxVisual{}
-}
-
-func (testCompleteVisualProvider) Sidebar(*theme.Theme, theme.SidebarRequest) theme.SidebarVisual {
-	return theme.SidebarVisual{}
-}
-
-func (testCompleteVisualProvider) Switch(*theme.Theme, theme.SwitchRequest) theme.SwitchVisual {
-	return theme.SwitchVisual{}
-}
-
-func (testCompleteVisualProvider) SwitchGroup(*theme.Theme, theme.SwitchGroupRequest) theme.SwitchGroupVisual {
-	return theme.SwitchGroupVisual{}
-}
-
-func (testCompleteVisualProvider) Checkbox(*theme.Theme, theme.CheckboxRequest) theme.CheckboxVisual {
-	return theme.CheckboxVisual{}
-}
-
-func (testCompleteVisualProvider) ToggleButton(*theme.Theme, theme.ToggleRequest) theme.ToggleVisual {
-	return theme.ToggleVisual{}
-}
-
-func (testCompleteVisualProvider) RadioGroup(*theme.Theme, theme.RadioGroupRequest) theme.RadioGroupVisual {
-	return theme.RadioGroupVisual{}
-}
-
-func (testCompleteVisualProvider) Slider(*theme.Theme, theme.SliderRequest) theme.SliderVisual {
-	return theme.SliderVisual{}
-}
-
-func (testCompleteVisualProvider) Menu(*theme.Theme, theme.MenuRequest) theme.MenuVisual {
-	return theme.MenuVisual{}
-}
-
-func (testCompleteVisualProvider) Menubar(*theme.Theme, theme.MenubarRequest) theme.MenubarVisual {
-	return theme.MenubarVisual{}
-}
-
-func (testCompleteVisualProvider) Dropdown(*theme.Theme, theme.DropdownRequest) theme.DropdownVisual {
-	return theme.DropdownVisual{}
-}
-
-func (testCompleteVisualProvider) Popover(*theme.Theme, theme.PopoverRequest) theme.PopoverVisual {
-	return theme.PopoverVisual{}
-}
-
-func (testCompleteVisualProvider) Tooltip(*theme.Theme, theme.TooltipRequest) theme.TooltipVisual {
-	return theme.TooltipVisual{}
-}
-
-func (testCompleteVisualProvider) Toast(*theme.Theme, theme.ToastRequest) theme.ToastVisual {
-	return theme.ToastVisual{}
-}
-
-func (testCompleteVisualProvider) Tabs(*theme.Theme, theme.TabsRequest) theme.TabsVisual {
-	return theme.TabsVisual{}
-}
-
-func (testCompleteVisualProvider) Pagination(*theme.Theme, theme.PaginationRequest) theme.PaginationVisual {
-	return theme.PaginationVisual{}
-}
-
-func (testCompleteVisualProvider) Modal(*theme.Theme, theme.ModalRequest) theme.ModalVisual {
-	return theme.ModalVisual{}
-}
-
-func (testCompleteVisualProvider) AlertDialog(*theme.Theme, theme.AlertDialogRequest) theme.AlertDialogVisual {
-	return theme.AlertDialogVisual{}
-}
-
-func (testCompleteVisualProvider) Table(*theme.Theme, theme.TableRequest) theme.TableVisual {
-	return theme.TableVisual{}
-}
-
-func (testCompleteVisualProvider) Tree(*theme.Theme, theme.TreeRequest) theme.TreeVisual {
-	return theme.TreeVisual{}
-}
-
-func (testCompleteVisualProvider) ColorPicker(*theme.Theme, theme.ColorPickerRequest) theme.ColorPickerVisual {
-	return theme.ColorPickerVisual{}
-}
-
-func (testCompleteVisualProvider) Heatmap(*theme.Theme, theme.HeatmapRequest) theme.HeatmapVisual {
-	return theme.HeatmapVisual{}
-}
-
-func (testCompleteVisualProvider) LineChart(*theme.Theme, theme.LineChartRequest) theme.LineChartVisual {
-	return theme.LineChartVisual{}
-}
-
-func (testCompleteVisualProvider) PieChart(*theme.Theme, theme.PieChartRequest) theme.PieChartVisual {
-	return theme.PieChartVisual{}
-}
-
-func (testCompleteVisualProvider) Candlestick(*theme.Theme, theme.CandlestickRequest) theme.CandlestickVisual {
-	return theme.CandlestickVisual{}
-}
-
-func (testCompleteVisualProvider) BarChart(*theme.Theme, theme.BarChartRequest) theme.BarChartVisual {
-	return theme.BarChartVisual{}
-}
-
-func (testCompleteVisualProvider) Gantt(*theme.Theme, theme.GanttRequest) theme.GanttVisual {
-	return theme.GanttVisual{}
-}
-
-func (testCompleteVisualProvider) Timeline(*theme.Theme, theme.TimelineRequest) theme.TimelineVisual {
-	return theme.TimelineVisual{}
-}
-
-func (testCompleteVisualProvider) NodeGraph(*theme.Theme, theme.NodeGraphRequest) theme.NodeGraphVisual {
-	return theme.NodeGraphVisual{}
-}
-
-func (testCompleteVisualProvider) ProgressBar(*theme.Theme, theme.ProgressBarRequest) theme.ProgressBarVisual {
-	return theme.ProgressBarVisual{}
-}
-
-func (testCompleteVisualProvider) ProgressCircle(*theme.Theme, theme.ProgressCircleRequest) theme.ProgressCircleVisual {
-	return theme.ProgressCircleVisual{}
-}
-
-func (testCompleteVisualProvider) Spinner(*theme.Theme, theme.SpinnerRequest) theme.SpinnerVisual {
-	return theme.SpinnerVisual{}
-}
-
-func (testCompleteVisualProvider) Collapsible(*theme.Theme, theme.CollapsibleRequest) theme.CollapsibleVisual {
-	return theme.CollapsibleVisual{
-		Indicator: func(layout.Context, theme.CollapsibleIndicatorRequest) layout.Dimensions {
-			return layout.Dimensions{}
-		},
+	replacement := theme.Light()
+	ReplaceTheme(ctx, replacement)
+	if ActiveTheme(ctx) == nil {
+		t.Fatal("replacement theme missing")
 	}
 }
 
@@ -401,7 +127,7 @@ func TestContextResolvesWindowTranslationsAndLanguageChanges(t *testing.T) {
 func TestPushStyleRestoresCascadeScope(t *testing.T) {
 	ctx := New(nil, nil, locale.LanguageAuto)
 	first := style.Style{}.Background(style.RGB(0x112233))
-	second := style.Style{}.PaddingX(12)
+	second := style.Style{}.Padding(12)
 	restoreFirst := PushStyle(ctx, first)
 	restoreSecond := PushStyle(ctx, second)
 
@@ -650,24 +376,6 @@ func TestContextRoutesWindowCloseRequests(t *testing.T) {
 	}
 }
 
-func TestWindowModeString(t *testing.T) {
-	for mode, want := range map[WindowMode]string{
-		Windowed: "windowed", Fullscreen: "fullscreen", Minimized: "minimized", Maximized: "maximized", WindowMode(255): "unknown",
-	} {
-		if got := mode.String(); got != want {
-			t.Fatalf("WindowMode(%d).String() = %q, want %q", mode, got, want)
-		}
-	}
-}
-
-// paletteTheme installs a theme's v1 palette as its colour source, so edits to
-// the palette reach the widgets: a widget reads the semantic layer, and a theme
-// built from a Seed carries one that no longer follows the palette.
-func paletteTheme(t theme.Theme) theme.Theme {
-	t.UseSemantic(theme.SemanticFromPalette(t.Palette))
-	return t
-}
-
 func mustPanic(t *testing.T, fn func()) {
 	t.Helper()
 	defer func() {
@@ -678,18 +386,16 @@ func mustPanic(t *testing.T, fn func()) {
 	fn()
 }
 
-func (testCompleteVisualProvider) Image(*theme.Theme, theme.ImageRequest) theme.ImageVisual {
-	return theme.ImageVisual{}
-}
-
-func (testCompleteVisualProvider) Code(*theme.Theme, theme.CodeRequest) theme.CodeVisual {
-	return theme.CodeVisual{}
-}
-
-func (testCompleteVisualProvider) Skeleton(*theme.Theme, theme.SkeletonRequest) theme.SkeletonVisual {
-	return theme.SkeletonVisual{}
-}
-
-func (testCompleteVisualProvider) Segmented(*theme.Theme, theme.SegmentedRequest) theme.SegmentedVisual {
-	return theme.SegmentedVisual{}
+func TestClickableUsesScopedState(t *testing.T) {
+	ctx := New(nil, nil, locale.LanguageAuto)
+	first := ctx.Clickable("save")
+	EndFrame(ctx)
+	BeginFrame(ctx)
+	second := ctx.Clickable("save")
+	if first != second {
+		t.Fatal("clickable did not retain state by key")
+	}
+	if _, ok := PeekState[widget.Clickable](ctx, "save", "clickable"); !ok {
+		t.Fatal("clickable state was not retained")
+	}
 }

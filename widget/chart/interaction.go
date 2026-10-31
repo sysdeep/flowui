@@ -39,47 +39,58 @@ type Selection struct {
 }
 
 func UpdatePointer(gtx layout.Context, enabled bool, plot image.Rectangle, window DataWindow, verticalWindow bool, onWindowChange func(DataWindow), tag event.Tag, hovered *bool, position *f32.Point, windowGesture *DataWindowGesture) {
-	activeWindow := window
+	var onPointer func(pointer.Event)
+	if onWindowChange != nil {
+		onPointer = func(e pointer.Event) {
+			if next, changed := windowGesture.Update(e, plot, window, verticalWindow); changed {
+				window = next
+				onWindowChange(next)
+			}
+		}
+	}
+	updatePointer(gtx, enabled, tag, hovered, position, onPointer)
+	if onWindowChange == nil || !enabled || !gtx.Enabled() {
+		windowGesture.Cancel()
+	}
+}
+
+// UpdateHoverPointer observes chart hover and pointer position without a data
+// window. Shape and plot-boundary hit testing remain with the chart component.
+func UpdateHoverPointer(gtx layout.Context, enabled bool, tag event.Tag, hovered *bool, position *f32.Point) {
+	updatePointer(gtx, enabled, tag, hovered, position, nil)
+}
+
+func updatePointer(gtx layout.Context, enabled bool, tag event.Tag, hovered *bool, position *f32.Point, onPointer func(pointer.Event)) {
+	enabled = enabled && gtx.Enabled()
 	kinds := pointer.Enter | pointer.Leave | pointer.Move | pointer.Drag | pointer.Press | pointer.Release | pointer.Cancel
 	scrollX, scrollY := pointer.ScrollRange{}, pointer.ScrollRange{}
-	if onWindowChange != nil {
+	if onPointer != nil {
 		kinds |= pointer.Scroll
 		scrollX = pointer.ScrollRange{Min: -100000, Max: 100000}
 		scrollY = pointer.ScrollRange{Min: -100000, Max: 100000}
 	}
+	if !enabled {
+		*hovered = false
+	}
 	for {
 		value, ok := gtx.Event(pointer.Filter{Target: tag, Kinds: kinds, ScrollX: scrollX, ScrollY: scrollY})
 		if !ok {
-			break
+			return
 		}
-		pointerEvent, ok := value.(pointer.Event)
-		if !ok {
+		e, ok := value.(pointer.Event)
+		if !ok || !enabled {
 			continue
 		}
-		if !enabled {
-			*hovered = false
-			windowGesture.Cancel()
-			continue
+		if onPointer != nil {
+			onPointer(e)
 		}
-		if onWindowChange != nil {
-			if next, changed := windowGesture.Update(pointerEvent, plot, activeWindow, verticalWindow); changed {
-				activeWindow = next
-				onWindowChange(next)
-			}
-		} else {
-			windowGesture.Cancel()
-		}
-		switch pointerEvent.Kind {
+		switch e.Kind {
 		case pointer.Enter, pointer.Move, pointer.Drag, pointer.Press, pointer.Scroll:
 			*hovered = true
-			*position = pointerEvent.Position
+			*position = e.Position
 		case pointer.Leave, pointer.Cancel:
 			*hovered = false
 		}
-	}
-	if !enabled {
-		*hovered = false
-		windowGesture.Cancel()
 	}
 }
 
@@ -90,7 +101,7 @@ func AddPointerInput(gtx layout.Context, plot image.Rectangle, enabled bool, tag
 // AddPointerInputWithCursor registers chart pointer input with an explicit
 // cursor for visualizations whose interaction is not crosshair-based.
 func AddPointerInputWithCursor(gtx layout.Context, plot image.Rectangle, enabled bool, cursor pointer.Cursor, tag event.Tag) {
-	if !enabled || plot.Empty() {
+	if !enabled || !gtx.Enabled() || plot.Empty() {
 		return
 	}
 	area := clip.Rect(plot).Push(gtx.Ops)
@@ -112,14 +123,20 @@ func UpdateClicks(gtx layout.Context, enabled bool, click *gesture.Click) (activ
 			reset = reset || value.NumClicks >= 2
 		}
 	}
-	return activated && enabled, reset && enabled
+	return activated && enabled && gtx.Enabled(), reset && enabled && gtx.Enabled()
 }
 
 func AddClickInput(gtx layout.Context, size image.Point, enabled bool, click *gesture.Click) {
-	if !enabled || size.X <= 0 || size.Y <= 0 {
+	AddClickInputRect(gtx, image.Rectangle{Max: size}, enabled, click)
+}
+
+// AddClickInputRect registers pointer-only clicks in caller-supplied bounds,
+// including chart plots whose origin is not the widget origin.
+func AddClickInputRect(gtx layout.Context, bounds image.Rectangle, enabled bool, click *gesture.Click) {
+	if !enabled || !gtx.Enabled() || bounds.Empty() {
 		return
 	}
-	area := clip.Rect{Max: size}.Push(gtx.Ops)
+	area := clip.Rect(bounds).Push(gtx.Ops)
 	pass := pointer.PassOp{}.Push(gtx.Ops)
 	click.Add(gtx.Ops)
 	pass.Pop()

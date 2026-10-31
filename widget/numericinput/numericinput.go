@@ -116,7 +116,7 @@ func (n Widget) Layout(ctx *core.Context, gtx giolayout.Context) giolayout.Dimen
 	field := input.New(state.draft).Key(fieldKey).
 		Type(input.Number).
 		Label(n.label).
-		FullWidth().
+		FillWidth().
 		Disabled(n.disabled).
 		OnChange(func(value string) {
 			state.draft, state.dirty = value, true

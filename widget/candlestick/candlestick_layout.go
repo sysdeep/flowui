@@ -9,7 +9,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/i18n"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -67,12 +66,12 @@ type chartSelection struct {
 	pixelX float32
 }
 
-func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.CandlestickVisual) layout.Dimensions {
+func (w Widget) layout(ctx *core.Context, gtx layout.Context, defaults candlestickDefaults) layout.Dimensions {
 	if w.animationDuration <= 0 {
-		w.animationDuration = visual.Metrics.AnimationDuration
+		w.animationDuration = defaults.Metrics.AnimationDuration
 	}
 	if w.updateAnimationDuration <= 0 {
-		w.updateAnimationDuration = visual.Metrics.UpdateDuration
+		w.updateAnimationDuration = defaults.Metrics.UpdateDuration
 	}
 
 	state := chartStateFor(ctx, w.key)
@@ -81,13 +80,13 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.Candl
 	enabled := gtx.Enabled() && !w.disabled
 	activated, resetWindow := state.updateClicks(gtx, enabled)
 	active := core.ActiveTheme(ctx)
-	metrics := visual.Metrics
+	metrics := defaults.Metrics
 	height := metrics.Height
 	if w.height > 0 {
 		height = w.height
 	}
 	size := gtx.Constraints.Constrain(image.Pt(gtx.Constraints.Max.X, gtx.Dp(height)))
-	data := state.dataCache.resolve(w, active, visual)
+	data := state.dataCache.resolve(w, active, defaults)
 	if resetWindow && w.onDataWindowChange != nil {
 		full := chart.FullDataWindow()
 		if w.effectiveDataWindow() != full {
@@ -103,20 +102,20 @@ func (w Widget) layout(ctx *core.Context, gtx layout.Context, visual theme.Candl
 	eventGtx.Constraints = layout.Exact(size)
 	semantic.EnabledOp(enabled).Add(eventGtx.Ops)
 	semantic.DescriptionOp(w.semanticDescription(ctx, data)).Add(eventGtx.Ops)
-	w.layoutContent(ctx, eventGtx, state, data, visual, enabled, activated, size)
+	w.layoutContent(ctx, eventGtx, state, data, defaults, enabled, activated, size)
 	state.addClickInput(eventGtx, size, enabled && (w.onDataClick != nil || w.onDataWindowChange != nil))
 	return layout.Dimensions{Size: size}
 }
 
-func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, visual theme.CandlestickVisual, enabled, activated bool, size image.Point) {
+func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *chartState, data chartData, defaults candlestickDefaults, enabled, activated bool, size image.Point) {
 	if size.X <= 0 || size.Y <= 0 {
 		return
 	}
-	metrics := visual.Metrics
-	style := candlestickStyleFor(visual, !enabled)
+	metrics := defaults.Metrics
+	style := candlestickStyleFor(defaults, !enabled)
 	displayData := w.animatedData(ctx, gtx, state, data)
 	yScale := w.resolveYScale(data)
-	leftLabelWidth := w.measureYLabelWidth(ctx, gtx, yScale, visual, max(size.X/2, 1))
+	leftLabelWidth := w.measureYLabelWidth(ctx, gtx, yScale, defaults, max(size.X/2, 1))
 	left := max(gtx.Dp(metrics.PlotPaddingLeft), leftLabelWidth+max(gtx.Dp(metrics.TickLabelGap), 0)+4)
 	left = min(max(left, 0), max(size.X/2, 0))
 	right := min(max(gtx.Dp(metrics.PlotPaddingRight), 0), max(size.X-left-1, 0))
@@ -161,7 +160,7 @@ func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *char
 	}, func() chartGeometry {
 		return w.resolveGeometry(data, size, plot, yScale, gtx.Dp)
 	})
-	geometry.xTicks = w.pruneCategoryTicks(ctx, gtx, geometry, visual, style)
+	geometry.xTicks = w.pruneCategoryTicks(ctx, gtx, geometry, defaults, style)
 
 	state.updatePointer(gtx, enabled, geometry.plot, w.effectiveDataWindow(), w.onDataWindowChange)
 	selectionEnabled := w.showTooltip || w.onDataClick != nil
@@ -201,19 +200,19 @@ func (w Widget) layoutContent(ctx *core.Context, gtx layout.Context, state *char
 	opacity := paint.PushOpacity(gtx.Ops, style.opacity)
 	placeChartText(gtx, yName, yNamePosition)
 	drawGrid(gtx, geometry, style, w.showGrid, metrics)
-	w.drawMarkAreas(ctx, gtx, geometry, visual, style)
+	w.drawMarkAreas(ctx, gtx, geometry, defaults, style)
 	drawAxes(gtx, geometry, style, metrics)
 	drawCandles(gtx, displayData, geometry, selection.index, selected, metrics)
-	w.drawMarkLinesAndPoints(ctx, gtx, geometry, visual, style)
-	w.layoutAxisLabels(ctx, gtx, geometry, visual, style)
+	w.drawMarkLinesAndPoints(ctx, gtx, geometry, defaults, style)
+	w.layoutAxisLabels(ctx, gtx, geometry, defaults, style)
 	if selected && w.showTooltip && w.showCrosshair {
-		w.drawCrosshair(ctx, gtx, geometry, selection, state.pointer, style, visual)
+		w.drawCrosshair(ctx, gtx, geometry, selection, state.pointer, style, defaults)
 	}
 	if !data.extent.Valid {
-		w.layoutEmpty(ctx, gtx, geometry, visual, style)
+		w.layoutEmpty(ctx, gtx, geometry, defaults, style)
 	}
 	if tooltipVisible || tooltipProgress > 0 {
-		w.drawTooltip(ctx, state.tooltipSelection, geometry.yScale.Interval, visual, chart.TooltipAnchor(tooltipPointer), tooltipProgress, state.tooltipTransition.Exiting())
+		w.drawTooltip(ctx, state.tooltipSelection, geometry.yScale.Interval, defaults, chart.TooltipAnchor(tooltipPointer), tooltipProgress, state.tooltipTransition.Exiting())
 	}
 	if xName.dims.Size.X > 0 {
 		placeChartText(gtx, xName, image.Pt(max(geometry.plot.Max.X-xName.dims.Size.X, 0), max(size.Y-xName.dims.Size.Y, 0)))

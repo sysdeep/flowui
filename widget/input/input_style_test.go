@@ -1,191 +1,98 @@
 package input
 
 import (
-	"image"
 	"reflect"
 	"testing"
 
-	"gioui.org/layout"
-	"gioui.org/op"
 	"gioui.org/unit"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
 	"github.com/qianniancn/flowui/internal/computed"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/internal/field"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
-// TestInputInstanceStyleAddsFieldBorder pins the styling path where chrome
-// enters through the provider-bound Styled wrapper (the
-// cascade's instance layer), not through a design callback slot.
-func TestInputInstanceStyleAddsFieldBorder(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+// TestInputInstanceStyleOverridesFieldBorder pins the styling path where chrome
+// enters through the cascade's instance layer, not through a design callback
+// slot.
+func TestInputInstanceStyleOverridesFieldBorder(t *testing.T) {
+	activeTheme := theme.Light()
 	defaultCtx := core.New(nil, &activeTheme, locale.LanguageAuto)
-	visual := inputVisualDeclarations(
-		&activeTheme,
-		Primary,
-		false,
-		theme.InputModeSingleLine,
-		Medium,
-		nil,
-	)
-	declaration := visual.Defaults
+	declaration := defaultInputRules(&activeTheme, Primary, Medium, false)
 
 	defaultStyle := computed.ResolveStatic(defaultCtx, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
 	instanceChrome := style.Style{}.
-		BorderColor(style.Solid(activeTheme.Palette.Border)).
-		BorderWidth(1)
+		BorderColor(style.Solid(activeTheme.Colors.Border)).
+		BorderWidth(3)
 	styledStyle := computed.ResolveStatic(defaultCtx, style.State{}, declaration, style.Style{}, style.Style{}, instanceChrome)
 
-	if defaultStyle.Paint == nil || defaultStyle.Paint.Border != nil {
-		t.Fatal("default input unexpectedly has external style border")
+	if defaultStyle.Paint == nil || defaultStyle.Paint.Border == nil || *defaultStyle.Paint.Border.Width != 1 {
+		t.Fatal("default input does not have its built-in border")
 	}
-	if styledStyle.Paint == nil || styledStyle.Paint.Border == nil {
-		t.Fatal("instance input style did not add border chrome")
-	}
-}
-
-func TestInputEditorStyleResolverProvidesDefaults(t *testing.T) {
-	active := *testtheme.Behavior()
-	visual := inputVisualDeclarations(&active, Primary, false, theme.InputModeSingleLine, Medium, nil)
-	if visual.EditorStyle == nil {
-		t.Fatal("input provider returned no editor style resolver")
-	}
-	resolved := visual.EditorStyle(style.ResolvedStyle{}, style.ResolvedStyle{}, style.ResolvedStyle{})
-	if resolved.Foreground.A == 0 || resolved.Placeholder.A == 0 || resolved.Selection.A == 0 || resolved.TextSize <= 0 || resolved.LineHeight <= 0 {
-		t.Fatalf("provider editor defaults = %#v", resolved)
+	if styledStyle.Paint == nil || styledStyle.Paint.Border == nil || *styledStyle.Paint.Border.Width != 3 {
+		t.Fatal("instance input style did not override border width")
 	}
 }
 
-func TestInputStyledWrapperKeepsOverrideOutsideBehaviorValue(t *testing.T) {
-	provider := &recordingInputVisualProvider{testInputVisualProvider: newTestInputVisualProvider()}
-	active := *testtheme.Behavior()
-	active.VisualProvider = provider
+func TestInputEditorStyleAppliesThemeDefaults(t *testing.T) {
+	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageAuto)
-	declaration := style.Style{}.BorderWidth(2)
-	base := New("").Key("wrapped")
-	wrapped := (base).Style(declaration)
+	declaration := defaultInputRules(&active, Primary, Medium, false)
+	root := computed.ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
+	placeholder := computed.ResolvePartStatic(ctx, style.PartPlaceholder, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
+	selection := computed.ResolvePartStatic(ctx, style.PartSelection, style.State{}, declaration, style.Style{}, style.Style{}, style.Style{})
+	editorStyle := material.Editor(core.ActiveMaterial(ctx), &widget.Editor{}, "")
+	applyInputEditorStyle(&editorStyle, &active, root, placeholder, selection)
 
-	wrapped.Layout(ctx, layout.Context{
-		Constraints: layout.Constraints{Max: image.Pt(180, 48)},
-		Ops:         new(op.Ops),
-	})
-	if len(provider.requests) == 0 || provider.requests[len(provider.requests)-1].Override == nil {
-		t.Fatal("styled wrapper did not send an instance override to the provider")
+	semantic := active.Semantic()
+	if editorStyle.Color != semantic.FieldForeground ||
+		editorStyle.HintColor != semantic.FieldPlaceholder ||
+		editorStyle.SelectionColor != semantic.Selection {
+		t.Fatalf("editor colours = %#v/%#v/%#v, want theme field colours",
+			editorStyle.Color, editorStyle.HintColor, editorStyle.SelectionColor)
 	}
-}
-
-func TestStyledTextAreaAndGroupSendOverridesToProvider(t *testing.T) {
-	tests := []struct {
-		name   string
-		layout func(*core.Context, layout.Context)
-	}{
-		{
-			name: "textarea",
-			layout: func(ctx *core.Context, gtx layout.Context) {
-				(NewTextArea("").Key("wrapped-textarea").Rows(2)).Style(style.Style{}.BorderWidth(2)).Layout(ctx, gtx)
-			},
-		},
-		{
-			name: "group",
-			layout: func(ctx *core.Context, gtx layout.Context) {
-				(Group(New("").Key("wrapped-group"))).Style(style.Style{}.BorderWidth(2)).Layout(ctx, gtx)
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			provider := &recordingInputVisualProvider{testInputVisualProvider: newTestInputVisualProvider()}
-			active := *testtheme.Behavior()
-			active.VisualProvider = provider
-			ctx := core.New(nil, &active, locale.LanguageAuto)
-			test.layout(ctx, layout.Context{
-				Constraints: layout.Constraints{Max: image.Pt(180, 96)},
-				Ops:         new(op.Ops),
-			})
-			if len(provider.requests) == 0 {
-				t.Fatal("styled wrapper did not call the provider")
-			}
-			request := provider.requests[len(provider.requests)-1]
-			if request.Override == nil || request.Override.Declaration.Hash64() == (style.Style{}).Hash64() {
-				t.Fatal("styled wrapper did not send its declaration to the provider")
-			}
-		})
-	}
-}
-
-func TestStyledInputUsesOneProviderBundlePerFrame(t *testing.T) {
-	provider := &recordingInputVisualProvider{testInputVisualProvider: newTestInputVisualProvider()}
-	active := *testtheme.Behavior()
-	active.VisualProvider = provider
-	ctx := core.New(nil, &active, locale.LanguageAuto)
-
-	(New("Ada").Key("single-bundle")).Style(style.Style{}.BorderWidth(2)).Layout(ctx, layout.Context{
-		Constraints: layout.Constraints{Max: image.Pt(180, 48)},
-		Ops:         new(op.Ops),
-	})
-	if got := len(provider.requests); got != 1 {
-		t.Fatalf("styled input provider requests = %d, want one cached visual bundle", got)
-	}
-}
-
-func TestInputVisualDeclarationCacheTracksOverride(t *testing.T) {
-	provider := &recordingInputVisualProvider{testInputVisualProvider: newTestInputVisualProvider()}
-	active := *testtheme.Behavior()
-	active.VisualProvider = provider
-	state := &inputState{}
-	value := New("Ada").Key("override-cache")
-
-	state.visualDeclarations(value, &active, nil)
-	state.visualDeclarations(value, &active, nil)
-	if got := len(provider.requests); got != 1 {
-		t.Fatalf("unstyled visual bundle requests = %d, want one cache hit", got)
-	}
-	first := style.Style{}.BorderWidth(1)
-	second := style.Style{}.BorderWidth(2)
-	state.visualDeclarations(value, &active, &theme.InputOverride{Declaration: first})
-	state.visualDeclarations(value, &active, &theme.InputOverride{Declaration: second})
-	if got := len(provider.requests); got != 3 {
-		t.Fatalf("override visual bundle requests = %d, want one request per distinct override", got)
+	if editorStyle.TextSize != active.Typography.ControlSize || editorStyle.LineHeight != unit.Sp(20) {
+		t.Fatalf("editor metrics = %v/%v, want %v/%v",
+			editorStyle.TextSize, editorStyle.LineHeight, active.Typography.ControlSize, unit.Sp(20))
 	}
 }
 
 func TestStyleDeclarationCacheLoadAndInvalidation(t *testing.T) {
-	firstTheme := *testtheme.Behavior()
-	secondTheme := *testtheme.Behavior()
+	firstTheme := theme.Light()
+	secondTheme := theme.Light()
 	declaration := style.Style{}.Height(unit.Dp(24))
-	cache := computed.ProviderCache[inputVisualKey, theme.InputVisual]{}
-	key := inputVisualKey{variant: field.Primary, sizeTier: Medium}
-	cache.Resolve(&firstTheme, key, func() theme.InputVisual {
-		return theme.InputVisual{Defaults: declaration}
+	cache := computed.VisualCache[inputStyleKey, style.Style]{}
+	key := inputStyleKey{variant: Primary, size: Medium}
+	cache.Resolve(&firstTheme, key, func() style.Style {
+		return declaration
 	})
 
 	tests := []struct {
 		name          string
 		theme         *theme.Theme
-		variant       field.Variant
+		variant       Variant
 		sizeTier      Size
 		fullWidth     bool
 		dynamicHeight unit.Dp
 		wantHit       bool
 	}{
-		{name: "same key", theme: &firstTheme, variant: field.Primary, sizeTier: Medium, wantHit: true},
-		{name: "theme pointer", theme: &secondTheme, variant: field.Primary},
-		{name: "variant", theme: &firstTheme, variant: field.Secondary},
-		{name: "size tier", theme: &firstTheme, variant: field.Primary, sizeTier: Small},
-		{name: "full width", theme: &firstTheme, variant: field.Primary, fullWidth: true},
-		{name: "dynamic height", theme: &firstTheme, variant: field.Primary, dynamicHeight: 24},
+		{name: "same key", theme: &firstTheme, variant: Primary, sizeTier: Medium, wantHit: true},
+		{name: "theme pointer", theme: &secondTheme, variant: Primary},
+		{name: "variant", theme: &firstTheme, variant: Secondary},
+		{name: "size tier", theme: &firstTheme, variant: Primary, sizeTier: Small},
+		{name: "full width", theme: &firstTheme, variant: Primary, fullWidth: true},
+		{name: "dynamic height", theme: &firstTheme, variant: Primary, dynamicHeight: 24},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			before := cache.Stats()
-			cache.Resolve(test.theme, inputVisualKey{
-				variant: test.variant, sizeTier: test.sizeTier,
-				fullWidth: test.fullWidth, dynamicHeight: test.dynamicHeight,
-			}, func() theme.InputVisual {
-				return theme.InputVisual{Defaults: declaration}
+			cache.Resolve(test.theme, inputStyleKey{
+				variant: test.variant, size: test.sizeTier,
+				fullWidth: test.fullWidth, height: test.dynamicHeight,
+			}, func() style.Style {
+				return declaration
 			})
 			after := cache.Stats()
 			gotHit := after.Misses == before.Misses
@@ -197,32 +104,32 @@ func TestStyleDeclarationCacheLoadAndInvalidation(t *testing.T) {
 }
 
 func TestInputStateStyleDeclarationsCache(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
-	otherTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
+	otherTheme := theme.Light()
 	state := &inputState{}
 	widget := New("").Key("name").Variant(Secondary)
 
-	firstVisual := state.visualDeclarations(widget, &activeTheme, nil)
-	secondVisual := state.visualDeclarations(widget, &activeTheme, nil)
-	if firstVisual.Defaults.Hash64() != secondVisual.Defaults.Hash64() {
+	firstDefaults := state.defaults(widget, &activeTheme)
+	secondDefaults := state.defaults(widget, &activeTheme)
+	if firstDefaults.Hash64() != secondDefaults.Hash64() {
 		t.Fatal("repeated input declaration lookup changed the cached layers")
 	}
 	stats := state.styleCache.Stats()
 	if stats.Hits != 1 || stats.Misses != 1 {
 		t.Fatalf("input cache stats after repeated lookup = %#v", stats)
 	}
-	state.visualDeclarations(widget.Size(Small), &activeTheme, nil)
+	state.defaults(widget.Size(Small), &activeTheme)
 	stats = state.styleCache.Stats()
 	if stats.Misses != 2 || stats.KeyInvalidations == 0 {
 		t.Fatalf("input size change did not invalidate cache: %#v", stats)
 	}
 
-	state.visualDeclarations(widget.FullWidth(), &activeTheme, nil)
+	state.defaults(widget.FillWidth(), &activeTheme)
 	stats = state.styleCache.Stats()
 	if stats.Misses != 3 || stats.KeyInvalidations < 2 {
 		t.Fatalf("input full-width change did not invalidate cache: %#v", stats)
 	}
-	state.visualDeclarations(widget, &otherTheme, nil)
+	state.defaults(widget, &otherTheme)
 	stats = state.styleCache.Stats()
 	if stats.Misses != 4 || stats.ThemeInvalidations == 0 {
 		t.Fatalf("input theme change did not invalidate cache: %#v", stats)
@@ -230,19 +137,11 @@ func TestInputStateStyleDeclarationsCache(t *testing.T) {
 }
 
 func TestInputEditorPartsBatchMatchesIndividualResolution(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	gtx := testLayoutContext()
 	state := style.State{Hovered: true, Focused: true}
-	visual := inputVisualDeclarations(
-		&activeTheme,
-		Primary,
-		false,
-		theme.InputModeSingleLine,
-		Medium,
-		nil,
-	)
-	defaults := visual.Defaults
+	defaults := defaultInputRules(&activeTheme, Primary, Medium, false)
 	custom := style.Style{}.
 		TextColor(style.RGB(0x123456)).
 		Part(style.PartPlaceholder, style.Style{}.TextColor(style.RGB(0x654321)))
@@ -264,7 +163,7 @@ func TestInputEditorPartsBatchMatchesIndividualResolution(t *testing.T) {
 }
 
 func TestInputEditorRootResolutionMatchesBatchRoot(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
 	gtx := testLayoutContext()
 	request := inputEditorStyleResolution{
@@ -282,16 +181,16 @@ func TestInputEditorRootResolutionMatchesBatchRoot(t *testing.T) {
 }
 
 func TestTextAreaStyleDeclarationsCacheTracksHeight(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	state := &textAreaState{}
-	widget := NewTextArea("").Key("notes").Variant(TextAreaPrimary)
+	widget := NewTextArea("").Key("notes").Variant(Primary)
 
-	state.visualDeclarations(widget, &activeTheme, 40, nil)
+	state.defaults(widget, &activeTheme, 40)
 	stats := state.styleCache.Stats()
 	if stats.Misses != 1 {
 		t.Fatalf("textarea first height cache stats = %#v", stats)
 	}
-	state.visualDeclarations(widget, &activeTheme, 80, nil)
+	state.defaults(widget, &activeTheme, 80)
 	stats = state.styleCache.Stats()
 	if stats.Misses != 2 || stats.KeyInvalidations == 0 {
 		t.Fatalf("textarea height change did not invalidate cache: %#v", stats)
@@ -299,20 +198,15 @@ func TestTextAreaStyleDeclarationsCacheTracksHeight(t *testing.T) {
 }
 
 func TestTextAreaVisualCacheRetainsProvisionalAndResolvedHeights(t *testing.T) {
-	provider := &recordingInputVisualProvider{testInputVisualProvider: newTestInputVisualProvider()}
-	active := *testtheme.Behavior()
-	active.VisualProvider = provider
+	active := theme.Light()
 	state := &textAreaState{}
 	widget := NewTextArea("").Key("notes-cache").Rows(4)
 
-	state.visualDeclarations(widget, &active, 0, nil)
-	state.visualDeclarations(widget, &active, 76, nil)
-	state.visualDeclarations(widget, &active, 0, nil)
-	state.visualDeclarations(widget, &active, 76, nil)
+	state.defaults(widget, &active, 0)
+	state.defaults(widget, &active, 76)
+	state.defaults(widget, &active, 0)
+	state.defaults(widget, &active, 76)
 
-	if len(provider.requests) != 2 {
-		t.Fatalf("textarea provisional/resolved provider requests = %d, want 2", len(provider.requests))
-	}
 	stats := state.styleCache.Stats()
 	if stats.Misses != 2 || stats.Hits != 2 || stats.Size != 2 {
 		t.Fatalf("textarea multi-height cache stats = %#v, want two misses/two hits/two entries", stats)
@@ -320,16 +214,16 @@ func TestTextAreaVisualCacheRetainsProvisionalAndResolvedHeights(t *testing.T) {
 }
 
 func TestGroupStyleDeclarationsCacheTracksHeight(t *testing.T) {
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	state := &inputGroupState{}
 	widget := Group(New("").Key("query")).Variant(Primary)
 
-	state.visualDeclarations(widget, &activeTheme, 36, nil)
+	state.defaults(widget, &activeTheme, 36)
 	stats := state.styleCache.Stats()
 	if stats.Misses != 1 {
 		t.Fatalf("input-group first height cache stats = %#v", stats)
 	}
-	state.visualDeclarations(widget, &activeTheme, 76, nil)
+	state.defaults(widget, &activeTheme, 76)
 	stats = state.styleCache.Stats()
 	if stats.Misses != 2 || stats.KeyInvalidations == 0 {
 		t.Fatalf("input-group height change did not invalidate cache: %#v", stats)
@@ -337,20 +231,15 @@ func TestGroupStyleDeclarationsCacheTracksHeight(t *testing.T) {
 }
 
 func TestGroupVisualCacheRetainsProvisionalAndResolvedHeights(t *testing.T) {
-	provider := &recordingInputVisualProvider{testInputVisualProvider: newTestInputVisualProvider()}
-	active := *testtheme.Behavior()
-	active.VisualProvider = provider
+	active := theme.Light()
 	state := &inputGroupState{}
 	value := GroupTextArea(NewTextArea("").Key("group-cache").Rows(4))
 
-	state.visualDeclarations(value, &active, 0, nil)
-	state.visualDeclarations(value, &active, 76, nil)
-	state.visualDeclarations(value, &active, 0, nil)
-	state.visualDeclarations(value, &active, 76, nil)
+	state.defaults(value, &active, 0)
+	state.defaults(value, &active, 76)
+	state.defaults(value, &active, 0)
+	state.defaults(value, &active, 76)
 
-	if len(provider.requests) != 2 {
-		t.Fatalf("group provisional/resolved provider requests = %d, want 2", len(provider.requests))
-	}
 	stats := state.styleCache.Stats()
 	if stats.Misses != 2 || stats.Hits != 2 || stats.Size != 2 {
 		t.Fatalf("group multi-height cache stats = %#v, want two misses/two hits/two entries", stats)

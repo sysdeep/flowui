@@ -13,7 +13,6 @@ import (
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/chart"
 )
 
@@ -222,7 +221,7 @@ func (s Series) Hidden(hidden bool) Series {
 }
 
 type Widget struct {
-	override                *theme.LineChartOverride
+	style                   style.Style
 	key                     string
 	series                  []Series
 	categories              []string
@@ -264,7 +263,7 @@ type Widget struct {
 	markLines               []chart.MarkLine
 	markAreas               []chart.MarkArea
 	markPoints              []chart.MarkPoint
-	visualCache             *lineChartVisualCache
+	visualCache             *lineChartDefaultsCache
 }
 
 func New(key string, series []Series) Widget {
@@ -279,7 +278,7 @@ func New(key string, series []Series) Widget {
 		animation:             true,
 		animationEasing:       animation.EaseCubicOut,
 		updateAnimationEasing: animation.EaseCubicInOut,
-		visualCache:           &lineChartVisualCache{},
+		visualCache:           &lineChartDefaultsCache{},
 	}
 }
 
@@ -479,24 +478,19 @@ func (w Widget) Disabled(disabled bool) Widget {
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return w.layoutWithOverride(ctx, gtx, w.override)
-}
-
-func (w Widget) layoutWithOverride(ctx *core.Context, gtx layout.Context, override *theme.LineChartOverride) layout.Dimensions {
-	core.RequireVisualProvider(ctx)
 	active := core.ActiveTheme(ctx)
-	visual := w.resolveVisual(active, override)
-	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, visual.Defaults, style.Style{}, style.Style{}, visual.Override)
-	return layoutui.Resolved(ctx, gtx, resolved, lineChartVisualWidget{value: w, visual: visual})
+	defaults := w.resolveDefaults(active)
+	resolved := computed.ResolveStatic(ctx, style.State{Disabled: w.disabled}, defaults.Defaults, style.Style{}, style.Style{}, w.style)
+	return layoutui.Resolved(ctx, gtx, resolved, lineChartDefaultsWidget{value: w, defaults: defaults})
 }
 
-type lineChartVisualWidget struct {
-	value  Widget
-	visual *theme.LineChartVisual
+type lineChartDefaultsWidget struct {
+	value    Widget
+	defaults lineChartDefaults
 }
 
-func (v lineChartVisualWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
-	return v.value.layout(ctx, gtx, *v.visual)
+func (v lineChartDefaultsWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
+	return v.value.layout(ctx, gtx, v.defaults)
 }
 
 func (w Widget) legendVisible(data chartData) bool {
@@ -539,13 +533,10 @@ func validateChartRange(axis string, minimum, maximum float64) {
 	}
 }
 
-// Style merges instance declarations into the widget. The declaration
-// reaches the provider at layout time, so Style can sit anywhere in the chain.
+// Style merges instance declarations into the widget. The declaration is
+// resolved as the last cascade layer at layout time, so Style can sit anywhere
+// in the chain.
 func (w Widget) Style(values ...style.Style) Widget {
-	declaration := style.Join(values...)
-	if w.override == nil {
-		w.override = &theme.LineChartOverride{}
-	}
-	w.override.Declaration = style.Join(w.override.Declaration, declaration)
+	w.style = style.Join(w.style, style.Join(values...))
 	return w
 }

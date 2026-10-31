@@ -12,7 +12,7 @@ import (
 	"gioui.org/op"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/button"
 	inputui "github.com/qianniancn/flowui/widget/input"
 	"github.com/qianniancn/flowui/widget/menu"
@@ -189,7 +189,7 @@ func TestCommandAdaptersPreserveBehavior(t *testing.T) {
 }
 
 func TestMenuItemForLocalizesShortcutNames(t *testing.T) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageChinese)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageChinese)
 	command := New("move-left", "Move left").
 		Shortcut(KeyShortcut("left", 0)).
 		OnExecute(func() {})
@@ -198,7 +198,7 @@ func TestMenuItemForLocalizesShortcutNames(t *testing.T) {
 		t.Fatalf("localized shortcut = %q, want 左", item.Shortcut)
 	}
 	if got := MenuItem(command).Shortcut; got != "Left" {
-		t.Fatalf("compatibility shortcut = %q, want Left", got)
+		t.Fatalf("default shortcut = %q, want Left", got)
 	}
 }
 
@@ -244,7 +244,7 @@ func (w fixedCommandWidget) Layout(*core.Context, layout.Context) layout.Dimensi
 }
 
 func commandTestContext() *core.Context {
-	return core.New(nil, testtheme.Behavior(), locale.LanguageAuto)
+	return core.New(nil, new(theme.Light()), locale.LanguageAuto)
 }
 
 func commandLayoutContext(router *input.Router, now time.Time) layout.Context {

@@ -1,6 +1,7 @@
 package gantt
 
 import (
+	"github.com/qianniancn/flowui/internal/computed"
 	"image"
 	"strconv"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"gioui.org/unit"
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
@@ -23,7 +23,7 @@ type ganttBenchmarkFrame struct {
 }
 
 func newGanttBenchmarkFrame(maximum image.Point) *ganttBenchmarkFrame {
-	active := testtheme.Behavior()
+	active := new(theme.Light())
 	frame := &ganttBenchmarkFrame{ctx: core.New(nil, active, locale.LanguageEnglish)}
 	frame.gtx = layout.Context{
 		Constraints: layout.Constraints{Max: maximum},
@@ -72,30 +72,24 @@ func layoutGanttBenchmarkTree(frame *ganttBenchmarkFrame, values []Widget) {
 	core.EndFrame(frame.ctx)
 }
 
-func reportGanttVisualStats(b *testing.B, after, before GanttVisualCacheStats) {
+func reportGanttVisualStats(b *testing.B, after, before computed.VisualCacheStats) {
 	b.ReportMetric(float64(after.Hits-before.Hits)/float64(b.N), "gantt-visual-cache-hits/op")
 	b.ReportMetric(float64(after.Misses-before.Misses)/float64(b.N), "gantt-visual-cache-misses/op")
 	b.ReportMetric(float64(after.ThemeInvalidations-before.ThemeInvalidations)/float64(b.N), "gantt-visual-cache-theme-invalidations/op")
 	b.ReportMetric(float64(after.KeyInvalidations-before.KeyInvalidations)/float64(b.N), "gantt-visual-cache-key-invalidations/op")
 }
 
-func BenchmarkGanttProviderVisualCacheHit(b *testing.B) {
-	active := testtheme.Behavior()
-	cache := ganttVisualCache{}
-	cache.cache.Resolve(active, struct{}{}, func() theme.GanttVisual {
-		provider, err := theme.ComponentProvider(active)
-		if err != nil {
-			b.Fatal(err)
-		}
-		visual := provider.Gantt(active, theme.GanttRequest{})
-		theme.ValidateGanttVisual(visual)
-		return visual
+func BenchmarkGanttDefaultVisualCacheHit(b *testing.B) {
+	active := new(theme.Light())
+	cache := ganttDefaultsCache{}
+	cache.Resolve(active, struct{}{}, func() ganttDefaults {
+		return buildGantt(active)
 	})
 	before := cache.Stats()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		cache.cache.Resolve(active, struct{}{}, func() theme.GanttVisual {
+		cache.Resolve(active, struct{}{}, func() ganttDefaults {
 			b.Helper()
 			panic("gantt visual cache miss")
 		})
@@ -130,8 +124,8 @@ func BenchmarkGanttComponentTreeSteadyState(b *testing.B) {
 	}
 }
 
-func ganttTreeVisualStats(values []Widget) GanttVisualCacheStats {
-	var total GanttVisualCacheStats
+func ganttTreeVisualStats(values []Widget) computed.VisualCacheStats {
+	var total computed.VisualCacheStats
 	for _, value := range values {
 		stats := value.visualCache.Stats()
 		total.Hits += stats.Hits
@@ -166,8 +160,8 @@ func BenchmarkGanttComponentTreeVisualCacheMiss(b *testing.B) {
 	frame.ops.Reset()
 	core.BeginFrame(frame.ctx)
 	layoutGanttBenchmarkTree(frame, values)
-	first := *testtheme.Behavior()
-	second := *testtheme.Behavior()
+	first := theme.Light()
+	second := theme.Light()
 	before := ganttTreeVisualStats(values)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -187,7 +181,7 @@ func BenchmarkGanttComponentTreeVisualCacheMiss(b *testing.B) {
 
 func BenchmarkGanttStyledOverrideBypass(b *testing.B) {
 	frame := newGanttBenchmarkFrame(image.Pt(720, 480))
-	styled := (ganttBenchmarkValue(0)).Style(style.Style{}.PaddingX(2))
+	styled := (ganttBenchmarkValue(0)).Style(style.Style{}.Padding(2))
 	frame.layout(styled)
 	b.ReportAllocs()
 	b.ResetTimer()

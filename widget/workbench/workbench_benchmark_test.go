@@ -12,7 +12,7 @@ import (
 
 	"github.com/qianniancn/flowui/internal/core"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/command"
 	"github.com/qianniancn/flowui/widget/dock"
 )
@@ -46,7 +46,7 @@ func BenchmarkWorkbenchSnapshotClone(b *testing.B) {
 }
 
 func BenchmarkWorkbenchCommandsFor(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	controller := NewController(benchmarkWorkbenchState())
 	b.ReportAllocs()
 	var commands []command.Command
@@ -61,7 +61,7 @@ func BenchmarkWorkbenchCommandsFor(b *testing.B) {
 }
 
 func BenchmarkWorkbenchCommandScopeShortcutDispatch(b *testing.B) {
-	ctx := core.New(nil, testtheme.Behavior(), locale.LanguageEnglish)
+	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	controller := NewController(benchmarkWorkbenchState())
 	router := new(input.Router)
 	scope := controller.CommandScopeFor(ctx, nil)

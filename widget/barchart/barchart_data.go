@@ -55,7 +55,7 @@ type chartDataCache struct {
 	cache chart.DataCache[chartData]
 }
 
-func (c *chartDataCache) resolveWithColors(widget Widget, active *theme.Theme, colors theme.BarChartColors, metric unit.Metric) chartData {
+func (c *chartDataCache) resolveWithColors(widget Widget, active *theme.Theme, colors barChartColors, metric unit.Metric) chartData {
 	data, generation := c.cache.Resolve(widget.hasDataVersion, widget.dataVersion, active, metric, func() chartData {
 		return resolveChartData(widget, colors, metric.Dp)
 	})
@@ -63,7 +63,7 @@ func (c *chartDataCache) resolveWithColors(widget Widget, active *theme.Theme, c
 	return data
 }
 
-func resolveChartData(widget Widget, colors theme.BarChartColors, dp func(unit.Dp) int) chartData {
+func resolveChartData(widget Widget, colors barChartColors, dp func(unit.Dp) int) chartData {
 	seen := make(map[string]struct{}, len(widget.series))
 	columnIndexes := make(map[string]int, len(widget.series))
 	data := chartData{categories: len(widget.categories)}

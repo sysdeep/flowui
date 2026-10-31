@@ -7,9 +7,10 @@ import (
 
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	buttonpkg "github.com/qianniancn/flowui/widget/button"
+	"github.com/qianniancn/flowui/widget/divider"
 	"github.com/qianniancn/flowui/widget/text"
 	"github.com/qianniancn/flowui/window"
 )
@@ -71,7 +72,7 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 			layout.Scroll(layout.Column(
 				text.New("FlowUI Buttons").Size(24),
 				text.New(status).Size(16),
-				layout.Divider(),
+				divider.New(),
 				section("Variants",
 					buttonRow(
 						demoButton("Primary", buttonpkg.Primary, send),
@@ -137,7 +138,7 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 				),
 				section("Full width",
 					buttonpkg.New("Full width").
-						FullWidth().
+						FillWidth().
 						Variant(buttonpkg.Outline).
 						OnClick(func() {
 							send(Pressed{Label: "Full width"})
@@ -198,6 +199,6 @@ func main() {
 	ui.Run(ui.NewProgram(Model{},
 		Update, View), window.Title("FlowUI Buttons"),
 		window.Size(900, 640),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 	)
 }

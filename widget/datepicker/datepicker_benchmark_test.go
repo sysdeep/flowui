@@ -7,33 +7,27 @@ import (
 	"gioui.org/io/input"
 	"gioui.org/io/key"
 	"github.com/qianniancn/flowui/internal/locale"
-	"github.com/qianniancn/flowui/internal/testtheme"
 	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 )
 
-func BenchmarkDatePickerProviderDeclaration(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
-	provider, err := theme.ComponentProvider(&activeTheme)
-	if err != nil {
-		b.Fatal(err)
-	}
-	request := theme.DatePickerRequest{Variant: theme.InputPrimary}
+func BenchmarkDatePickerDefaultDeclaration(b *testing.B) {
+	activeTheme := theme.Light()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_ = provider.DatePicker(&activeTheme, request)
+		_ = buildDatePickerDefaults(&activeTheme, Primary)
 	}
 }
 
-func BenchmarkDatePickerPartDefaultsCache(b *testing.B) {
-	activeTheme := *testtheme.Behavior()
+func BenchmarkPartDefaultsCache(b *testing.B) {
+	activeTheme := theme.Light()
 	base := style.Style{}
 
 	b.Run("cell-cache-hit", func(b *testing.B) {
 		cache := datePickerPartDefaultsCache{}
-		context := CellStyleContext{Hovered: true, Today: true, Active: true, Range: true}
+		context := dateCellState{Hovered: true, Today: true, Active: true, Range: true}
 		cache.cellDefaults(&activeTheme, base, context)
 
 		b.ReportAllocs()
@@ -61,7 +55,7 @@ func BenchmarkDatePickerPartDefaultsCache(b *testing.B) {
 func BenchmarkDatePickerOpenSteadyState(b *testing.B) {
 	now := testDate(2026, 7, 1)
 	picker := New("bench-open", testDate(2026, 7, 9))
-	activeTheme := *testtheme.Behavior()
+	activeTheme := theme.Light()
 	ctx := newContextWithThemeAndLanguage(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	layoutDatePickerFrameAt(ctx, router, picker, now)

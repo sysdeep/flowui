@@ -37,9 +37,7 @@ func EnsureDerivedItem(ctx *core.Context, owner, role, itemKey string) *widget.C
 }
 
 func ensureItem(ctx *core.Context, stateKey, itemKey string) *widget.Clickable {
-	state := core.UseStateWith(ctx, stateKey, stateSlotListBox, func() *listBoxState {
-		return new(listBoxState)
-	})
+	state := core.UseState[listBoxState](ctx, stateKey, stateSlotListBox)
 	return &core.EnsureFrameMap(&state.items, itemKey).Clickable
 }
 
