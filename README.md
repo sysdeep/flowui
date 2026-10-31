@@ -17,7 +17,7 @@ UI testing through focused public packages.
 import (
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/window"
@@ -25,6 +25,9 @@ import (
 ```
 
 ![FlowUI component showcase](docs/assets/showcase-light.png)
+
+A workspace composed with FlowUI widgets: navigation, charts, forms, date selection,
+selectable tables, and progress indicators.
 
 ## Highlights
 
@@ -63,7 +66,7 @@ import (
 	"fmt"
 
 	"github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
@@ -111,7 +114,7 @@ func View(_ *ui.Context, model Model, send ui.Send[Msg]) ui.Widget {
 
 func main() {
 	ui.Run(ui.NewProgram(Model{}, Update, View),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 		window.Title("FlowUI Counter"),
 		window.Size(640, 480),
 	)
@@ -157,11 +160,11 @@ cover the complete contracts.
 | --- | --- |
 | Content | `text.New`, `text.NewLabel`, `text.NewDescription`, `image.New`, `avatar.New`, `badge.New`, `chip.New` |
 | Actions | `button.New`, `button.Group`, `toggle.NewToggleButton`, `toggle.NewSegmented`, `button.NewCloseButton` |
-| Forms | `input.New`, `input.NewTextArea`, `toggle.NewCheckbox`, `toggle.NewSwitch`, `radiogroup.New`, `selector.NewSelect`, `selector.NewCombobox`, date and color pickers |
+| Forms | `input.New`, `input.NewTextArea`, `toggle.NewCheckbox`, `toggle.NewSwitch`, `radiogroup.New`, `selector.New`, `combobox.New`, date and color pickers |
 | Navigation | `tabs.New`, `sidebar.New`, `tree.New`, `menu.New`, `menubar.New`, `navigation.NewPagination`, `navigation.NewBreadcrumb`, `toolbar.New` |
 | Overlays | `dropdown.New`, `menu.ContextMenu`, `popover.New`, `tooltip.New`, `modal.New`, `alertdialog.New`, `toast.NewItem` |
 | Data and feedback | `table.New`, `progress.Bar`, `progress.Circle`, `progress.Meter`, `spinner.New`, `slider.New`, charts, `heatmap.New`, `gantt.New` |
-| Layout | `layout.Box`, `surface.New`, `surface.NewCard`, `surface.NewPanel`, `layout.Row`, `layout.Column`, `layout.Grid`, `layout.Scroll`, `layout.SplitPane`, `layout.Stack`, `layout.Overlay` |
+| Layout | `layout.Box`, `surface.New`, `surface.NewCard`, `surface.NewPanel`, `layout.Row`, `layout.Column`, `layout.Grid`, `layout.Scroll`, `splitpane.New`, `layout.Stack`, `layout.Overlay` |
 
 See the [component guide](https://qianniancn.github.io/flowui/en/guide/06-components/)
 for the complete widget catalog.
@@ -173,23 +176,22 @@ respond to runtime state. The same declaration follows the active light or
 dark theme:
 
 ```go
-activeTheme := base.Light()
+activeTheme := theme.Light()
 
 primary := style.New().
-	Background(style.Solid(activeTheme.Palette.Accent)).
-	TextColor(style.Solid(activeTheme.Palette.AccentForeground)).
+	Background(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Fill)).
+	TextColor(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].OnFill)).
 	Radius(8).
 	Cursor(style.CursorPointer).
-	On(style.Hovered, style.New().Background(style.Solid(activeTheme.Palette.AccentHover))).
-	On(style.Pressed, style.New().Background(style.Solid(activeTheme.Palette.AccentPressed)).Scale(0.96))
+	On(style.Hovered, style.New().Background(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Hover))).
+	On(style.Pressed, style.New().Background(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Pressed)).Scale(0.96))
 
 save := button.New("Save").Style(primary)
 ```
 
-The runtime requires an explicit complete Style Provider. Pass
-`window.Theme(base.Light())`, `window.Theme(base.Dark())`, or a theme from
-another provider package; use `window.CustomizeTheme` after selecting one for
-focused changes. Compound controls expose named
+The runtime requires an explicit theme. Pass `window.Theme(theme.Light())` or
+`window.Theme(theme.Dark())`; use `window.CustomizeTheme` for focused token
+changes. Component packages supply their own default appearance. Compound controls expose named
 parts such as `style.PartContent`, `style.PartTrack`, `style.PartIndicator`,
 and `style.PartPanel` for focused customization. FlowUI
 includes English and Chinese component strings; `window.LanguageAuto` follows the
@@ -199,12 +201,13 @@ The [style and theme guide](https://qianniancn.github.io/flowui/en/guide/05-styl
 documents precedence, parts, colors, geometry, transitions, and bundled font setup.
 
 FlowUI uses system font fallback by default. For reproducible rendering, parse an
-embedded TTF, OTF, or TTC with `style.ParseFontCollection`, assign the faces to
+embedded TTF, OTF, or TTC with `opentype.ParseCollection` (`gioui.org/font/opentype`), assign the faces to
 `theme.Fonts.Collection`, and set `theme.Fonts.SystemFonts = false`.
 
-The core maintains one default design system in `theme/base`, with light and dark
-modes. Applications can use `base.Light()` / `base.Dark()` directly or build an
-external Provider on top of the public theme APIs.
+The core maintains one default design system in `theme`, with light and dark
+modes. Applications can use `theme.Light()` / `theme.Dark()` directly or build a
+custom token theme with the public theme APIs. For a different component
+structure, compose the headless controls in `widget/base`.
 
 ## Public Packages
 
@@ -212,23 +215,25 @@ external Provider on top of the public theme APIs.
 | --- | --- |
 | `ui` | MVU program, context, widget contract, and application lifecycle |
 | `widget/<component>` | Official fully-rendered components |
+| `widget/base` | Headless behavior, focus, and semantics for custom designs |
 | `layout` | Layout containers and the common box host |
 | `style` | Immutable declarations, cascade, and tokens |
-| `theme/base` | The default light/dark theme and complete Provider |
-| `theme` | Theme values, visual contracts, and extension APIs |
+| `theme` | Semantic colors, geometry, typography, and motion tokens |
 | `draw` | Low-level brushes, borders, shadows, paths, and transforms |
 | `animation` | Reusable tween, spring, and timeline primitives |
 | `window` | Native window options and locale configuration |
 | `uitest` | Deterministic widget and application test harnesses |
 
 Start with the [interactive component showcase](examples/showcase/README.md):
-`go run ./examples/showcase`. Its 65 pages cover every public widget package,
-with search, live demos, usage snippets, and light/dark modes.
+`go run ./examples/showcase`. Its 67 pages cover every public widget package,
+with search, live demos, usage snippets, and light/dark modes. The interface
+defaults to English and opens on the interactive workspace overview; it can be
+switched to Chinese.
 
 Focused default-theme examples also live in this module: `go run ./examples/counter`,
 `go run ./examples/buttons`, `go run ./examples/inputs`,
-`go run ./examples/style-gallery`, and `go run ./examples/close_guard` for a
-native close-request guard.
+`go run ./examples/base_controls` for headless bases with custom visuals, and
+`go run ./examples/close_guard` for a native close-request guard.
 
 ## Documentation
 

@@ -24,6 +24,10 @@ layout.Column(
 
 `Box` gives one child a styled shell. `Center` centers its child in the
 available constraints. `Expanded` and `Flexible` distribute remaining space.
+`Row` and `Column` also accept `Width`, `Height`, `FillWidth`, `FillHeight`,
+`MaxWidth`, and `Padding`. `Padding` follows CSS shorthand: one value for all
+sides, two for vertical/horizontal, three for top/horizontal/bottom, or four
+for top/right/bottom/left.
 
 ```go
 layout.Row(
@@ -50,11 +54,21 @@ scrollbar so the content width stays put when a short page follows a long one:
 
 ```go
 layout.Scroll(content).Overlay()
+// Hide the bar and gutter while keeping wheel and touch scrolling.
+layout.Scroll(content).WithoutScrollbar()
 ```
+
+For an appended chat or log, use `.FollowEnd()` to start at the end and keep
+following while the user remains there. Scrolling away pauses following until
+the user returns to the end.
+
+`layout.Scroll` is the single viewport entry point; `layout.Scrollbar` was
+removed. `.Style(...)` merges root and `PartTrack` / `PartThumb` overrides.
+Changing scrollbar mode does not replace or reset the scroll identity.
 
 ### Visual outset and clipping
 
-`Scroll`, `List`, `Scrollbar`, and `SplitPane` automatically reserve space
+`layout.Scroll`, `layout.List`, and `splitpane.New` automatically reserve space
 inside their viewport for shadows and outlines declared by `Style`. Components
 with the common Box shell, such as `Input` and `Card`, need no extra margin.
 The space is applied at viewport edges, not between every pair of list items.
@@ -76,11 +90,12 @@ layout.VisualOutset(ctx, gtx, customCanvas, 6, 8, 10, 8)
 When a new extent is discovered, the viewport requests another frame to settle
 the safe padding. It never lets that paint escape the scroll viewport or window.
 
-Run `go run ./examples/style-gallery` from the repository root for a runnable
+Run `go run ./examples/showcase` from the repository root for a runnable
 layout composition. The grid code above is a usage snippet.
 
-Other useful containers include `Wrap`, `Stack`, `SplitPane`, `Surface`, and
-`Card`. See the [component guide](06-components.md) for the full list.
+Other useful containers include `Wrap`, `Stack`, `Surface`, and `Card`.
+The themed resize control is `splitpane.New` in `widget/splitpane`; visual
+separators are `divider.New` in `widget/divider`. See the [component guide](06-components.md) for the full list.
 
 ## Size and constraints
 

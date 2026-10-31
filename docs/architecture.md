@@ -33,11 +33,10 @@ import "github.com/qianniancn/flowui/window"         // native window options
 | --- | --- | --- |
 | Business state, messages, model updates | the application | `Program[M, Msg]`, `Update`, `View` |
 | The MVU kernel and per-window services | `ui` | `Context`, `Cmd`, `Subscription`, `Application` |
-| A component's behaviour and domain layout | `widget/<component>` | Constructors, interaction state, accessibility, and layout |
-| Component visual contracts and validation | `theme` | Provider interfaces and focused `*_visual.go` files |
-| Shared appearance recipes | `theme/<domain>style` | Builds visuals from the active theme and request |
-| Default design system | `theme/base` | Light/dark entry points, seed constructors and complete Provider |
-| Other design systems | External modules | Palette, geometry and Provider overrides through public core APIs |
+| Reusable component behavior | `widget/base` | Input, focus, state, and accessibility semantics without painting |
+| A complete component and its domain layout | `widget/<component>` | Constructors, behavior integration, and layout |
+| Default component appearance | `widget/<component>` | Private default style declarations and focused tests |
+| Shared theme tokens | `theme` | Semantic values and light/dark seed constructors |
 
 `ui` is deliberately small: it re-exports the MVU runtime and the frame
 contract, and it contains **no components**. Components do not go through a
@@ -49,18 +48,20 @@ difference from the v1 layout, where `ui` re-exported every component.
 | Package | Responsibility |
 | --- | --- |
 | `internal/core` | Interaction kernel and the shared Widget contract |
-| `theme` | Palettes, metrics, component defaults, and visual contracts |
+| `theme` | Semantic colors, typography, shadows, and shared motion policy |
 | `style` | Declarations, cascade tables, and hashing; a pure leaf |
 | `layout` | Box, flex, grid, stack, scroll composition, and the box host |
 | `widget/text` | The text primitive used by label-like components |
 | `animation` | Easing, tween, spring, timeline, and layout animation |
 | `internal/computed` | Style resolution, transitions, and visual caches |
 | `draw` | Brushes, borders, shadows, and paths |
-| `appearance` | Shared tone and variant interpretation used by visual recipes |
 
-`appearance` owns the shared reading of "this tone crossed with this variant
-looks like this", so a visual recipe can declare a small design table instead
-of re-deriving its colours. See [appearance](#appearance) below.
+`internal/computed` uses one static resolution path for roots and named parts.
+Transitions are applied after resolution; shared snapshots are copied only when
+animation needs to mutate them. Component-owned declarations and visual results
+use `VisualCache` (or `VisualCacheMap` for multiple keys), not separate declaration
+cache machinery. The bounded cascade cache separately reuses merged style results.
+These mechanisms do not own default component appearances.
 
 **Where to go next.** Dependency rules and the pure-leaf constraint are in
 [Dependency Direction](#dependency-direction). How a declaration becomes
@@ -78,11 +79,9 @@ import "github.com/qianniancn/flowui/ui"
 `ui` owns MVU, application lifecycle, and the public `Context`/`Widget`
 contracts. Official components are in `widget/<component>` (one package per
 component, for example `widget/button`); layout composition is in
-`layout`; style declarations are in `style`, visual contracts and Providers in
-`theme` and its subpackages; the shared tone x
-variant reading is in `appearance`; low-level drawing is in
-`draw`; reusable motion primitives are in `animation`; native window options
-are in `window`.
+`layout`; style declarations are in `style`, and each widget package owns its
+own default appearance; low-level drawing is in `draw`; reusable motion
+primitives are in `animation`; native window options are in `window`.
 
 Optional platform services live in focused public packages: `explorer` for
 window-bound native file dialogs, `notify` for native desktop notifications,
@@ -110,28 +109,30 @@ itself a reason to introduce another grouping layer.
 
 | Location | Ownership |
 | --- | --- |
-| `widget/<component>` | Public components and their behavior tests |
-| `widget/disclosure`, `widget/navigation`, `widget/optionrow` | Public reusable state, keyboard-navigation, and option-row primitives; not complete controls |
+| `widget/<component>` | Public components, private default appearance, and focused tests |
+| `widget/base` | Headless behavior, focus, and semantics for custom designs; paints nothing itself |
+| `widget/navigation` | Navigation widgets and public keyboard-navigation helpers |
+| `widget/internal/binding` | Generic controlled/uncontrolled value state shared by widgets |
+| `widget/internal/optionrow` | Shared row animation and drawing; interaction state remains caller-owned |
+| `widget/internal/textrender` | Shared Gio text adapters for components |
+| `widget/code/internal/highlight` | Code-block syntax tokenizer |
+| `widget/internal/navigation` | Keyboard navigation algorithms shared by components and navigation helpers |
+| `widget/internal/overlayarrow` | Popup arrow geometry and drawing |
+| `widget/internal/selectablemenu` | Selectable-text and context-menu integration hook |
 | `widget/chart` | Shared chart types, annotations, scales, and interaction helpers; several types appear in public chart APIs |
-| `theme/<component>_visual.go` | A component's requests, visual results, contracts, and validators in the existing `theme` package |
-| `theme/<domain>style` | Appearance recipes in eight domains: action, field, feedback, navigation, overlay, surface, data, and chart; each component keeps a prefixed file set inside its domain |
-| `theme/internal/fieldstyle` | Shared field appearance recipes used only within the theme tree |
-| `internal/field` | Shared editable-field behavior and style hooks |
-| `internal/testtheme` | Neutral component fixtures imported only by repository tests |
-| `theme/themetest` | Public acceptance checks for real theme Providers |
+| `widget/internal/fieldstyle` | Shared built-in field appearance and variant vocabulary; components supply geometry |
 | `examples/` | Runnable applications in the root Go module; keep example-only assets beside their example |
 | `docs/assets/` | Images used by the documentation |
 
-`internal/testtheme` keeps behavior and cache tests independent of changes to
-shipped recipes. Its `testtheme.go` owns theme construction and Provider
-declarations; each component fixture lives in a focused file. Shared field
-declaration readers live in `field.go`. Import this package from `_test.go`
-files only. It is not part of an application's runtime dependencies.
+Repository tests use the production light/dark themes and configure any
+test-specific motion timings locally. Default appearance tests live with the
+widgets that own the declarations. See the
+[theme package map](https://github.com/qianniancn/flowui/blob/main/theme/README.md)
+for token ownership.
 
-Use `theme/themetest` when verifying a real built-in or third-party Provider.
-Replacing the neutral behavior fixture with `theme/base` would couple these
-two forms of testing again. See the [theme package map](https://github.com/qianniancn/flowui/blob/main/theme/README.md)
-for Provider construction and recipe ownership.
+Each widget owns its default geometry and appearance; applications customize an
+instance through `Style` and part declarations. Shared colors, typography,
+shadows and motion remain in `theme`.
 
 ## Dependency Direction
 
@@ -148,16 +149,10 @@ application
     +--> layout (composition and box host)
     |      +--> internal/core, internal/computed
     |      +--> style, theme, draw, animation
-    +--> appearance (tone x variant -> visual traits)
-    |      +--> style, theme
     +--> style (pure leaf: declarations, cascade tables, hashing)
     +--> style/resolve (context- and theme-bound resolvers)
     |      +--> style, internal/computed, internal/core, draw
-    +--> theme (palettes, metrics, visual contracts, and validators)
-    |      +--> style
-    +--> theme/base (default Provider)
-    |      +--> theme/<domain>style (shared visual recipes)
-    |              +--> theme, appearance, style, draw
+    +--> theme (light/dark palettes, metrics, typography, and shared tokens)
     +--> draw
     |      +--> theme
     +--> animation (replay and easing primitives)
@@ -201,7 +196,7 @@ without importing `ui`.
 
 `style` must stay a **pure leaf** — it may not import `core`, `draw`, or
 `internal/computed`. The reason is not an indirect path but a **direct edge**:
-`internal/core`, `internal/computed`, `internal/field` and `layout` all import
+`internal/core`, `internal/computed`, `widget/internal/fieldstyle` and `layout` all import
 `style`, so any such import would close an immediate 2-cycle with no room to
 route around it. The constraint is structural, not an optimization to revisit.
 That is why context- and theme-bound resolvers live in the separate
@@ -221,14 +216,84 @@ are the supported entry points; their internal implementation paths are not
 additional application APIs. The focused platform packages expose only their
 own stable adapters.
 
-`appearance` is a public package that depends only on `style` and `theme`.
-It supplies shared tone and variant interpretation to appearance recipes.
-Concrete Providers choose palettes and metrics, while `theme/*style` builds
-component visuals. Other theme subpackages have distinct roles: `base` supplies
-the default light/dark Provider, and `themetest` validates real Providers.
-Generic ramps and seed derivation are in `theme`. External Providers live in
-separate modules and depend only on public core APIs; the core runtime, widgets,
-examples and tests do not depend on those modules.
+Each widget package owns its default appearance and reads shared semantic
+tokens from `theme`. Shared implementation used by related widgets lives under
+`internal/`. `theme` provides the default light and dark tokens; generic
+ramps and seed derivation remain in `theme`.
+
+Reusable interaction belongs in `widget/base`. Styled RadioGroup, ListBox,
+Sidebar and Tabs share `CollectionNavigation` and `RowInteraction`; Collapsible shares
+`Disclosure.Update` and collection navigation. Input, TextArea and InputGroup
+share `TextEditor.Update`, and GroupAction composes `base.Button`. These adapters
+preserve caller-owned clickables and editors so identity, focus requests and
+virtualized layout stay stable. Base owns event processing; each component owns
+its selection binding, layout, animation, semantics around its parts, and one
+private default appearance. `theme` supplies shared tokens rather than component
+visual providers.
+
+Toolbar also uses `CollectionNavigation`, supplying arbitrary child focus tags,
+orientation and wrapping while children retain activation. Table and Tree use
+the same navigation loop with modifier-aware events and `UpdateRow` for click
+details. Lazy active-index fallback preserves virtual Table's idle-frame cost.
+Table owns sorting, range selection, column sizing and virtualization. Tree owns
+parent/child navigation, expansion, lazy loading, checking and drag/drop; its
+rename editor uses `TextEditor.Update`, with commit/cancel rules kept in Tree.
+Custom hierarchy commands return their active index before the next key is
+processed, preserving input order within a frame.
+
+Standalone base Options and RadioGroup use one focus target per group; styled
+collections can retain individual row targets. Both use the same `base.CollectionNavigation` event loop and
+row activation implementation, with indexed algorithms in `widget/internal/navigation`, which has no dependency on styled widgets. Public
+`widget/navigation` helpers delegate to that leaf package to avoid a dependency
+cycle through navigation widgets and buttons. Popup, Popover, Dropdown, Submenu,
+ContextMenu, Menubar and ColorPicker share
+`base.PopupInteraction` for outside/Escape close intent and pointer-only panel,
+arrow and outside regions. The overlay host grants policy input to one owner;
+components retain open binding, placement, animation and focus-return policy.
+Popover dismisses on a completed outside click, while Dropdown dismisses on an
+outside press. ContextMenu and Dropdown share `base.PopupTrigger` for secondary
+clicks, Shift+F10 and cancellable long presses; each keeps its anchor geometry,
+open binding and focus handoff.
+
+Collection navigation has an explicit vertical/horizontal/both-axis policy.
+Tabs supplies its automatic/manual activation policy and workbench shortcuts;
+scrolling, panel lifetime, rename, close and drag extensions stay in Tabs.
+Its inline editor uses `base.TextEditor.Update`, with Escape/blur/commit rules
+kept locally. Tabs close buttons and Toast close/action buttons use `UpdateRow`
+with `PreserveFocus`. Pagination composes `base.Button` for its page controls.
+Select reuses `CollectionNavigation` for highlight movement while retaining
+trigger focus and selection binding.
+Sidebar keeps its nested open-key model and hover expansion. Menu composes
+`base.MenuNavigation`, which adds submenu/root-direction intent to the same
+collection keyboard loop, and `RowInteraction` for row pointer behavior. Menu
+keeps submenu layout, hover scheduling, binding and action/close callbacks.
+Modal composes `base.DialogInteraction` for close intent, close-button input,
+focus boundaries and initial/deferred/stacked-scope focus. It reuses the popup
+pointer surfaces; focus lifecycle no longer depends on animation progress.
+The trailing boundary is mounted by the overlay Tail after nested popups.
+Exiting dialogs keep their neutral focus target and blockers until Modal ends
+the visual lifetime. Open binding, backdrop, scrolling, sections and animation
+remain in Modal. AlertDialog composes Modal with explicit-action defaults and
+its own header/status visual, without a second behavior state machine.
+Menubar shares `base.MenubarNavigation` for root movement, Home/End, typeahead
+and perpendicular-arrow opening, and `RowInteraction` for pointer activation.
+Global F10/Alt accelerators and switching open panels stay in Menubar.
+ColorPicker retains color conversion and history commits while sharing popup
+input and swatch activation. DatePicker shares popup panel focus and
+`RowInteractionWithFocus` for calendar cells; date arithmetic, segment editing,
+range cancellation and focus-loss dismissal remain component behavior.
+Tooltip retains its passive hover/focus timing and exclusive visibility policy;
+it has no popup dismissal regions or interactive panel to migrate.
+
+Disclosure Update returns a frame-local trigger host: `LayoutTrigger` owns its
+hit target and semantics, and `button.Visual` draws from the supplied state
+without a second base interaction. The expandable region remains under the
+component's animation lifecycle. Do not retain the Update result across frames.
+TextEditor accepts a `TextEditorRequest` and reads enabled state from the layout
+context; it returns editor events without modifying that context. TextInput's
+Content receives the retained Gio editor and supplies all typography and paint.
+Generic value bindings and shared navigation, text, overlay, and selectable-menu
+helpers are private to `widget/internal`.
 
 ## Style Cascade
 
@@ -271,65 +336,6 @@ Animation is dual-track: Style `Transition` (property whitelist under a stable
 key) and imperative `Tween` for floats. Both share `Ease*` curves and honor
 `Theme.Motion`. Application-facing animation notes: [动画](guide/12-动画.md).
 
-## appearance
-
-`appearance` answers one question: **given a tone and a structural variant, what
-colours does a control have?** Design systems can share that reading while
-binding different values to it — "an
-outlined danger button is a neutral box carrying danger text" is shared by
-the default and external Providers.
-
-A visual recipe therefore declares a small **design table** and stops
-re-deriving colours. The button files in `theme/actionstyle` are the worked
-example: they map each one-dimensional `ButtonVariant` onto an
-`appearance.Design` and resolve the corresponding colors. `widget/button`
-consumes the resulting visual contract.
-
-### Three entry points, three shapes
-
-They are not interchangeable — each covers a different kind of component, and
-using the wrong one is the mistake this section exists to prevent.
-
-| Entry | Shape it describes | Used by |
-| --- | --- | --- |
-| `Resolve` / `Declaration` | an action control's variant, with interaction states | `button` |
-| `theme/internal/fieldstyle.FieldDefaultRules` | an editable area's **face** — a second, independent structural axis | Input, Select, ComboBox, and DatePicker recipes |
-| `Tone` / `ToneColorsOf` | a pure tone axis, no variant dimension | `badge`, `chip`, `alert`, `avatar`, `toast`, `alertdialog`, `spinner`, `progress` |
-
-`Design` carries `Tone`, `Variant`, `Accent`, and the flags a family needs
-(`NeutralSurface`, `NeutralBorder`, `UnderShadow`, `ShadowBlack`).
-
-### What it deliberately does not own
-
-`Tone` answers *"what colours does this tone have"*, **not** *"what colour does
-this component use when it has no tone"*. That distinction is load-bearing:
-
-- A value on a component's colour axis may not be a tone at all. A spinner's
-  `Current` means "read as text" and takes the canvas foreground; a progress
-  bar's `Default` takes it too, while a progress **circle**'s takes the neutral
-  control's label. Nothing shared can decide those.
-- A component's neutral entry may have its own surface: a chip's tertiary
-  surface, an alert's panel surface, an avatar's halved fill. Substituting
-  `ToneDefault` would change what they look like.
-
-So `Resolve` and `Tone` return values, and the neutral entry and any
-non-tone axis value stay in the component. The rule of thumb: **share the part
-that is genuinely the same shape; leave the part that differs where it differs**,
-even when the difference looks like a special case.
-
-### Where the geometry comes from
-
-`Declaration` takes `borderWidth` and `shadowScale` as parameters rather than
-reading them off a named component's theme tokens. A component's ring width and
-resting-shadow scale are its own geometry, and this package owns none — reading
-`Components.Button.*` inside would make every other caller inherit a button's
-geometry. The same reason puts `shadowOpacity` on `ResolveField`'s signature.
-
-A **zero** `shadowScale` means the component opts out of the resting shadow, so
-a design that resolves a shadow colour does not by itself cause one to be drawn.
-Those are two separate decisions (what colour this design uses, whether this
-component wants a shadow) and both live in the signature for that reason.
-
 ## Interaction Core
 
 Button-like controls share one internal interaction core for clicks, keyboard
@@ -371,15 +377,15 @@ mutation is intentionally not part of the API.
 
 The themed resolvers live in `github.com/qianniancn/flowui/style/resolve`. The
 `style` package itself is a pure declaration mechanism with no framework
-dependency — that is what lets `theme` name `style` without a cycle — so
-anything that needs the active context or theme values lives in
+dependency. `theme` supplies values without importing `style`; widget packages
+own their default appearance. The context-bound resolver facade lives in
 `style/resolve` instead.
 
 Custom drawing can convert paint sources into brushes with `resolve.Brush`
 and resolve concrete colors with `resolve.Color`, draw them with `draw.Fill`,
 and measure text with `text.Measure`. Low-level pointer controls use Gio's pointer
 operations directly. `layout.VisualOverflow`
-is for local decorations such as a ripple or focus ring. Use
+is for local decorations such as a focus ring. Use
 `layout.VisualOutset` (or `style.VisualOutset` on a Style shell) to reserve
 space for that paint inside a clipping viewport; neither API is a popup or
 overlay replacement. The internal components use the corresponding shared
@@ -693,11 +699,10 @@ be vetoed through this contract.
    identifiers. In `widget/progress`, `ProgressBarWidget`
    becomes `progress.BarWidget` and `ProgressBarAccent` becomes
    `progress.BarAccent`; in `layout`, `LayoutResolved` becomes `layout.Resolved`.
-   Two cases are deliberately exempt:
-   - **`theme` keeps its prefix.** It is one flat namespace shared by every
-     component — eight `*Size` types sit side by side — so `theme.ButtonSize`
-     and `theme.AvatarVariant` need the prefix to stay unambiguous. The component
-     package provides the namespace instead: `button.Size = theme.ButtonSize`.
+   Component ownership and naming exceptions:
+   - **Component vocabulary belongs to its widget package.** Types such as
+     `button.Size` and `avatar.Variant` are declared by their owning component;
+     `theme` remains the home of shared design tokens and theme construction.
    - **A name is kept when stripping it would collide or stop being a word.**
      `draw.DrawBrush` cannot become `draw.Brush` (the brush type owns that name)
      and `resolve.ResolveStatic` would collapse into the non-word `resolve.Static`.
@@ -712,11 +717,9 @@ be vetoed through this contract.
    with several parallel controls names each `XxxWidget`
    (`layout.RowWidget`, `toggle.SwitchWidget`).
 4. Keep model values controlled and report changes through callbacks.
-5. Keep the visual protocol and validator in `theme/<component>_visual.go`,
-   the shared recipe in `theme/<domain>style`, and neutral test fixtures in
-   `internal/testtheme/<component>.go`. Wire the capability into the complete
-   default Provider and the `theme/themetest` acceptance checks. External
-   Providers inherit the default recipe unless they override it.
+5. Keep the default appearance and its state, theme, and instance-style tests in
+   the component package. Shared tokens belong in `theme`; shared implementation
+   details belong in `internal`.
 6. Add runnable usage examples under `examples/` in the root module.
 7. Run the affected public packages and `internal/...` with `go test` and
    `go vet`.
@@ -845,3 +848,18 @@ These principles emerged from real issues encountered during development:
 
 Internal APIs built with these principles are easier to use correctly, harder
 to misuse, and fail early when misused.
+
+### Layout and visual container ownership
+
+`layout` owns arrangement, the shared Box style adapter and tracked clipping
+viewports. `VisualOutsetState` retains overflow only; scrollbar declaration
+caches belong to scrollbar state. `Scroll` is the single public scrolling
+viewport (`Overlay` or `WithoutScrollbar` changes bar presentation without
+changing identity); `List` remains the virtualized item container.
+
+`widget/splitpane` owns the default divider appearance and composes
+`base.SplitPaneInteraction` for input. `widget/divider` owns visual separators.
+These widgets depend on `layout`, never the reverse. Field association traversal
+uses direct calls and the existing `PrepareFieldAssociation` protocol instead
+of global init-time registration. `Items` and `Wrap` share one wrapping engine
+while retaining their pixel-gap and Dp-gap contracts respectively.

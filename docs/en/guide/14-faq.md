@@ -38,7 +38,7 @@ Use `resolve.Color` or `resolve.Brush` for theme-backed values, `draw.Fill` for
 gradient fills, and `MeasureText` for a measurement pass. Low-level pointer
 controls can use `AddPointerArea`, `NextPointerEvent`,
 `IsPrimaryPointerPress`, and `GrabPointer`. `layout.VisualOverflow` is for a
-local ripple or focus decoration; use `Popover`, `Portal`, or another overlay
+local focus decoration; use `Popover`, `Portal`, or another overlay
 component for content that is not part of the local layout. Use
 `layout.VisualOutset` or `style.VisualOutset` when local paint also needs safe space
 inside an ancestor scroll or split viewport.
@@ -51,6 +51,6 @@ FlowUI currently requires Go 1.26.2 or newer, as declared by `go.mod`.
 
 Default-theme examples live in this module. From the repository root, run
 `go run ./examples/counter`, `go run ./examples/buttons`,
-`go run ./examples/inputs`, or `go run ./examples/style-gallery`. Other design
+`go run ./examples/inputs`, or `go run ./examples/showcase`. Other design
 systems and their examples live in the external themes module; see
 [Default theme and external styles](18-design-styles.md).

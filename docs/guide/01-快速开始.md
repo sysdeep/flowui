@@ -34,7 +34,7 @@ import (
 	"fmt"
 
 	"github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
@@ -82,7 +82,7 @@ func View(_ *ui.Context, model Model, send ui.Send[Msg]) ui.Widget {
 
 func main() {
 	ui.Run(ui.NewProgram(Model{}, Update, View),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 		window.Title("FlowUI Counter"),
 		window.Size(640, 480),
 	)

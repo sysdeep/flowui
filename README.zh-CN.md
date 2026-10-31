@@ -16,14 +16,16 @@ FlowUI 是一个基于 [Gio](https://gioui.org/) 构建的 Go 桌面 UI 框架�
 import (
 	"github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/style"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/window"
 )
 ```
 
-![FlowUI 组件展示](docs/assets/showcase-light.png)
+![FlowUI 组件展示](docs/assets/showcase-light-zh-CN.png)
+
+使用 FlowUI 组件组合的工作台示例，展示导航、图表、表单、日期选择、可选中表格和进度条。
 
 ## 核心能力
 
@@ -56,7 +58,7 @@ import (
 	"fmt"
 
 	"github.com/qianniancn/flowui/layout"
-	"github.com/qianniancn/flowui/theme/base"
+	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/widget/button"
 	"github.com/qianniancn/flowui/widget/text"
@@ -104,7 +106,7 @@ func View(_ *ui.Context, model Model, send ui.Send[Msg]) ui.Widget {
 
 func main() {
 	ui.Run(ui.NewProgram(Model{}, Update, View),
-		window.Theme(base.Light()),
+		window.Theme(theme.Light()),
 		window.Title("FlowUI Counter"),
 		window.Size(640, 480),
 	)
@@ -146,11 +148,11 @@ Command 在事件循环外执行，并通过 `ui.Send` 返回结果。订阅用�
 | --- | --- |
 | 内容 | `text.New`、`text.NewLabel`、`text.NewDescription`、`image.New`、`avatar.New`、`badge.New`、`chip.New` |
 | 操作 | `button.New`、`button.Group`、`toggle.NewToggleButton`、`toggle.NewSegmented`、`button.NewCloseButton` |
-| 表单 | `input.New`、`input.NewTextArea`、`toggle.NewCheckbox`、`toggle.NewSwitch`、`radiogroup.New`、`selector.NewSelect`、`selector.NewCombobox`、日期和颜色选择器 |
+| 表单 | `input.New`、`input.NewTextArea`、`toggle.NewCheckbox`、`toggle.NewSwitch`、`radiogroup.New`、`selector.New`、`combobox.New`、日期和颜色选择器 |
 | 导航 | `tabs.New`、`sidebar.New`、`tree.New`、`menu.New`、`menubar.New`、`navigation.NewPagination`、`navigation.NewBreadcrumb`、`toolbar.New` |
 | 浮层 | `dropdown.New`、`menu.ContextMenu`、`popover.New`、`tooltip.New`、`modal.New`、`alertdialog.New`、`toast.NewItem` |
 | 数据与反馈 | `table.New`、`progress.Bar`、`progress.Circle`、`progress.Meter`、`spinner.New`、`slider.New`、图表、`heatmap.New`、`gantt.New` |
-| 布局 | `layout.Box`、`surface.New`、`surface.NewCard`、`surface.NewPanel`、`layout.Row`、`layout.Column`、`layout.Grid`、`layout.Scroll`、`layout.SplitPane`、`layout.Stack`、`layout.Overlay` |
+| 布局 | `layout.Box`、`surface.New`、`surface.NewCard`、`surface.NewPanel`、`layout.Row`、`layout.Column`、`layout.Grid`、`layout.Scroll`、`splitpane.New`、`layout.Stack`、`layout.Overlay` |
 
 可以阅读[组件一览](https://qianniancn.github.io/flowui/guide/06-组件一览/)，
 了解完整的组件目录。
@@ -161,21 +163,21 @@ Style 是不可变声明，从当前主题取值并响应运行时状态。同�
 浅色或深色主题：
 
 ```go
-activeTheme := base.Light()
+activeTheme := theme.Light()
 
 primary := style.New().
-	Background(style.Solid(activeTheme.Palette.Accent)).
-	TextColor(style.Solid(activeTheme.Palette.AccentForeground)).
+	Background(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Fill)).
+	TextColor(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].OnFill)).
 	Radius(8).
 	Cursor(style.CursorPointer).
-	On(style.Hovered, style.New().Background(style.Solid(activeTheme.Palette.AccentHover))).
-	On(style.Pressed, style.New().Background(style.Solid(activeTheme.Palette.AccentPressed)).Scale(0.96))
+	On(style.Hovered, style.New().Background(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Hover))).
+	On(style.Pressed, style.New().Background(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Pressed)).Scale(0.96))
 
 save := button.New("Save").Style(primary)
 ```
 
-运行时必须显式选择实现了完整 Style Provider 的主题，例如
-`window.Theme(base.Light())` 或 `window.Theme(base.Dark())`；选定主题后可以用
+运行时必须显式选择主题，例如
+`window.Theme(theme.Light())` 或 `window.Theme(theme.Dark())`；选定主题后可以用
 `window.CustomizeTheme` 做局部调整。复合控件通过 `style.PartContent`、
 `style.PartTrack`、`style.PartIndicator`、`style.PartPanel` 等命名部件提供精确样式入口。FlowUI 内置中英文组件
 文案，`window.LanguageAuto` 会跟随系统语言。
@@ -184,11 +186,11 @@ save := button.New("Save").Style(primary)
 命名部件、颜色、几何、过渡动画和字体配置。
 
 FlowUI 默认使用系统字体回退。需要固定渲染结果时，可以用
-`style.ParseFontCollection` 解析随程序打包的 TTF、OTF 或 TTC，再放入
+`opentype.ParseCollection` (`gioui.org/font/opentype`) 解析随程序打包的 TTF、OTF 或 TTC，再放入
 `theme.Fonts.Collection`，并将 `theme.Fonts.SystemFonts` 设为 `false`。
 
-核心只维护 `theme/base` 一套默认设计，支持明暗两种模式。
-应用可以直接使用 `base.Light()` / `base.Dark()`，也可以基于公开的主题 API 构建外部 Provider。
+核心只维护 `theme` 一套默认设计，支持明暗两种模式。
+应用可以直接使用 `theme.Light()` / `theme.Dark()`，也可以基于公开的主题 API 自定义 token；组件默认外观由各自的 widget 包提供。
 
 ## 公开包
 
@@ -196,21 +198,22 @@ FlowUI 默认使用系统字体回退。需要固定渲染结果时，可以用
 | --- | --- |
 | `ui` | MVU 程序、上下文、Widget 契约和应用生命周期 |
 | `widget/<component>` | 官方完整组件 |
+| `widget/base` | 面向自定义设计的无外观行为、焦点与语义 |
 | `layout` | 布局容器和通用盒子宿主 |
 | `style` | 不可变样式声明、级联和令牌 |
-| `theme/base` | 默认明暗主题与完整 Provider |
-| `theme` | 主题值、视觉协议与扩展 API |
+| `theme` | 语义颜色、尺寸、字体和运动 token |
 | `draw` | 底层画刷、边框、阴影、路径和变换 |
 | `animation` | 可复用的补间、弹簧和时间线原语 |
 | `window` | 原生窗口选项和本地化配置 |
 | `uitest` | 确定性的组件和应用测试工具 |
 
 推荐先运行[全部组件展示](examples/showcase/README.md)：`go run ./examples/showcase`。
-65 个页面覆盖全部公开 widget 包，支持搜索、交互、用法代码、明暗主题和窄窗目录。
+67 个页面覆盖全部公开 widget 包，支持搜索、交互、用法代码、明暗主题和窄窗目录，默认打开综合工作台概览，界面默认英文，可切换为中文。
 
 默认主题的专项示例位于当前 module：`go run ./examples/counter`、
-`go run ./examples/buttons`、`go run ./examples/inputs`、`go run ./examples/style-gallery`，
-以及演示原生关窗确认的 `go run ./examples/close_guard`。
+`go run ./examples/buttons`、`go run ./examples/inputs`、`go run ./examples/showcase`、
+演示无外观 Base 自绘控件的 `go run ./examples/base_controls`，以及演示原生关窗确认的
+`go run ./examples/close_guard`。
 
 ## 文档
 

@@ -54,34 +54,12 @@ nodegraph.New("workflow", graph).
 	GridPattern(nodegraph.GridDots)
 ```
 
-To override the grid color and opacity for one graph without changing the
-application theme, pass a provider-owned override:
-
-```go
-gridColor := color.NRGBA{R: 0x32, G: 0x78, B: 0xc8, A: 0xff}
-gridOpacity := float32(.35)
-nodegraph.StyledWithOverride(
-	nodegraph.New("workflow", graph).GridPattern(nodegraph.GridDots),
-	theme.NodeGraphOverride{GridColor: &gridColor, GridOpacity: &gridOpacity},
-)
-```
-
-Grid color and opacity are provider-owned overrides; visual configuration does
-not belong on the behavior widget.
+Canvas, grid, node, and edge defaults derive their colors from the active
+theme's semantic roles. For an instance-specific adjustment, layer a
+`Style(style.Style)` declaration; component-specific visuals do not belong in
+the global theme.
 draggable nodes use a grab cursor and connectable ports use a crosshair.
 
-The canvas, grid, nodes, ports, edges, and selection state use the dedicated
-tokens in `Theme.Components.NodeGraph`. Applications can override individual
-values:
-
-```go
-window.CustomizeTheme(func(t *theme.Theme) {
-	t.Components.NodeGraph.CanvasBackground = color.NRGBA{R: 0xf8, G: 0xfa, B: 0xfc, A: 0xff}
-	t.Components.NodeGraph.CanvasBorder = color.NRGBA{R: 0xd9, G: 0xe1, B: 0xeb, A: 0xff}
-	t.Components.NodeGraph.GridColor = color.NRGBA{R: 0xd9, G: 0xe1, B: 0xeb, A: 0xff}
-	t.Components.NodeGraph.GridOpacity = .65
-})
-```
 
 `Culling(true)` is enabled by default. It skips drawing nodes and edges outside
 the canvas viewport for large graphs. Hit testing, the minimap, and FitView

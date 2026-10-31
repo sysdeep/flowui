@@ -9,7 +9,33 @@
 | Update | `func(*M, Msg) Cmd[Msg]` | 改 Model，可选副作用 |
 | View | `func(*Context, M, Send[Msg]) Widget` | 只读渲染 |
 
-## 推荐：封闭消息集
+## 消息分发
+
+小型 `Update` 直接用 Go 的类型 `switch`。当消息处理变多时，可以用
+`ui.Match` 把每种消息拆成类型化 handler；两种写法都支持，按复杂度选择。
+
+```go
+func Update(m *Model, msg Msg) ui.Cmd[Msg] {
+	return ui.Match(m, msg,
+		ui.On(func(m *Model, _ Increment) ui.Cmd[Msg] {
+			m.Count++
+			return nil
+		}),
+		ui.On(func(m *Model, msg NameChanged) ui.Cmd[Msg] {
+			m.Name = msg.Name
+			return nil
+		}),
+	)
+}
+```
+
+`ui.On` 的 Model、消息和 Cmd 类型由 handler 签名推断。`ui.Match` 按顺序执行
+第一个匹配项；没有匹配时返回 `nil`。handler 可以放在不同领域的函数中组合，
+但消息类型仍由应用定义。需要查看所有处理分支时，普通 `switch` 依然直接明了。
+
+## 封闭消息集
+
+用私有标记方法可以限制消息只在当前包内实现，便于维护应用自己的消息集合：
 
 ```go
 type Msg interface{ msg() }
@@ -31,10 +57,8 @@ func Update(m *Model, msg Msg) ui.Cmd[Msg] {
 }
 ```
 
-优点：
-
-- `switch` 穷尽、可重构
-- 子模块消息可嵌套（见下文）
+Go 不会检查类型 `switch` 是否穷尽；增加新消息后，未处理的消息会走默认路径。
+子模块消息可以包装进父级消息（见下文）。
 
 ## View 规则
 

@@ -41,7 +41,7 @@ styles, window management, asynchronous effects, and deterministic UI tests.
 | Official components | `github.com/qianniancn/flowui/widget/<component>` |
 | Layout | `github.com/qianniancn/flowui/layout` |
 | Style declarations | `github.com/qianniancn/flowui/style` |
-| Default theme | `github.com/qianniancn/flowui/theme/base`: `base.Light()` / `base.Dark()` |
+| Default theme | `github.com/qianniancn/flowui/theme`: `theme.Light()` / `theme.Dark()` |
 | Theme contracts and extensions | `github.com/qianniancn/flowui/theme`; see [external themes and migration](guide/18-design-styles.md) |
 | Low-level drawing | `github.com/qianniancn/flowui/draw` |
 | Animation primitives | `github.com/qianniancn/flowui/animation` |

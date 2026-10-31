@@ -42,7 +42,7 @@ Apply changes through the application so they reach the target window's event
 loop:
 
 ```go
-application.SetTheme("main", base.Dark())
+application.SetTheme("main", theme.Dark())
 application.SetLanguage("main", window.LanguageChinese)
 ```
 
@@ -107,7 +107,7 @@ func update(m *Model, msg Msg) ui.Cmd[Msg] {
 }
 
 application = ui.NewApplication()
-application.Run(ui.NewWindow("main", program, window.Theme(base.Light())))
+application.Run(ui.NewWindow("main", program, window.Theme(theme.Light())))
 ```
 
 The message hook applies only when no `OnWindowCloseRequest` handler is

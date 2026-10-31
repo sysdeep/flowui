@@ -125,14 +125,15 @@ hinting 表以减小文件体积；如果目标平台需要保留 hinting，请�
 Emoji 和其他语言字符：
 
 ```go
-faces, err := ui.ParseFontCollection(fontData)
+// import "gioui.org/font/opentype"
+faces, err := opentype.ParseCollection(fontData)
 if err != nil {
     return err
 }
 
-theme := ui.DefaultTheme()
-theme.Fonts.Collection = faces
-theme.Fonts.SystemFonts = true
+active := theme.Light()
+active.Fonts.Collection = faces
+active.Fonts.SystemFonts = true
 ```
 
 建议保留系统字体回退。这样，子集未覆盖的生僻字、Emoji 或其他语言字符，

@@ -32,10 +32,13 @@ action-oriented controls. Use variants and sizes instead of copying paint code.
 
 ```go
 button.New("Save").
-	Variant(button.Primary).
+	Primary().
 	Size(button.Medium).
 	OnClick(func() { send(Save{}) })
 ```
+
+Use `Primary()` as shorthand for `Variant(button.Primary)`. `Width(dp)` sets
+a fixed button width, and `FillWidth()` fills the available width.
 
 Buttons, toggle buttons, tooltips, and input group actions accept plain text
 directly. Use `Content` when an icon, styled text, or a layout is needed:
@@ -60,14 +63,14 @@ children with strings, and move custom children to `.Content(...)`.
 ## Forms
 
 The form family includes `input.New`, `input.TextArea`, `input.Group`, `input.GroupAction`,
-`toggle.NewCheckbox`, `toggle.NewSwitch`, `radiogroup.New`, `selector.NewSelect`, `selector.NewCombobox`, date pickers, color
+`toggle.NewCheckbox`, `toggle.NewSwitch`, `radiogroup.New`, `selector.New`, `combobox.New`, date pickers, color
 pickers, and sliders. Form values are controlled by the model; callbacks send
 messages.
 
 `numericinput.New` adds controlled `float64` editing with `Range`, `Step`, and
 `Precision`. Incomplete drafts remain local until Enter or focus loss; invalid
 input restores the controlled value. Step buttons commit immediately.
-`toggle.NewSegmented` provides compact, mutually exclusive choices; `FullWidth()` gives
+`toggle.NewSegmented` provides compact, mutually exclusive choices; `FillWidth()` gives
 each choice an equal share of the container. Clicking the current choice does
 not deselect it.
 
@@ -83,7 +86,9 @@ toggle.NewSegmented([]toggle.SegmentedItem{
 ## Navigation and overlays
 
 Use `tabs.New`, `sidebar.New`, `tree.New`, `menubar.New`, `menu.New`, `menu.ContextMenu`, `navigation.NewPagination`,
-and `toolbar.New` for navigation. `dropdown.New`, `popover.New`, `tooltip.New`, `modal.New`,
+and `toolbar.New` or `toolbar.Commands` for navigation and command actions.
+`toolbar.Commands` moves trailing commands into a More menu when the available
+width is too narrow. `dropdown.New`, `popover.New`, `tooltip.New`, `modal.New`,
 `alertdialog.New`, `toast.New`, and `portal.New` handle transient surfaces.
 
 Use `toast.MessageItem` for the lightweight top-center message pattern: a
@@ -166,8 +171,11 @@ canvas with controlled panning and zooming; see [Node graph](17-node-graph.md).
 Use `layout.List(count, rowAt)` or
 `table.NewVirtual("table", columns, count, rowAt)` with a bounded viewport for
 large datasets. Rows are built on demand; the application applies virtual-table
-sorting in its row provider. Showcase includes 10,000-row list and table demos,
+sorting in its row callback. Showcase includes 10,000-row list and table demos,
 plus a tree page covering loading, filtering, checkboxes, rename, and drag and drop.
+
+For an appended chat or log, `layout.List(...).FollowEnd()` follows new content
+while the user remains at the end, and resumes after the user returns there.
 
 `skeleton.New().Width(160).Height(16)` creates a loading placeholder;
 `Circle().Height(48)` creates a circular one. Width fills the container by default.
@@ -175,7 +183,7 @@ plus a tree page covering loading, filtering, checkboxes, rename, and drag and d
 
 ## Layout and shells
 
-`layout.Box`, `layout.Row`, `layout.Column`, `layout.Grid`, `layout.Wrap`, `layout.Stack`, `layout.Scroll`, `layout.SplitPane`,
+`layout.Box`, `layout.Row`, `layout.Column`, `layout.Grid`, `layout.Wrap`, `layout.Stack`, `layout.Scroll`, `splitpane.New`,
 `dock.New`, `surface.NewPanel`, `surface.New`, `surface.NewCard`, `layout.Overlay`,
 `titlebar.New`, and `statusbar.New` form the page shell.
 
@@ -229,7 +237,7 @@ Run `go run ./examples/showcase` from the repository root to explore 65 pages
 covering every public widget package, with search, live interaction, usage snippets,
 light/dark modes, and a directory view for narrow windows.
 
-Run `go run ./examples/style-gallery` for a compact preview of the default theme.
+Run `go run ./examples/showcase` for a compact preview of the default theme.
 
 The `examples/buttons` and `examples/inputs` programs demonstrate focused
 interaction contracts. The [component screenshots](16-component-screenshots.md)

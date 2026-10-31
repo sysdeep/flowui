@@ -9,9 +9,9 @@ Build a reusable function from existing widgets and return a value-like widget:
 
 ```go
 func StatusPill(label string, selected bool) ui.Widget {
-	value := style.New().PaddingX(12).PaddingY(6).Radius(999).
-		On(style.Hovered, style.New().Background(style.Solid(activeTheme.Palette.SurfaceTertiary))).
-		On(style.Selected, style.New().Background(style.Solid(activeTheme.Palette.Accent)))
+	value := style.New().Padding(12, 6).Radius(999).
+		On(style.Hovered, style.New().Background(style.Solid(activeTheme.Colors.SurfaceTertiary))).
+		On(style.Selected, style.New().Background(style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Fill)))
 	return layout.Box(text.New(label)).Style(value)
 }
 ```
@@ -33,8 +33,8 @@ layout.InteractiveResolved (or layout.Resolved)
 ```
 
 The resolvers live in `github.com/qianniancn/flowui/style/resolve`, not in `style`
-itself — `style` is a pure declaration mechanism with no framework dependency,
-which is what lets `theme` name it without a cycle. `Resolve` and `ResolvePart`
+itself — `style` is a pure declaration mechanism with no framework dependency.
+The theme supplies values without importing `style`; widgets own appearance. `Resolve` and `ResolvePart`
 resolve and apply transitions in one call. A component that also resolves during
 measurement uses `ResolveStatic` / `ResolvePartStatic` plus `HasTransitions` and
 `ApplyTransitions` / `ApplyPartTransitions` instead, so transition state is
@@ -53,13 +53,43 @@ Use Gio operations for the content of a chart or illustration, but keep the
 outer box, hit target, focus behavior, and theme tokens in FlowUI components.
 Canvas code should not duplicate button or field semantics.
 
+## Path D: headless base
+
+When the structure itself must differ — a whole-row settings card, a gauge
+instead of a track, a custom trigger — but pointer, keyboard, focus and
+accessibility must stay correct, use `widget/base`:
+
+```go
+base.Toggle("sync", model.Sync).
+	Label("Sync files").
+	OnChange(func(next bool) { send(SetSync{next}) }).
+	Style(style.New().FillWidth().Padding(14).Radius(12).
+		Background(style.Solid(activeTheme.Colors.SurfaceSecondary))).
+	Content(func(state base.ToggleState) ui.Widget {
+		return layout.Row(
+			indicator(state.Checked, state.Hovered),
+			text.New("Sync files"),
+		)
+	})
+```
+
+`base.Toggle` and `base.Slider` own behavior, state and semantics and paint
+nothing. `Content` receives the interaction state (`Checked`, `Hovered`,
+`Dragging`, `FocusVisible`, and so on) and draws the control. `Content` is
+required and `Style` sizes the interaction box; the model still owns the value
+and `OnChange` reports intent.
+
+The styled `Checkbox` and `Slider` remain available. Bases are for design
+systems that change the structure too; when only colors, radii or shadows
+change, Path A and theme tokens are enough.
+
 For common drawing and measurement tasks, reuse the public helpers instead of
 duplicating theme resolution or Gio event boilerplate:
 
 ```go
 brush, ok := resolve.Brush(style.LinearGradient(
-	style.ColorStop(0, style.Solid(activeTheme.Palette.Accent)),
-	style.ColorStop(1, style.Solid(activeTheme.Palette.Danger)),
+	style.ColorStop(0, style.Solid(activeTheme.Colors.Tones[theme.TonePrimary].Fill)),
+	style.ColorStop(1, style.Solid(activeTheme.Colors.Tones[theme.ToneDanger].Fill)),
 ))
 if ok {
 	draw.Fill(gtx, image.Rect(0, 0, 160, 32), 6, brush)
@@ -87,7 +117,7 @@ func (measuredBadge) Measure(_ *ui.Context, gtx layout.Context) layout.Dimension
 
 Low-level pointer widgets can use `AddPointerArea`, `NextPointerEvent`,
 `IsPrimaryPointerPress`, and `GrabPointer`. Use `layout.VisualOverflow` for a
-local ripple or focus decoration that must cross the child's own clip. It is
+local focus decoration that must cross the child's own clip. It is
 not a replacement for `Popover`, `Portal`, or another overlay host. When that
 decoration also needs room inside an ancestor scroll or split viewport, report
 its top/right/bottom/left extent with `layout.VisualOutset`; a component with a

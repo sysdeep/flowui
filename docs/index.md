@@ -17,7 +17,7 @@ FlowUI 是一个基于 Gio 构建的 Go 桌面 UI 框架和组件库。本教程
 | 2 | [核心概念](guide/02-核心概念.md) | 三句话、职责边界、术语 |
 | 3 | [MVU 与消息](guide/03-MVU与消息.md) | Model / Msg / Update / View、封闭消息集 |
 | 4 | [布局](guide/04-布局.md) | Box、Row、Column、Scroll、约束 |
-| 5 | [样式与主题](guide/05-样式与主题.md) | Style、When、Part、Theme、Token |
+| 5 | [样式与主题](guide/05-样式与主题.md) | Style、On、Rules、Part、Theme、Token |
 | 6 | [组件一览](guide/06-组件一览.md) | 控件分类与常用写法 |
 | 7 | [表单与受控状态](guide/07-表单与受控状态.md) | Input、Select、Open 契约 |
 | 8 | [命令与订阅](guide/08-命令与订阅.md) | Cmd、Batch、LatestCmd、Subscription |
@@ -45,7 +45,7 @@ FlowUI 是一个基于 Gio 构建的 Go 桌面 UI 框架和组件库。本教程
 | 官方组件 | `github.com/qianniancn/flowui/widget/<component>` |
 | 布局 | `github.com/qianniancn/flowui/layout` |
 | 样式声明 | `github.com/qianniancn/flowui/style` |
-| 默认主题 | `github.com/qianniancn/flowui/theme/base`，使用 `base.Light()` / `base.Dark()` |
+| 默认主题 | `github.com/qianniancn/flowui/theme`，使用 `theme.Light()` / `theme.Dark()` |
 | 主题协议与扩展 | `github.com/qianniancn/flowui/theme`；其他风格由外部模块提供，见[迁移指南](guide/18-设计风格.md) |
 | 底层绘制 | `github.com/qianniancn/flowui/draw` |
 | 动画原语 | `github.com/qianniancn/flowui/animation` |

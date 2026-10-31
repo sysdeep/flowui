@@ -50,7 +50,7 @@ copy, and read-only fields never offer cut or paste. Shortcut hints follow the
 platform (Ctrl on Windows / Linux, Command on macOS), and the menu labels
 follow the interface language (Chinese / English).
 
-Fields inside `input.Group` / `GroupTextArea` and the `selector.NewCombobox` input
+Fields inside `input.Group` / `GroupTextArea` and the `combobox.New` input
 share this built-in menu, with the same `.DefaultContextMenu(false)` and
 `.ContextMenu(...)` options; `text.Selectable` ships a right-click menu with
 Copy / Select All. While a menu is open, the selection highlight stays visible
@@ -92,7 +92,7 @@ text, or typography without changing the outer group shell.
 Selection controls use model keys:
 
 ```go
-selector.NewSelect(items).Key("state").SelectedKey(m.State).
+selector.New(items).Key("state").SelectedKey(m.State).
 	Label("State").
 	Placeholder("Select one").
 	OnChange(func(key string) { send(SetState(key)) })
@@ -114,7 +114,7 @@ DefaultOpen(bool)  -> initial value for uncontrolled state
 Controlled usage must update the model from the component's open-state callback:
 
 ```go
-selector.NewSelect(items).Key("city").SelectedKey(m.City).
+selector.New(items).Key("city").SelectedKey(m.City).
 	Open(m.CityOpen).
 	OnOpenChange(func(open bool) { send(SetCityOpen(open)) }).
 	OnChange(func(key string) { send(SetCity(key)) })

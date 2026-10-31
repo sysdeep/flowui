@@ -13,9 +13,9 @@ Both tracks require a stable key.
 ## Style transitions
 
 ```go
-style.New().Background(style.Solid(activeTheme.Palette.Surface)).
+style.New().Background(style.Solid(activeTheme.Colors.Surface)).
 	Transition(style.PropBackgroundColor, 120*time.Millisecond).
-	On(style.Hovered, style.New().Background(style.Solid(activeTheme.Palette.SurfaceRaised)))
+	On(style.Hovered, style.New().Background(style.Solid(activeTheme.Colors.SurfaceRaised)))
 ```
 
 Add an easing option when the default curve is not appropriate:

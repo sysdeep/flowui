@@ -9,6 +9,33 @@ FlowUI uses a small Model-View-Update loop:
 | Update | `func(*M, Msg) Cmd[Msg]` | Apply state changes and effects |
 | View | `func(*Context, M, Send[Msg]) Widget` | Render the current state |
 
+## Message dispatch
+
+Use a Go type switch for a small `Update`. When the number of message handlers
+grows, `ui.Match` lets you split the cases into typed handlers. Both styles are
+supported; choose based on the size of the update function.
+
+```go
+func Update(m *Model, msg Msg) ui.Cmd[Msg] {
+	return ui.Match(m, msg,
+		ui.On(func(m *Model, _ Increment) ui.Cmd[Msg] {
+			m.Count++
+			return nil
+		}),
+		ui.On(func(m *Model, msg NameChanged) ui.Cmd[Msg] {
+			m.Name = msg.Name
+			return nil
+		}),
+	)
+}
+```
+
+`ui.On` infers the model, message, and command types from each handler. `ui.Match`
+runs the first matching handler and returns `nil` when none match. Handlers can
+live in domain-specific functions and be composed, while the application still
+owns its message types. A type switch remains straightforward when seeing every
+case in one place is more useful.
+
 ## Closed message sets
 
 A private marker method keeps the message set explicit and makes type switches

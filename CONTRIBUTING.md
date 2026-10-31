@@ -25,8 +25,8 @@ repository root. Runnable examples live under `examples/` in the same Go module.
 
 - Applications import `ui` for MVU, `widget/<component>` for official components
   (one package per component, e.g. `widget/button`), `layout`
-  for composition, `style` for declarations, `theme/base` for the default theme,
-  `theme` for visual contracts, `draw` for custom rendering, and `window` for
+  for composition, `style` for declarations, `theme` for the default theme,
+  `theme` for shared design tokens, `draw` for custom rendering, and `window` for
   native options. `explorer`, `notify`, and
   `systray` are optional platform services. Shared implementation code belongs
   below `internal/`.
@@ -44,15 +44,11 @@ When adding or changing a component:
 1. Put behavior, layout, public constructors, and focused tests in
    `widget/<component>`. Applications import that package directly; `ui/` owns
    the MVU/runtime API.
-2. Keep visual requests, results, Provider contracts, and validators together
-   in `theme/<component>_visual.go`. Implement shared visual recipes in the
-   matching `theme/<domain>style` package, using a prefixed file set and
-   prefixed unexported helpers, and wire them once through
-   `theme/base.Provider`. External themes inherit the shared recipe and override
-   it only when needed.
-3. Update the matching fixture in `internal/testtheme/<component>.go` when the
-   behavior tests need a new visual capability. Keep these fixtures independent
-   of production recipes. Use `theme/themetest` to check production Providers.
+2. Keep each component's default visual recipe and focused visual tests in its
+   widget package. Shared tokens and light/dark values belong in `theme`; shared
+   implementation details belong in `internal`.
+3. Test behavior and default appearance alongside the component, including
+   light/dark, states and relevant overrides.
 4. Update `examples/` when a public usage change needs a runnable demonstration.
    Keep new example-only assets beside the example.
 5. Preserve the dependency direction described in the architecture document
@@ -60,21 +56,16 @@ When adding or changing a component:
 
 ### Directory Ownership
 
-- `widget/<component>` owns a usable component. The public `widget/disclosure`,
-  `widget/navigation`, and `widget/optionrow` packages provide reusable behavior
-  and rendering primitives rather than complete controls. `widget/chart`
+- `widget/<component>` owns a usable component. `widget/base` provides reusable
+  interaction; `widget/navigation` also exposes navigation helpers. `widget/chart`
   includes shared public chart data and interaction contracts.
-- `theme/<domain>style` owns the appearance recipes for its domain, with one
-  prefixed file set per component. Helpers used only by the theme tree belong
-  in `theme/internal/`; shared behavior used across framework layers belongs in
-  root `internal/`.
-- `internal/testtheme` supplies neutral fixtures for repository tests only.
-  Keep the entry points in `testtheme.go`, component fixtures in focused files,
-  and shared field declaration helpers in `field.go`.
-- `theme/base` owns the only default design system. Other styles and their
-  dedicated examples belong in external modules, not in new core theme packages.
-- `theme/themetest` is a public acceptance-test helper for default and external
-  themes. It checks real Providers and has a different role from `testtheme`.
+- `widget/internal/binding` owns generic controlled/uncontrolled value state;
+  `widget/internal/optionrow` owns shared row animation and drawing, not interaction.
+  These replace the former `widget/disclosure` and `widget/optionrow` packages.
+- `theme` provides the default light and dark tokens. Widget packages own
+  their appearance; `widget/base` owns appearance-free behavior.
+- Tests use the production light/dark themes; tests that need specific motion
+  timings configure them explicitly in their local setup.
 - `docs/assets` contains documentation images. New runnable-example assets
   belong under `examples/`, rather than extending the existing `assets/images`
   package.

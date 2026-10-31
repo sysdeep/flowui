@@ -135,14 +135,15 @@ the application. The sample keeps system fallback enabled for characters outside
 the checked-in Chinese, Latin, and symbol set:
 
 ```go
-faces, err := ui.ParseFontCollection(fontData)
+// import "gioui.org/font/opentype"
+faces, err := opentype.ParseCollection(fontData)
 if err != nil {
     return err
 }
 
-theme := ui.DefaultTheme()
-theme.Fonts.Collection = faces
-theme.Fonts.SystemFonts = true
+active := theme.Light()
+active.Fonts.Collection = faces
+active.Fonts.SystemFonts = true
 ```
 
 Keeping system fallback enabled lets the platform provide characters that are
