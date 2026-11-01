@@ -52,10 +52,10 @@ func demoStatusbar(m demoState, _ ui.Send[Msg]) ui.Widget {
 }
 
 func demoTitlebar(m demoState, send ui.Send[Msg]) ui.Widget {
-	return layout.Column(titlebar.New("titlebar-demo", "FlowUI Studio", demoMenubar(m, send)).
+	return layout.Column(titlebar.New("FlowUI Studio", demoMenubar(m, send)).Key("titlebar-demo").
 		ShowMinimize(false).ShowMaximize(false).ShowClose(false),
 		muted(m.text("自定义标题栏内容")),
-		titlebar.New("titlebar-custom", "FlowUI Studio", nil).Center(text.New("README.md")).
+		titlebar.New("FlowUI Studio", nil).Key("titlebar-custom").Center(text.New("README.md")).
 			Trailing(button.New(m.text("保存")).Size(button.Small).Variant(button.Secondary).
 				OnClick(report(send, m.text("已保存")))).
 			ShowMinimize(false).ShowMaximize(false).ShowClose(false),
@@ -119,7 +119,7 @@ func demoWorkbench(m demoState, send ui.Send[Msg]) ui.Widget {
 			panels = append(panels, surface.PanelItem{Key: tab.Key, Content: pane(tab.Title, m.text("此内容由工作台状态选择。"))})
 		}
 	}
-	tabstrip := tabs.New("workbench-tabs", "", items).OnClose(func(key string) {
+	tabstrip := tabs.New("", items).Key("workbench-tabs").OnClose(func(key string) {
 		controller.CloseTab("editor", key)
 	})
 	return controller.CommandScope(layout.Column(

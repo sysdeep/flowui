@@ -90,7 +90,7 @@ func BenchmarkMenubarComponentTreeSteadyState(b *testing.B) {
 	for index := 0; index < cap(items); index++ {
 		items = append(items, NewMenu("item-"+strconv.Itoa(index), "Item "+strconv.Itoa(index), nil))
 	}
-	widget := New("benchmark", items)
+	widget := New(items).Key("benchmark")
 	now := time.Unix(0, 0)
 	layoutMenubarFrame(ctx, router, widget, now)
 	b.ReportAllocs()

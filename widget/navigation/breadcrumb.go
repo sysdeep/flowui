@@ -22,9 +22,12 @@ type BreadcrumbWidget struct {
 	onChange  func(string)
 }
 
-func NewBreadcrumb(key string, items []BreadcrumbItem) BreadcrumbWidget {
-	return BreadcrumbWidget{key: key, items: append([]BreadcrumbItem{}, items...), separator: "/"}
+func NewBreadcrumb(items []BreadcrumbItem) BreadcrumbWidget {
+	return BreadcrumbWidget{key: core.AutoKey("breadcrumb"), items: append([]BreadcrumbItem{}, items...), separator: "/"}
 }
+
+// Key sets a stable identity for breadcrumb item interactions.
+func (b BreadcrumbWidget) Key(key string) BreadcrumbWidget { b.key = key; return b }
 
 func (b BreadcrumbWidget) Separator(value string) BreadcrumbWidget   { b.separator = value; return b }
 func (b BreadcrumbWidget) OnChange(fn func(string)) BreadcrumbWidget { b.onChange = fn; return b }

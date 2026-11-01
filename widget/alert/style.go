@@ -50,7 +50,7 @@ func (a Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual alert
 	if !computed.HasTransitions(resolved.root, resolved.title, resolved.description, resolved.content, resolved.indicator) {
 		return resolved
 	}
-	key := core.ClaimKey(ctx, core.KindStyle, "alert")
+	key := core.ClaimDerivedKey(ctx, core.KindStyle, a.key, "style")
 	resolved.root = computed.ApplyTransitions(ctx, gtx, key, resolved.root)
 	resolved.title = computed.ApplyPartTransitions(ctx, gtx, key, style.PartLabel, resolved.title)
 	resolved.description = computed.ApplyPartTransitions(ctx, gtx, key, style.PartDescription, resolved.description)

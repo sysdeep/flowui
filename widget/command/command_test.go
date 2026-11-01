@@ -209,7 +209,7 @@ func TestCommandButtonTooltipKeyDoesNotCollideWithUserKey(t *testing.T) {
 	command := New("save", "Save").
 		Icon(fixedCommandWidget{size: image.Pt(16, 16)}).
 		OnExecute(func() {})
-	userTooltip := tooltip.New("save-button:tooltip", fixedCommandWidget{size: image.Pt(16, 16)}, "").Content(fixedCommandWidget{size: image.Pt(16, 16)})
+	userTooltip := tooltip.New(fixedCommandWidget{size: image.Pt(16, 16)}, "").Key("save-button:tooltip").Content(fixedCommandWidget{size: image.Pt(16, 16)})
 
 	core.BeginFrame(ctx)
 	Button("save-button", command).Layout(ctx, gtx)

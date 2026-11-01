@@ -290,7 +290,8 @@ func TestCustomComboDemoInput(t *testing.T) {
 	model.demo = initialDemo(window.LanguageChinese)
 	root := func() ui.Widget { return demoCombo(model.demo, func(msg Msg) { update(&model, msg) }) }
 	harness.Frame(root())
-	tag := core.FieldFocusTag(harness.Context(), "combo-custom-input")
+	inputKey := core.DerivedKey(harness.Context(), "combo-custom", "input")
+	tag := core.FieldFocusTag(harness.Context(), core.FullKey(harness.Context(), inputKey))
 	if tag == nil {
 		t.Fatal("custom combobox has no editor")
 	}

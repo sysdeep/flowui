@@ -116,7 +116,8 @@ func (p Widget) layoutPanel(ctx *core.Context, gtx layout.Context, visual popove
 }
 
 func (p Widget) resolvePanelStyle(ctx *core.Context, gtx layout.Context, state style.State, visual popoverVisual) style.ResolvedStyle {
-	return computed.Resolve(ctx, gtx, core.FullKey(ctx, "popover-style"), state, visual.Defaults, style.Style{}, style.Style{}, p.style)
+	key := core.DerivedKey(ctx, core.FullKey(ctx, p.key), "style")
+	return computed.Resolve(ctx, gtx, key, state, visual.Defaults, style.Style{}, style.Style{}, p.style)
 }
 
 func (p Widget) layoutDialog(ctx *core.Context, gtx layout.Context, visual popoverVisual) layout.Dimensions {

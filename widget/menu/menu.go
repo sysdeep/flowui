@@ -139,12 +139,18 @@ type Widget struct {
 	parentItemKey        string
 }
 
-func New(key string, items []Item) Widget {
-	return Widget{key: key, items: items}
+func New(items []Item) Widget {
+	return Widget{key: core.AutoKey("menu"), items: items}
 }
 
-func Sections(key string, sections []Section) Widget {
-	return Widget{key: key, sections: sections, autoSeparateSections: true}
+func Sections(sections []Section) Widget {
+	return Widget{key: core.AutoKey("menu-sections"), sections: sections, autoSeparateSections: true}
+}
+
+// Key overrides the automatically generated root identity.
+func (m Widget) Key(key string) Widget {
+	m.key = key
+	return m
 }
 
 func Separator() Item {
@@ -342,9 +348,9 @@ func (m Widget) withParent(state *menuState, itemKey string) Widget {
 func (m Widget) submenu(state *menuState, item Item) Widget {
 	var child Widget
 	if len(item.Sections) > 0 {
-		child = Sections(item.Key, item.Sections).AutoSeparateSections(false)
+		child = Sections(item.Sections).Key(item.Key).AutoSeparateSections(false)
 	} else {
-		child = New(item.Key, item.Children)
+		child = New(item.Children).Key(item.Key)
 	}
 	child.beforeContent = nil
 	child.afterContent = nil

@@ -25,7 +25,7 @@ func TestSearchCaretKeysStayWithEditor(t *testing.T) {
 		command.New("alpha", "Alpha").OnExecute(func() {}),
 		command.New("beta", "Beta").OnExecute(func() {}),
 	}
-	view := New("caret", true, commands)
+	view := New(true, commands).Key("caret")
 	h.Frame(view)
 	h.Advance(time.Second)
 	h.Frame(view)
@@ -56,7 +56,7 @@ func TestSearchKeyboardAndExecution(t *testing.T) {
 	commands = append(commands, command.New("stay", "Keep open").KeepOpen(true).
 		OnExecute(func() { executed = "stay" }))
 	root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
-		return New("palette", open, commands).OnOpenChange(func(next bool) { open = next }).Layout(ctx, gtx)
+		return New(open, commands).Key("palette").OnOpenChange(func(next bool) { open = next }).Layout(ctx, gtx)
 	})
 	frame := func() { h.Frame(root); h.Frame(root) }
 	frame()
@@ -121,7 +121,7 @@ func TestSearchWaitsForCoveringModal(t *testing.T) {
 	commands := []command.Command{command.New("save", "Save").OnExecute(func() { executed = true })}
 	root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
 		return layout.Column(
-			New("palette", open, commands).OnOpenChange(func(next bool) { open = next }),
+			New(open, commands).Key("palette").OnOpenChange(func(next bool) { open = next }),
 			modal.New("Other dialog", text.New("Close this first")).Key("cover").Open(covered).
 				OnOpenChange(func(next bool) { covered = next }),
 		).Layout(ctx, gtx)

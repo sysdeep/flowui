@@ -50,7 +50,7 @@ func dropdownTestContext() *core.Context {
 }
 
 func dropdownTestWidget(items []Item) Widget {
-	return New("actions", fixedWidget{size: image.Pt(120, 40)}, items)
+	return New(fixedWidget{size: image.Pt(120, 40)}, items).Key("actions")
 }
 
 func TestDropdownOptionsUseValueSemantics(t *testing.T) {
@@ -67,7 +67,7 @@ func TestDropdownOptionsUseValueSemantics(t *testing.T) {
 		ShouldFlip(false).
 		AvoidOverflow(false).
 		Disabled(true).
-		Menu(menupkg.New("actions:menu", nil).CloseOnSelect(false).Width(256))
+		Menu(menupkg.New(nil).Key("actions:menu").CloseOnSelect(false).Width(256))
 	if base.hasOpen || base.disabled || base.hasOffset || base.triggerMode != TriggerPress {
 		t.Fatalf("base dropdown mutated: %#v", base)
 	}
@@ -83,7 +83,7 @@ func TestDropdownExtendedOptionsUseValueSemantics(t *testing.T) {
 	base := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}})
 	var event OpenChangeEvent
 	configured := base.
-		Menu(menupkg.New("actions:menu", nil).AutoWidth().MinWidth(160).MaxWidth(320)).
+		Menu(menupkg.New(nil).Key("actions:menu").AutoWidth().MinWidth(160).MaxWidth(320)).
 		MatchTriggerWidth(true).
 		Arrow(true).
 		HoverOpenDelay(20 * time.Millisecond).
@@ -105,13 +105,13 @@ func TestDropdownExtendedOptionsUseValueSemantics(t *testing.T) {
 func TestDropdownForwardsMenuConfiguration(t *testing.T) {
 	checked := func(string, bool) {}
 	radio := func(string, string) {}
-	configured := dropdownTestWidget(nil).Menu(menupkg.New("actions:menu", nil).
+	configured := dropdownTestWidget(nil).Menu(menupkg.New(nil).Key("actions:menu").
 		AutoSeparateSections(false).
 		DataVersion(3).
 		OnCheckedChange(checked).
 		OnRadioChange(radio).
 		Compact(true))
-	expected := menupkg.New("actions:menu", nil).
+	expected := menupkg.New(nil).Key("actions:menu").
 		AutoSeparateSections(false).
 		DataVersion(3).
 		Compact(true)
@@ -172,7 +172,7 @@ func TestDropdownButtonUsesIndependentDropdownState(t *testing.T) {
 	configured := base.
 		Variant(button.Danger).
 		Size(button.Small).
-		Menu(menupkg.New("split:dropdown:menu", nil).AutoWidth()).
+		Menu(menupkg.New(nil).Key("split:dropdown:menu").AutoWidth()).
 		Placement(core.PopoverBottomEnd).
 		OnOpenChangeEvent(func(OpenChangeEvent) {})
 	if configured.key != "split" || configured.dropdown.key != "split:dropdown" || configured.dropdown.placement != core.PopoverBottomEnd || reflect.DeepEqual(base.dropdown, configured.dropdown) {
@@ -235,7 +235,7 @@ func TestDropdownPressOpensAndFocusesFirstItem(t *testing.T) {
 func TestDropdownButtonTriggerUsesDropdownClickable(t *testing.T) {
 	ctx := dropdownTestContext()
 	router := new(input.Router)
-	widget := New("button-trigger", button.New("").Content(fixedWidget{size: image.Pt(80, 24)}), []Item{{Key: "open", Label: "Open"}})
+	widget := New(button.New("").Content(fixedWidget{size: image.Pt(80, 24)}), []Item{{Key: "open", Label: "Open"}}).Key("button-trigger")
 	start := time.Unix(1, 0)
 	layoutDropdownFrame(ctx, router, widget, start)
 	router.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: f32.Pt(20, 20)})
@@ -397,7 +397,7 @@ func TestDropdownMenuActionClosesAndRestoresTriggerFocus(t *testing.T) {
 	ctx := dropdownTestContext()
 	router := new(input.Router)
 	action := ""
-	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "open", Label: "Open"}}).OnActionEvent(func(event ActionEvent) { action = event.Key }))
+	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New([]Item{{Key: "open", Label: "Open"}}).Key("actions:menu").OnActionEvent(func(event ActionEvent) { action = event.Key }))
 	start := openDropdownForTest(ctx, router, widget)
 	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
 	clickFirstDropdownItem(ctx, router, widget, start)
@@ -459,7 +459,7 @@ func TestDropdownEscapeClosesAndRestoresKeyboardFocus(t *testing.T) {
 func TestDropdownCloseOnSelectIsDelegatedToMenu(t *testing.T) {
 	ctx := dropdownTestContext()
 	router := new(input.Router)
-	widget := dropdownTestWidget([]Item{{Key: "one", Label: "One"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "one", Label: "One"}}).CloseOnSelect(false))
+	widget := dropdownTestWidget([]Item{{Key: "one", Label: "One"}}).Menu(menupkg.New([]Item{{Key: "one", Label: "One"}}).Key("actions:menu").CloseOnSelect(false))
 	start := openDropdownForTest(ctx, router, widget)
 	state, _ := core.PeekState[dropdownState](ctx, "actions", stateSlotDropdown)
 	clickFirstDropdownItem(ctx, router, widget, start)
@@ -473,7 +473,7 @@ func TestDropdownCustomPopoverContentIsLaidOutByMenu(t *testing.T) {
 	router := new(input.Router)
 	before := new(layoutProbe)
 	after := new(layoutProbe)
-	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "open", Label: "Open"}}).BeforeContent(before).AfterContent(after))
+	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New([]Item{{Key: "open", Label: "Open"}}).Key("actions:menu").BeforeContent(before).AfterContent(after))
 	openDropdownForTest(ctx, router, widget)
 	if before.count == 0 || after.count == 0 {
 		t.Fatalf("custom Menu content layouts = before %d after %d", before.count, after.count)
@@ -484,7 +484,7 @@ func TestDropdownUsesMenuRootBackground(t *testing.T) {
 	ctx := dropdownTestContext()
 	router := new(input.Router)
 	got := core.ActiveTheme(ctx).Colors.Background
-	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New("actions:menu", []Item{{Key: "open", Label: "Open"}}).
+	widget := dropdownTestWidget([]Item{{Key: "open", Label: "Open"}}).Menu(menupkg.New([]Item{{Key: "open", Label: "Open"}}).Key("actions:menu").
 		BeforeContent(core.WidgetFunc(func(ctx *core.Context, _ layout.Context) layout.Dimensions {
 			got = ctx.BackgroundColor()
 			return layout.Dimensions{}

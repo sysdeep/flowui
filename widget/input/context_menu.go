@@ -131,7 +131,7 @@ func defaultEditMenu(queue func(EditAction), snapshot EditSnapshot, labels editM
 			},
 		})
 	}
-	return menu.New("edit", items)
+	return menu.New(items).Key("edit")
 }
 
 // RunEditAction executes a queued edit against the field's editor. Cut

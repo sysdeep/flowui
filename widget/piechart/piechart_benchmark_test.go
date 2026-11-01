@@ -36,7 +36,7 @@ func newPieChartBenchmarkFrame(count int) *pieChartBenchmarkFrame {
 	}
 	frame.values = make([]Widget, count)
 	for index := range frame.values {
-		frame.values[index] = New("pie-"+strconv.Itoa(index), data).Legend(true).Labels(true)
+		frame.values[index] = New(data).Key("pie-" + strconv.Itoa(index)).Legend(true).Labels(true)
 	}
 	return frame
 }

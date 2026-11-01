@@ -76,9 +76,9 @@ type Widget struct {
 	defaultsCache           *candlestickDefaultsCache
 }
 
-func New(key string, data []Candle) Widget {
+func New(data []Candle) Widget {
 	return Widget{
-		key:                   key,
+		key:                   core.AutoKey("candlestick-chart"),
 		data:                  append([]Candle(nil), data...),
 		showGrid:              true,
 		showTooltip:           true,
@@ -89,6 +89,12 @@ func New(key string, data []Candle) Widget {
 		updateAnimationEasing: animation.EaseLinear,
 		defaultsCache:         &candlestickDefaultsCache{},
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 // DataVersion enables resolved-data reuse. Increase version whenever the

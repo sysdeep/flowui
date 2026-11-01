@@ -26,8 +26,8 @@ func TestTitleBarLabelPartUsesCommonBoxRenderer(t *testing.T) {
 
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(300, 100)}, Ops: new(op.Ops)}
-	base := New("base", "FlowUI", nil).resolveStyle(ctx, gtx, "base", false)
-	styledValue := (New("styled", "FlowUI", nil)).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7)))
+	base := New("FlowUI", nil).Key("base").resolveStyle(ctx, gtx, "base", false)
+	styledValue := New("FlowUI", nil).Key("styled").Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7)))
 	styled := styledValue.resolveStyle(ctx, gtx, "styled", false)
 	baseDims := layoutTitle(ctx, gtx, "FlowUI", base.title)
 	gtx.Ops = new(op.Ops)
@@ -42,7 +42,7 @@ func TestTitleBarCloseControlIsFlushAndUsesLightHoverGlyph(t *testing.T) {
 
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(600, 100)}, Ops: new(op.Ops)}
-	bar := New("workspace", "FlowUI", nil)
+	bar := New("FlowUI", nil).Key("workspace")
 	resolved := bar.resolveStyle(ctx, gtx, "workspace", false)
 	if resolved.root.Box == nil || resolved.root.Box.Padding == nil {
 		t.Fatal("title bar root padding is missing")
@@ -76,7 +76,7 @@ func TestTitleBarFillsWidthAndLimitsMoveRegion(t *testing.T) {
 
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
-	bar := New("workspace", "main.go - FlowUI", fixedMenu{size: image.Pt(120, 32)})
+	bar := New("main.go - FlowUI", fixedMenu{size: image.Pt(120, 32)}).Key("workspace")
 
 	dims := layoutTitleBarFrame(ctx, router, bar, time.Unix(1, 0), image.Pt(600, 35))
 	if dims.Size != image.Pt(600, 35) {
@@ -105,7 +105,7 @@ func TestTitleBarTracksMaximizedWindowState(t *testing.T) {
 
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
-	bar := New("workspace", "FlowUI", nil)
+	bar := New("FlowUI", nil).Key("workspace")
 
 	layoutTitleBarFrame(ctx, router, bar, time.Unix(2, 0), image.Pt(500, 35))
 	state, ok := core.PeekState[titleBarState](ctx, "workspace", stateSlotTitleBar)
@@ -128,7 +128,7 @@ func TestTitleBarSlotsStayOutsideMoveRegionsAndControlsCanBeHidden(t *testing.T)
 
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
-	bar := New("workspace", "FlowUI", fixedMenu{size: image.Pt(80, 32)}).
+	bar := New("FlowUI", fixedMenu{size: image.Pt(80, 32)}).Key("workspace").
 		Leading(fixedMenu{size: image.Pt(24, 24)}).
 		Center(fixedMenu{size: image.Pt(120, 30)}).
 		Trailing(fixedMenu{size: image.Pt(40, 30)}).
@@ -163,7 +163,7 @@ func TestTitleBarNativeDecorationFallbackOmitsWindowInteractions(t *testing.T) {
 
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
-	bar := New("workspace", "FlowUI", fixedMenu{size: image.Pt(80, 32)}).
+	bar := New("FlowUI", fixedMenu{size: image.Pt(80, 32)}).Key("workspace").
 		Leading(fixedMenu{size: image.Pt(24, 24)}).
 		Center(fixedMenu{size: image.Pt(120, 30)}).
 		Trailing(fixedMenu{size: image.Pt(40, 30)})
@@ -187,7 +187,7 @@ func TestTitleBarNativeDecorationFallbackOmitsWindowInteractions(t *testing.T) {
 }
 
 func TestTitleBarPlatformModeMatchesSupport(t *testing.T) {
-	if got := NewPlatform("workspace", "FlowUI", nil).clientDecorations; got != Supported() {
+	if got := NewPlatform("FlowUI", nil).Key("workspace").clientDecorations; got != Supported() {
 		t.Fatalf("platform title bar client decorations = %v, want %v", got, Supported())
 	}
 }
@@ -198,7 +198,7 @@ func TestTitleBarCustomHeightAndCloseHandler(t *testing.T) {
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	closeRequests := 0
-	bar := New("workspace", "FlowUI", nil).
+	bar := New("FlowUI", nil).Key("workspace").
 		ShowMinimize(false).
 		ShowMaximize(false).
 		OnClose(func() { closeRequests++ })
@@ -224,7 +224,7 @@ func TestTitleBarDefaultCloseUsesWindowLifecycle(t *testing.T) {
 	closeRequests := 0
 	core.SetWindowCloseRequest(ctx, func() { closeRequests++ })
 	router := new(input.Router)
-	bar := New("workspace", "FlowUI", nil).
+	bar := New("FlowUI", nil).Key("workspace").
 		ShowMinimize(false).
 		ShowMaximize(false)
 	layoutTitleBarFrame(ctx, router, (bar).Style(style.Style{}.Height(44)), time.Unix(5, 0), image.Pt(600, 44))
@@ -244,7 +244,7 @@ func TestTitleBarPreservesWindowControlsWhenCenterIsWide(t *testing.T) {
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	closeRequests := 0
-	bar := New("workspace", "FlowUI", nil).
+	bar := New("FlowUI", nil).Key("workspace").
 		Center(constrainedFixed{size: image.Pt(500, 30)}).
 		ShowMinimize(false).
 		ShowMaximize(false).
@@ -270,7 +270,7 @@ func TestTitleBarCenterKeepsItsOwnHeight(t *testing.T) {
 		centerConstraints = gtx.Constraints
 		return layout.Dimensions{Size: gtx.Constraints.Constrain(image.Pt(280, 30))}
 	})
-	bar := New("workspace", "FlowUI", nil).
+	bar := New("FlowUI", nil).Key("workspace").
 		Center(center)
 
 	dims := layoutTitleBarFrame(ctx, router, (bar).Style(style.Style{}.Height(44)), time.Unix(6, 0), image.Pt(640, 44))
@@ -288,12 +288,12 @@ func TestTitleBarTracksMenubarPopupAfterLeadingContent(t *testing.T) {
 	ctx := core.New(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	action := ""
-	applicationMenu := menubar.New("application-menu", []menubar.Item{
+	applicationMenu := menubar.New([]menubar.Item{
 		menubar.NewMenu("file", "File", []menu.Item{{Key: "open", Label: "Open"}}).
 			Width(180).
 			OnActionEvent(func(event menu.ActionEvent) { action = event.Key }),
 	}).Compact(true)
-	bar := New("workspace", "FlowUI", applicationMenu).
+	bar := New("FlowUI", applicationMenu).Key("workspace").
 		Leading(fixedMenu{size: image.Pt(100, 32)}).
 		ShowMinimize(false).
 		ShowMaximize(false).

@@ -138,9 +138,9 @@ type Widget struct {
 }
 
 // New creates a controlled Table.
-func New(key string, columns []Column, rows []Row) Widget {
+func New(columns []Column, rows []Row) Widget {
 	return Widget{
-		key:           key,
+		key:           core.AutoKey("table"),
 		columns:       columns,
 		rows:          rows,
 		selectionMode: SelectionNone,
@@ -151,7 +151,7 @@ func New(key string, columns []Column, rows []Row) Widget {
 // The row callback must return deterministic rows with stable, unique keys. Supply
 // disabled virtual row keys through DisabledKeys so select-all state stays
 // virtualized without scanning every row.
-func NewVirtual(key string, columns []Column, count int, rowProvider RowProvider) Widget {
+func NewVirtual(columns []Column, count int, rowProvider RowProvider) Widget {
 	if count < 0 {
 		panic("flowui: virtual table row count must not be negative")
 	}
@@ -159,13 +159,19 @@ func NewVirtual(key string, columns []Column, count int, rowProvider RowProvider
 		panic("flowui: virtual table requires a row callback")
 	}
 	return Widget{
-		key:           key,
+		key:           core.AutoKey("table"),
 		columns:       columns,
 		rowCount:      count,
 		rowProvider:   rowProvider,
 		virtual:       true,
 		selectionMode: SelectionNone,
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (t Widget) Key(key string) Widget {
+	t.key = key
+	return t
 }
 
 func (t Widget) Variant(variant Variant) Widget {

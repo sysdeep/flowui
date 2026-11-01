@@ -73,7 +73,7 @@ func (p *tableProbe) Layout(ctx *core.Context, gtx layout.Context) layout.Dimens
 }
 
 func TestTableGridLineModes(t *testing.T) {
-	base := New("members", []Column{{Key: "name"}}, nil)
+	base := New([]Column{{Key: "name"}}, nil).Key("members")
 	if !base.showsGridLines() || base.showsFullGrid() || base.bordered {
 		t.Fatal("default table line mode changed")
 	}
@@ -132,14 +132,10 @@ func TestTableTracksOverlayAnchorInsideCustomCell(t *testing.T) {
 	activeTheme := theme.Light()
 	ctx := tableTestContext(&activeTheme)
 	probe := new(tableOverlayProbe)
-	table := New(
-		"tracked-cell",
-		[]Column{{Key: "name", Label: "Name", Width: 200}},
-		[]Row{
-			{Key: "first", Label: "First", Cells: []Cell{{Text: "First"}}},
-			{Key: "member", Label: "Member", Cells: []Cell{{Content: probe}}},
-		},
-	).Variant(VariantSecondary)
+	table := New([]Column{{Key: "name", Label: "Name", Width: 200}}, []Row{
+		{Key: "first", Label: "First", Cells: []Cell{{Text: "First"}}},
+		{Key: "member", Label: "Member", Cells: []Cell{{Content: probe}}},
+	}).Key("tracked-cell").Variant(VariantSecondary)
 	gtx := tableLayoutContext(nil, image.Pt(400, 240), time.Unix(1, 0))
 	core.BeginFrameWithViewport(ctx, gtx.Constraints.Max)
 	table.Layout(ctx, gtx)
@@ -165,11 +161,7 @@ func TestTableInteractiveCellOwnsPrimaryClick(t *testing.T) {
 	router := new(input.Router)
 	probe := new(tableInteractiveProbe)
 	actions := 0
-	table := New(
-		"interactive-cell",
-		[]Column{{Key: "name", Label: "Name", Width: 180}},
-		[]Row{{Key: "first", Label: "First", Cells: []Cell{{Content: probe, Interactive: true}}}},
-	).OnAction(func(string) { actions++ })
+	table := New([]Column{{Key: "name", Label: "Name", Width: 180}}, []Row{{Key: "first", Label: "First", Cells: []Cell{{Content: probe, Interactive: true}}}}).Key("interactive-cell").OnAction(func(string) { actions++ })
 	start := time.Unix(1, 0)
 	layoutTableFrame(ctx, router, table, start)
 	router.Queue(
@@ -194,15 +186,11 @@ func TestTableRowContextMenuUsesCompleteRow(t *testing.T) {
 	ctx := tableTestContext(new(theme.Light()))
 	router := new(input.Router)
 	menuRows := 0
-	table := New(
-		"row-menu-table",
-		[]Column{{Key: "name", Label: "Name", Width: 180}, {Key: "role", Label: "Role", Width: 180}},
-		[]Row{{Key: "first", Label: "First", Cells: []Cell{{Text: "First"}, {Text: "Engineer"}}}},
-	).RowContextMenu(func(row Row) menu.Widget {
+	table := New([]Column{{Key: "name", Label: "Name", Width: 180}, {Key: "role", Label: "Role", Width: 180}}, []Row{{Key: "first", Label: "First", Cells: []Cell{{Text: "First"}, {Text: "Engineer"}}}}).Key("row-menu-table").RowContextMenu(func(row Row) menu.Widget {
 		if row.Key == "first" {
 			menuRows++
 		}
-		return menu.New("row-actions", []menu.Item{{Key: "open", Label: "Open"}})
+		return menu.New([]menu.Item{{Key: "open", Label: "Open"}}).Key("row-actions")
 	})
 	start := time.Unix(1, 0)
 	layoutTableOverlayFrame(ctx, router, table, start)
@@ -226,12 +214,8 @@ func TestTableRowContextMenuUsesCompleteRow(t *testing.T) {
 func TestTableRowContextMenuKeepsPointerFocusHiddenAcrossRepeatedOpens(t *testing.T) {
 	ctx := tableTestContext(new(theme.Light()))
 	router := new(input.Router)
-	table := New(
-		"repeated-row-menu",
-		[]Column{{Key: "name", Label: "Name", Width: 180}},
-		[]Row{{Key: "first", Label: "First", Cells: []Cell{{Text: "First"}}}},
-	).RowContextMenu(func(Row) menu.Widget {
-		return menu.New("row-actions", []menu.Item{{Key: "open", Label: "Open"}})
+	table := New([]Column{{Key: "name", Label: "Name", Width: 180}}, []Row{{Key: "first", Label: "First", Cells: []Cell{{Text: "First"}}}}).Key("repeated-row-menu").RowContextMenu(func(Row) menu.Widget {
+		return menu.New([]menu.Item{{Key: "open", Label: "Open"}}).Key("row-actions")
 	})
 	start := time.Unix(1, 0)
 	layoutTableOverlayFrame(ctx, router, table, start)
@@ -272,12 +256,8 @@ func TestTableRowContextMenuShiftF10FromInteractiveContentRestoresFocus(t *testi
 			ctx := tableTestContext(new(theme.Light()))
 			router := new(input.Router)
 			keyValue := "interactive-row-menu-" + test.name
-			table := New(
-				keyValue,
-				[]Column{{Key: "value", Label: "Value", Width: 220}},
-				[]Row{{Key: "first", Label: "First", Cells: []Cell{{Content: test.content, Interactive: true}}}},
-			).RowContextMenu(func(Row) menu.Widget {
-				return menu.New("row-actions", []menu.Item{{Key: "open", Label: "Open"}})
+			table := New([]Column{{Key: "value", Label: "Value", Width: 220}}, []Row{{Key: "first", Label: "First", Cells: []Cell{{Content: test.content, Interactive: true}}}}).Key(keyValue).RowContextMenu(func(Row) menu.Widget {
+				return menu.New([]menu.Item{{Key: "open", Label: "Open"}}).Key("row-actions")
 			})
 			start := time.Unix(1, 0)
 			layoutTableOverlayFrame(ctx, router, table, start)
@@ -315,7 +295,7 @@ func TestTableRowContextMenuShiftF10FromInteractiveContentRestoresFocus(t *testi
 func TestTableSingleSelectionAndAction(t *testing.T) {
 	columns, rows := tableTestData()
 	var changed, action string
-	table := New("members", columns, rows).
+	table := New(columns, rows).Key("members").
 		SelectionMode(SelectionSingle).
 		SelectedKey("kate").
 		OnChange(func(key string) { changed = key }).
@@ -336,7 +316,7 @@ func TestTableMultipleSelectionTogglesWithoutMutation(t *testing.T) {
 	columns, rows := tableTestData()
 	selected := []string{"kate"}
 	var changed []string
-	New("members", columns, rows).
+	New(columns, rows).Key("members").
 		SelectionMode(SelectionMultiple).
 		SelectedKeys(selected).
 		OnSelectionChange(func(keys []string) { changed = keys }).
@@ -353,7 +333,7 @@ func TestTableShiftSelectionSelectsRangeAndSkipsDisabledRows(t *testing.T) {
 	columns, rows := tableTestData()
 	var changed []string
 	stateValue := &tableState{selectionAnchor: "kate"}
-	table := New("members", columns, rows).
+	table := New(columns, rows).Key("members").
 		SelectionMode(SelectionMultiple).
 		SelectedKeys([]string{"kate"}).
 		DisabledKeys([]string{"john"}).
@@ -367,7 +347,7 @@ func TestTableShiftSelectionSelectsRangeAndSkipsDisabledRows(t *testing.T) {
 func TestTableSelectAllSkipsDisabledAndPreservesDisabledSelection(t *testing.T) {
 	columns, rows := tableTestData()
 	var changed []string
-	table := New("members", columns, rows).
+	table := New(columns, rows).Key("members").
 		SelectionMode(SelectionMultiple).
 		SelectedKeys([]string{"sara"}).
 		DisabledKeys([]string{"sara"}).
@@ -387,7 +367,7 @@ func TestTableSelectAllSkipsDisabledAndPreservesDisabledSelection(t *testing.T) 
 func TestTableSortCyclesAndChangesColumn(t *testing.T) {
 	columns, rows := tableTestData()
 	var got SortDescriptor
-	table := New("members", columns, rows).
+	table := New(columns, rows).Key("members").
 		SortDescriptor(SortDescriptor{Column: "name", Direction: SortAscending}).
 		OnSortChange(func(sort SortDescriptor) { got = sort })
 	table.requestSort("name")
@@ -409,7 +389,7 @@ func TestTableRowClickSelectsAndDisabledRowDoesNot(t *testing.T) {
 	stateValue.endFrame()
 	tableSetState(ctx, "members", stateValue)
 	changed := ""
-	view := New("members", columns, rows).
+	view := New(columns, rows).Key("members").
 		SelectionMode(SelectionSingle).
 		OnChange(func(key string) { changed = key })
 	layoutTableFrame(ctx, new(input.Router), view, time.Unix(1, 0))
@@ -424,7 +404,7 @@ func TestTableRowClickSelectsAndDisabledRowDoesNot(t *testing.T) {
 	stateValue.endFrame()
 	tableSetState(ctx, "members", stateValue)
 	changed = ""
-	view = New("members", columns, rows).
+	view = New(columns, rows).Key("members").
 		SelectionMode(SelectionSingle).
 		DisabledKeys([]string{"john"}).
 		OnChange(func(key string) { changed = key })
@@ -438,7 +418,7 @@ func TestTableKeyboardNavigationSkipsDisabledRows(t *testing.T) {
 	columns, rows := tableTestData()
 	ctx := tableTestContext(new(theme.Light()))
 	router := new(input.Router)
-	view := New("members", columns, rows).DisabledKeys([]string{"john"})
+	view := New(columns, rows).Key("members").DisabledKeys([]string{"john"})
 	start := time.Unix(1, 0)
 	layoutTableFrame(ctx, router, view, start)
 	state := tablePeekState(ctx, "members")
@@ -462,7 +442,7 @@ func TestTableKeyboardEnterSelectsFocusedRow(t *testing.T) {
 	router := new(input.Router)
 	selected := ""
 	widget := func() Widget {
-		return New("members", columns, rows).
+		return New(columns, rows).Key("members").
 			SelectionMode(SelectionSingle).
 			SelectedKey(selected).
 			OnChange(func(key string) { selected = key })
@@ -485,7 +465,7 @@ func TestTableKeyboardSkipsDisabledRows(t *testing.T) {
 	router := new(input.Router)
 	selected, action := "kate", ""
 	widget := func() Widget {
-		return New("keyboard-disabled", columns, rows).
+		return New(columns, rows).Key("keyboard-disabled").
 			SelectionMode(SelectionSingle).
 			SelectedKey(selected).
 			DisabledKeys([]string{"john"}).
@@ -516,7 +496,7 @@ func TestTableKeyboardShiftSelectsRange(t *testing.T) {
 	router := new(input.Router)
 	selected := []string{"kate"}
 	widget := func() Widget {
-		return New("keyboard-range", columns, rows).
+		return New(columns, rows).Key("keyboard-range").
 			SelectionMode(SelectionMultiple).
 			SelectedKeys(selected).
 			OnSelectionChange(func(keys []string) { selected = append([]string(nil), keys...) })
@@ -542,7 +522,7 @@ func TestTableKeyboardShiftSpaceRequestsRangeSelection(t *testing.T) {
 	router := new(input.Router)
 	selected := []string{"kate"}
 	view := func() Widget {
-		return New("members", columns, rows).SelectionMode(SelectionMultiple).
+		return New(columns, rows).Key("members").SelectionMode(SelectionMultiple).
 			SelectedKeys(selected).
 			OnSelectionChange(func(keys []string) { selected = append([]string(nil), keys...) })
 	}
@@ -568,7 +548,7 @@ func TestTableColumnWidthsFillAndOverflow(t *testing.T) {
 	}
 	ctx := tableTestContext(new(theme.Light()))
 	gtx := tableLayoutContext(nil, image.Pt(600, 300), time.Time{})
-	resolved := New("table", columns, nil).resolveColumns(ctx, gtx, nil, 600, tableGeometryFor(ctx))
+	resolved := New(columns, nil).Key("table").resolveColumns(ctx, gtx, nil, 600, tableGeometryFor(ctx))
 	if resolved.width != 600 || sumWidths(resolved) != 600 {
 		t.Fatalf("resolved widths = %#v total %d", resolved, sumWidths(resolved))
 	}
@@ -576,7 +556,7 @@ func TestTableColumnWidthsFillAndOverflow(t *testing.T) {
 		t.Fatalf("weighted widths = %#v", resolved.widths)
 	}
 
-	resolved = New("table", columns, nil).MinWidth(760).resolveColumns(ctx, gtx, nil, 320, tableGeometryFor(ctx))
+	resolved = New(columns, nil).Key("table").MinWidth(760).resolveColumns(ctx, gtx, nil, 320, tableGeometryFor(ctx))
 	if resolved.width != 760 || sumWidths(resolved) != 760 {
 		t.Fatalf("overflow widths = %#v total %d", resolved, sumWidths(resolved))
 	}
@@ -589,7 +569,7 @@ func TestTableColumnWidthsRespectMaximums(t *testing.T) {
 	}
 	ctx := tableTestContext(new(theme.Light()))
 	gtx := tableLayoutContext(nil, image.Pt(600, 300), time.Time{})
-	resolved := New("table", columns, nil).resolveColumns(ctx, gtx, nil, 600, tableGeometryFor(ctx))
+	resolved := New(columns, nil).Key("table").resolveColumns(ctx, gtx, nil, 600, tableGeometryFor(ctx))
 	if resolved.width != 600 || resolved.widths[0] != 120 || resolved.widths[1] != 160 {
 		t.Fatalf("resolved capped widths = %#v", resolved)
 	}
@@ -606,10 +586,10 @@ func TestResizableFlexColumnAdaptsUntilDragged(t *testing.T) {
 	ctx := tableTestContext(new(theme.Light()))
 	stateValue := new(tableState)
 	stateValue.beginFrame()
-	first := New("table", columns, nil).resolveColumns(ctx, tableLayoutContext(nil, image.Pt(600, 300), time.Time{}), stateValue, 600, tableGeometryFor(ctx))
+	first := New(columns, nil).Key("table").resolveColumns(ctx, tableLayoutContext(nil, image.Pt(600, 300), time.Time{}), stateValue, 600, tableGeometryFor(ctx))
 	stateValue.endFrame()
 	stateValue.beginFrame()
-	second := New("table", columns, nil).resolveColumns(ctx, tableLayoutContext(nil, image.Pt(780, 300), time.Time{}), stateValue, 780, tableGeometryFor(ctx))
+	second := New(columns, nil).Key("table").resolveColumns(ctx, tableLayoutContext(nil, image.Pt(780, 300), time.Time{}), stateValue, 780, tableGeometryFor(ctx))
 	stateValue.endFrame()
 	if sumWidths(first) != 600 || sumWidths(second) != 780 || second.widths[0] <= first.widths[0] {
 		t.Fatalf("resizable flex widths did not adapt: first %#v second %#v", first, second)
@@ -625,7 +605,7 @@ func TestTableColumnResizerHandlesPointerDrag(t *testing.T) {
 	ctx := tableTestContext(new(theme.Light()))
 	router := new(input.Router)
 	width := 0
-	widget := New("resizable", columns, rows).OnColumnResize(func(_ string, value int) { width = value })
+	widget := New(columns, rows).Key("resizable").OnColumnResize(func(_ string, value int) { width = value })
 	start := time.Unix(1, 0)
 	layoutTableFrame(ctx, router, widget, start)
 	var hit image.Rectangle
@@ -661,13 +641,13 @@ func TestTableColumnResizerHandlesPointerDrag(t *testing.T) {
 func TestVirtualTableOnlyRequestsVisibleRows(t *testing.T) {
 	columns := []Column{{Key: "name", Label: "Name"}, {Key: "role", Label: "Role"}}
 	calls := 0
-	table := NewVirtual("virtual", columns, 10_000, func(index int) Row {
+	table := NewVirtual(columns, 10_000, func(index int) Row {
 		calls++
 		return Row{
 			Key:   fmt.Sprintf("row-%d", index),
 			Cells: []Cell{{Text: fmt.Sprintf("User %d", index)}, {Text: "Engineer"}},
 		}
-	}).MaxHeight(140).
+	}).Key("virtual").MaxHeight(140).
 		RowHeight(42).
 		SelectionMode(SelectionMultiple).
 		SelectedKeys([]string{"row-0"}).
@@ -689,10 +669,10 @@ func TestVirtualTableOnlyRequestsVisibleRows(t *testing.T) {
 func TestVirtualTableDoesNotResolveSelectedRowWithoutKeyboardEvent(t *testing.T) {
 	columns := []Column{{Key: "name", Label: "Name"}}
 	calls := 0
-	table := NewVirtual("virtual-selected", columns, 10_000, func(index int) Row {
+	table := NewVirtual(columns, 10_000, func(index int) Row {
 		calls++
 		return Row{Key: fmt.Sprintf("row-%d", index), Cells: []Cell{{Text: "User"}}}
-	}).MaxHeight(140).
+	}).Key("virtual-selected").MaxHeight(140).
 		RowHeight(42).
 		SelectionMode(SelectionSingle).
 		SelectedKey("row-9999")
@@ -711,7 +691,7 @@ func BenchmarkVirtualTableRowIndex(b *testing.B) {
 	for index := range rows {
 		rows[index] = Row{Key: fmt.Sprintf("row-%d", index), Cells: []Cell{{Text: "User"}}}
 	}
-	table := NewVirtual("large", columns, len(rows), func(index int) Row { return rows[index] })
+	table := NewVirtual(columns, len(rows), func(index int) Row { return rows[index] }).Key("large")
 	target := rows[len(rows)-1].Key
 	b.ReportAllocs()
 	for b.Loop() {
@@ -742,7 +722,7 @@ func BenchmarkVirtualTableLargeLayout(b *testing.B) {
 		rows[index] = Row{Key: fmt.Sprintf("row-%d", index), Cells: []Cell{{Text: "User"}}}
 		selected[index] = rows[index].Key
 	}
-	table := NewVirtual("large", columns, len(rows), func(index int) Row { return rows[index] }).
+	table := NewVirtual(columns, len(rows), func(index int) Row { return rows[index] }).Key("large").
 		SelectionMode(SelectionMultiple).
 		SelectedKeys(selected).
 		MaxHeight(140).
@@ -762,7 +742,7 @@ func TestTableLoadMoreLatchesUntilRowsGrow(t *testing.T) {
 	router := new(input.Router)
 	requests := 0
 	widget := func(rows []Row, loading bool) Widget {
-		return New("loading", columns, rows).MaxHeight(180).LoadMore(true, loading, func() { requests++ })
+		return New(columns, rows).Key("loading").MaxHeight(180).LoadMore(true, loading, func() { requests++ })
 	}
 	start := time.Unix(1, 0)
 	layoutTableFrame(ctx, router, widget(rows, false), start)
@@ -782,7 +762,7 @@ func TestTableLayoutUsesMaxHeightAndHorizontalViewport(t *testing.T) {
 	columns, rows := tableTestData()
 	activeTheme := theme.Light()
 	ctx := tableTestContext(&activeTheme)
-	dims := New("members", columns, rows).
+	dims := New(columns, rows).Key("members").
 		MinWidth(760).
 		MaxHeight(150).
 		Layout(ctx, tableLayoutContext(nil, image.Pt(420, 300), time.Time{}))
@@ -809,9 +789,9 @@ func TestTableContentHeightIncludesHeaderAndBody(t *testing.T) {
 	defer stateValue.endFrame()
 	stateValue.check(columns, rows)
 	defaults := tableDefaultsFor(ctx, VariantPrimary)
-	resolved := New("members", columns, rows).resolveColumns(ctx, gtx, nil, 320, defaults.Geometry)
-	styles := tableStylesFor(ctx, New("members", columns, rows), defaults)
-	dims := New("members", columns, rows).layoutContent(ctx, gtx, stateValue, resolved, defaults, styles)
+	resolved := New(columns, rows).Key("members").resolveColumns(ctx, gtx, nil, 320, defaults.Geometry)
+	styles := tableStylesFor(ctx, New(columns, rows).Key("members"), defaults)
+	dims := New(columns, rows).Key("members").layoutContent(ctx, gtx, stateValue, resolved, defaults, styles)
 	if dims.Size.Y != 76 {
 		t.Fatalf("content height = %d, want default header 40 + row 36", dims.Size.Y)
 	}
@@ -823,7 +803,7 @@ func TestTableCustomCellInheritsSelectedColors(t *testing.T) {
 	columns := []Column{{Key: "name", Label: "Name"}}
 	rows := []Row{{Key: "selected", Label: "Selected", Cells: []Cell{{Content: probe}}}}
 	ctx := tableTestContext(&activeTheme)
-	New("members", columns, rows).
+	New(columns, rows).Key("members").
 		SelectionMode(SelectionSingle).
 		SelectedKey("selected").
 		Layout(ctx, tableLayoutContext(nil, image.Pt(320, 160), time.Time{}))
@@ -844,7 +824,7 @@ func TestStripedTableUsesThemedRowBackgrounds(t *testing.T) {
 		{Key: "plain", Cells: []Cell{{Content: plain}}},
 		{Key: "stripe", Cells: []Cell{{Content: stripe}}},
 	}
-	New("striped", columns, rows).
+	New(columns, rows).Key("striped").
 		Variant(VariantSecondary).
 		GridLines(true).
 		Border(true).
@@ -868,7 +848,7 @@ func TestTableComposedRegionsInheritSurfaceColors(t *testing.T) {
 	empty := &tableProbe{size: image.Pt(40, 16)}
 	footer := &tableProbe{size: image.Pt(40, 16)}
 	columns := []Column{{Key: "name", Label: "Name", Header: header}}
-	New("members", columns, nil).
+	New(columns, nil).Key("members").
 		EmptyContent(empty).
 		Footer(footer).
 		Layout(tableTestContext(&activeTheme), tableLayoutContext(nil, image.Pt(320, 240), time.Time{}))
@@ -966,7 +946,7 @@ func sumWidths(columns tableColumns) int {
 }
 
 func TestTableFlowRendersEveryRow(t *testing.T) {
-	if !New("flow-option", []Column{{Key: "value"}}, nil).Flow().flow {
+	if !New([]Column{{Key: "value"}}, nil).Key("flow-option").Flow().flow {
 		t.Fatal("Flow did not enable flow layout")
 	}
 
@@ -979,7 +959,7 @@ func TestTableFlowRendersEveryRow(t *testing.T) {
 			probes[index] = &tableProbe{size: image.Pt(40, 20)}
 			rows = append(rows, Row{Key: fmt.Sprintf("row-%d", index), Cells: []Cell{{Content: probes[index]}}})
 		}
-		instance := configure(New("flow-rows", []Column{{Key: "value", Label: "Value", Width: 320}}, rows))
+		instance := configure(New([]Column{{Key: "value", Label: "Value", Width: 320}}, rows).Key("flow-rows"))
 		gtx := tableLayoutContext(nil, size, time.Unix(1, 0))
 		core.BeginFrameWithViewport(ctx, gtx.Constraints.Max)
 		dims := instance.Layout(ctx, gtx)

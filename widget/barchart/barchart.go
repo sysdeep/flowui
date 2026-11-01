@@ -191,9 +191,9 @@ type Widget struct {
 	visualCache             *barChartDefaultsCache
 }
 
-func New(key string, series []Series) Widget {
+func New(series []Series) Widget {
 	return Widget{
-		key:                   key,
+		key:                   core.AutoKey("bar-chart"),
 		series:                append([]Series(nil), series...),
 		showGrid:              true,
 		showTooltip:           true,
@@ -204,6 +204,12 @@ func New(key string, series []Series) Widget {
 		updateAnimationEasing: animation.EaseCubicInOut,
 		visualCache:           &barChartDefaultsCache{},
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 // DataVersion enables resolved-data reuse. Increase version whenever the

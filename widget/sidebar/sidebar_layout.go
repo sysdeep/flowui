@@ -280,7 +280,7 @@ func (w Widget) layoutItem(ctx *core.Context, gtx layout.Context, sidebarState *
 	trigger := core.WidgetFunc(func(ctx *core.Context, triggerGtx layout.Context) layout.Dimensions {
 		return w.layoutItemTrigger(ctx, triggerGtx, size, itemState, entry, itemVisual, labelVisual, iconVisual, selected, disabled, focus, expansion, resolved)
 	})
-	return tooltip.New("sidebar-item-label:"+item.Key, trigger, item.Label).
+	return tooltip.New(trigger, item.Label).Key("sidebar-item-label:"+item.Key).
 		Placement(core.PopoverRight).
 		Delay(0).
 		Layout(ctx, itemGtx)
@@ -426,7 +426,7 @@ func (w Widget) layoutCollapsedSubmenu(ctx *core.Context, gtx layout.Context, en
 		return w.layoutItemSurface(ctx, triggerGtx, entry, itemVisual, labelVisual, iconVisual, selected, !disabled, focus, 0, resolved)
 	})
 	menuKey := "sidebar-submenu:" + entry.item.Key + ":menu"
-	menuWidget := menu.New(menuKey, w.sidebarDropdownItems(entry.item.Children)).
+	menuWidget := menu.New(w.sidebarDropdownItems(entry.item.Children)).Key(menuKey).
 		AutoWidth().
 		SelectionMode(menu.SelectionSingle).
 		SelectedKey(w.selectedKey).
@@ -434,7 +434,7 @@ func (w Widget) layoutCollapsedSubmenu(ctx *core.Context, gtx layout.Context, en
 	if w.hasDataVersion {
 		menuWidget = menuWidget.DataVersion(w.dataVersion)
 	}
-	popup := dropdown.New("sidebar-submenu:"+entry.item.Key, trigger, nil).
+	popup := dropdown.New(trigger, nil).Key("sidebar-submenu:" + entry.item.Key).
 		Menu(menuWidget).
 		Placement(core.PopoverRightStart).
 		// A collapsed navigation item opens its flyout on hover. ExpandAction

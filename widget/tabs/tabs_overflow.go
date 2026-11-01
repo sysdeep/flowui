@@ -235,7 +235,7 @@ func (t Widget) layoutOverflowMenu(ctx *core.Context, gtx layout.Context, state 
 		triggerContent = t.slotWidget("overflow-trigger", t.moreContent)
 	}
 	trigger := button.New("").Key(moreKey + ":trigger").Content(triggerContent).Label(label).Variant(button.Ghost)
-	popup := menuui.New(moreKey+":menu", items).
+	popup := menuui.New(items).Key(moreKey + ":menu").
 		AutoWidth().
 		SelectionMode(menuui.SelectionSingle).
 		SelectedKey(selectedKey).
@@ -251,7 +251,7 @@ func (t Widget) layoutOverflowMenu(ctx *core.Context, gtx layout.Context, state 
 			state.selectionPending = true
 			core.RequestFocus(ctx, &state.item(event.Key).clickable)
 		})
-	menu := dropdownui.New(moreKey, trigger, nil).Menu(popup)
+	menu := dropdownui.New(trigger, nil).Key(moreKey).Menu(popup)
 	if disabled {
 		menu = menu.Disabled(true)
 	}

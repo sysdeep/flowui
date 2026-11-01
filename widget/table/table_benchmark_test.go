@@ -57,10 +57,10 @@ func BenchmarkTableCheckboxCompositeLayout(b *testing.B) {
 			},
 		}
 	}
-	value := New("checkbox-table", []Column{
+	value := New([]Column{
 		{Key: "name", Label: "Name", Width: 280},
 		{Key: "group", Label: "Group", Width: 180},
-	}, rows).
+	}, rows).Key("checkbox-table").
 		SelectionMode(SelectionMultiple).
 		ShowSelectionIndicator().
 		SelectedKeys([]string{"row-3", "row-17", "row-41"}).
@@ -97,7 +97,7 @@ func BenchmarkTableDefaultVisualCacheHit(b *testing.B) {
 }
 
 func tableBenchmarkVirtualValue() Widget {
-	return NewVirtual("virtual-benchmark", []Column{
+	return NewVirtual([]Column{
 		{Key: "name", Label: "Name", Width: 280, RowHeader: true},
 		{Key: "group", Label: "Group", Width: 180},
 	}, 10000, func(index int) Row {
@@ -108,7 +108,7 @@ func tableBenchmarkVirtualValue() Widget {
 				{Text: "Group" + strconv.Itoa(index%8)},
 			},
 		}
-	}).
+	}).Key("virtual-benchmark").
 		SelectionMode(SelectionSingle).
 		SelectedKey("row-3").
 		MaxHeight(320)

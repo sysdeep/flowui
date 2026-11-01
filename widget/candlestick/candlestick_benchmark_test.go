@@ -37,7 +37,7 @@ func newCandlestickBenchmarkFrame(count int) *candlestickBenchmarkFrame {
 	}
 	frame.values = make([]Widget, count)
 	for index := range frame.values {
-		frame.values[index] = New("candle-"+strconv.Itoa(index), values).
+		frame.values[index] = New(values).Key("candle-" + strconv.Itoa(index)).
 			Categories([]string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"})
 	}
 	return frame

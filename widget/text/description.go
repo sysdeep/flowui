@@ -11,6 +11,7 @@ import (
 
 // DescriptionWidget provides supporting text for a form field or control.
 type DescriptionWidget struct {
+	key         string
 	style       style.Style
 	text        string
 	forKey      string
@@ -20,7 +21,13 @@ type DescriptionWidget struct {
 
 // New creates supporting text for a form field or control.
 func NewDescription(text string) DescriptionWidget {
-	return DescriptionWidget{text: text, visualCache: &descriptionVisualCache{}}
+	return DescriptionWidget{key: core.AutoKey("description"), text: text, visualCache: &descriptionVisualCache{}}
+}
+
+// Key sets the stable identity used by standalone style transitions.
+func (d DescriptionWidget) Key(key string) DescriptionWidget {
+	d.key = key
+	return d
 }
 
 // For associates the description with a keyed control.
@@ -74,7 +81,7 @@ func (d DescriptionWidget) layoutWithStyle(
 		if d.forKey != "" {
 			key = core.ClaimDerivedKey(ctx, core.KindStyle, d.forKey, "description")
 		} else {
-			key = core.ClaimKey(ctx, core.KindStyle, "description")
+			key = core.ClaimDerivedKey(ctx, core.KindStyle, d.key, "style")
 		}
 		resolved = computed.ApplyTransitions(ctx, gtx, key, resolved)
 	}

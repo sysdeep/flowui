@@ -44,7 +44,7 @@ func (a Widget) layoutRow(ctx *core.Context, gtx layout.Context, resolved alertR
 	}
 	if a.closable {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return button.NewCloseButton(a.closeKey()).
+			return button.NewCloseButton().Key(core.DerivedKey(ctx, core.FullKey(ctx, a.key), "close")).
 				OnClick(a.onClose).
 				Layout(ctx, gtx)
 		}))
@@ -54,13 +54,6 @@ func (a Widget) layoutRow(ctx *core.Context, gtx layout.Context, resolved alertR
 		Alignment: layout.Start,
 		Gap:       gtx.Dp(visual.Metrics.Gap),
 	}.Layout(gtx, children...)
-}
-
-func (a Widget) closeKey() string {
-	if a.key != "" {
-		return "alert-close-" + a.key
-	}
-	return "alert-close-" + a.title + "\x00" + a.description
 }
 
 func (a Widget) layoutIndicator(ctx *core.Context, gtx layout.Context, resolved style.ResolvedStyle, visual alertVisual) layout.Dimensions {

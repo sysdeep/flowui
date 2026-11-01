@@ -28,9 +28,12 @@ type Widget struct {
 	onOpenChange                       func(bool)
 }
 
-func New(key string, open bool, commands []command.Command) Widget {
-	return Widget{key: key, open: open, commands: append([]command.Command{}, commands...)}
+func New(open bool, commands []command.Command) Widget {
+	return Widget{key: core.AutoKey("command-palette"), open: open, commands: append([]command.Command{}, commands...)}
 }
+
+// Key sets a stable identity for the palette search and modal state.
+func (p Widget) Key(key string) Widget { p.key = key; return p }
 
 func (p Widget) Title(value string) Widget         { p.title = value; return p }
 func (p Widget) Placeholder(value string) Widget   { p.placeholder = value; return p }

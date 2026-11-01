@@ -54,7 +54,7 @@ func sidebarBenchmarkTree() Widget {
 			}
 		}
 	}
-	return NewSections("benchmark-tree", "item-0-0", sections).DataVersion(1)
+	return NewSections("item-0-0", sections).Key("benchmark-tree").DataVersion(1)
 }
 
 func reportSidebarDefaultsStats(b *testing.B, after, before computed.VisualCacheStats) {

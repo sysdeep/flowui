@@ -30,30 +30,30 @@ func chartSelection(m demoState, send ui.Send[Msg]) func(chart.Selection) {
 }
 
 func demoLine(m demoState, send ui.Send[Msg]) ui.Widget {
-	return layout.Column(linechart.New("line-demo", []linechart.Series{
+	return layout.Column(linechart.New([]linechart.Series{
 		linechart.Values("visits", m.text("访问量"), []float64{28, 42, 36, 58, 64, 52, 78}).Smooth(true).Area(true),
 		linechart.Values("signups", m.text("注册量"), []float64{12, 18, 16, 28, 32, 26, 40}).Smooth(true),
-	}).Categories([]string{m.text("周一"), m.text("周二"), m.text("周三"), m.text("周四"), m.text("周五"), m.text("周六"), m.text("周日")}).
+	}).Key("line-demo").Categories([]string{m.text("周一"), m.text("周二"), m.text("周三"), m.text("周四"), m.text("周五"), m.text("周六"), m.text("周日")}).
 		Height(300).Legend(true).OnDataClick(chartSelection(m, send)),
-		field(m.text("阶梯线、虚线与缺失数据"), linechart.New("line-steps", []linechart.Series{
+		field(m.text("阶梯线、虚线与缺失数据"), linechart.New([]linechart.Series{
 			linechart.Values("step", m.text("计划"), []float64{20, 20, 45, 45, 60, 60, 80}).Step(linechart.StepEnd),
 			linechart.Values("gaps", m.text("实际"), []float64{15, 28, math.NaN(), 38, 52, 48, 70}).
 				LineStyle(linechart.LineDashed).ShowPoints(true),
-		}).Height(260).Legend(true).OnDataClick(chartSelection(m, send))),
-		field(m.text("空数据"), linechart.New("line-empty", nil).Height(120).EmptyText(m.text("暂无数据"))),
+		}).Key("line-steps").Height(260).Legend(true).OnDataClick(chartSelection(m, send))),
+		field(m.text("空数据"), linechart.New(nil).Key("line-empty").Height(120).EmptyText(m.text("暂无数据"))),
 	).Gap(24)
 }
 
 func demoBar(m demoState, send ui.Send[Msg]) ui.Widget {
-	return layout.Column(barchart.New("bar-demo", []barchart.Series{
+	return layout.Column(barchart.New([]barchart.Series{
 		barchart.Values("planned", m.text("计划"), []float64{40, 60, 48, 72}),
 		barchart.Values("actual", m.text("实际"), []float64{36, 64, 44, 68}),
-	}).Categories([]string{m.text("第一周"), m.text("第二周"), m.text("第三周"), m.text("第四周")}).
+	}).Key("bar-demo").Categories([]string{m.text("第一周"), m.text("第二周"), m.text("第三周"), m.text("第四周")}).
 		Height(300).Legend(true).OnDataClick(chartSelection(m, send)),
-		field(m.text("横向堆叠与数据标签"), barchart.New("bar-stacked", []barchart.Series{
+		field(m.text("横向堆叠与数据标签"), barchart.New([]barchart.Series{
 			barchart.Values("desktop", m.text("桌面"), []float64{40, 60, 48, 72}).Stack("platform").ShowLabels(true),
 			barchart.Values("web", "Web", []float64{20, 32, 28, 36}).Stack("platform").ShowLabels(true),
-		}).Categories([]string{"Go", "Rust", "TypeScript", "Python"}).Orientation(barchart.Horizontal).
+		}).Key("bar-stacked").Categories([]string{"Go", "Rust", "TypeScript", "Python"}).Orientation(barchart.Horizontal).
 			Height(280).Legend(true).OnDataClick(chartSelection(m, send))),
 	).Gap(24)
 }
@@ -64,11 +64,11 @@ func demoPie(m demoState, send ui.Send[Msg]) ui.Widget {
 		piechart.Slice("mobile", m.text("移动端"), 16),
 	}
 	return layout.Column(
-		field(m.text("圆环图"), piechart.New("pie-demo", data).InnerRadius(0.3).Height(300).
+		field(m.text("圆环图"), piechart.New(data).Key("pie-demo").InnerRadius(0.3).Height(300).
 			Legend(true).OnDataClick(chartSelection(m, send))),
-		field(m.text("实心饼图与扇区间距"), piechart.New("pie-solid", data).PadAngle(3).Height(260).
+		field(m.text("实心饼图与扇区间距"), piechart.New(data).Key("pie-solid").PadAngle(3).Height(260).
 			Legend(true).Labels(true).OnDataClick(chartSelection(m, send))),
-		field(m.text("玫瑰图"), piechart.New("pie-rose", data).RoseType(piechart.RoseArea).Height(260).
+		field(m.text("玫瑰图"), piechart.New(data).Key("pie-rose").RoseType(piechart.RoseArea).Height(260).
 			Legend(true).OnDataClick(chartSelection(m, send))),
 	).Gap(24)
 }
@@ -84,7 +84,7 @@ func demoCandle(m demoState, send ui.Send[Msg]) ui.Widget {
 	for index := range times {
 		times[index] = time.Date(2026, time.October, index+1, 0, 0, 0, 0, time.Local)
 	}
-	return candlestick.New("candle-demo", data).Times(times).FormatTime(func(value time.Time) string {
+	return candlestick.New(data).Key("candle-demo").Times(times).FormatTime(func(value time.Time) string {
 		return value.Format("01-02")
 	}).YAxis(m.text("价格")).FormatY(func(value float64) string { return fmt.Sprintf("$%.0f", value) }).
 		Crosshair(true).Height(300).OnDataClick(chartSelection(m, send))
@@ -97,18 +97,18 @@ func demoHeatmap(m demoState, send ui.Send[Msg]) ui.Widget {
 	for day := range 122 {
 		values = append(values, heatmap.CalendarValue{Date: start.AddDate(0, 0, day), Value: float64(day * 7 % 13)})
 	}
-	return heatmap.New("heatmap-demo", start, end, values).Height(240).OnDataClick(chartSelection(m, send))
+	return heatmap.New(start, end, values).Key("heatmap-demo").Height(240).OnDataClick(chartSelection(m, send))
 }
 
 func demoGantt(m demoState, send ui.Send[Msg]) ui.Widget {
 	start := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.Local)
-	return gantt.New("gantt-demo", []gantt.Task{
+	return gantt.New([]gantt.Task{
 		gantt.NewTask("design", m.text("设计"), start, start.AddDate(0, 0, 4)).Progress(1),
 		gantt.NewTask("build", m.text("开发"), start.AddDate(0, 0, 3), start.AddDate(0, 0, 12)).Progress(0.65).DependsOn("design"),
 		gantt.NewTask("test", m.text("测试"), start.AddDate(0, 0, 10), start.AddDate(0, 0, 16)).Progress(0.2).DependsOn("build"),
 		gantt.NewTask("release", m.text("发布"), start.AddDate(0, 0, 16), start.AddDate(0, 0, 18)).DependsOn("test"),
 		gantt.NewMilestone("launch", m.text("发布里程碑"), start.AddDate(0, 0, 18)).DependsOn("release"),
-	}).Height(300).Legend(true).OnTaskClick(func(value gantt.Selection) {
+	}).Key("gantt-demo").Height(300).Legend(true).OnTaskClick(func(value gantt.Selection) {
 		send(logMsg(fmt.Sprintf(m.text("%s · %s 至 %s · 进度 %.0f%%"),
 			value.Label,
 			value.Start.Format("01-02"),
@@ -150,7 +150,7 @@ func demoGraph(m demoState, send ui.Send[Msg]) ui.Widget {
 			node.OutputPorts[port].Label = m.text(node.OutputPorts[port].Label)
 		}
 	}
-	return nodegraph.New("graph-demo", graph).Height(360).Minimap(true).
+	return nodegraph.New(graph).Key("graph-demo").Height(360).Minimap(true).
 		OnNodesChange(func(changes []nodegraph.NodeChange) {
 			send(demoMsg(func(m *demoState) { m.graph.Nodes = nodegraph.ApplyNodeChanges(m.graph.Nodes, changes) }))
 		}).OnEdgesChange(func(changes []nodegraph.EdgeChange) {

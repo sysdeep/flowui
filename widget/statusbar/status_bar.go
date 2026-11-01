@@ -12,6 +12,7 @@ import (
 
 // Widget presents compact application state at the bottom of a window.
 type Widget struct {
+	key         string
 	style       style.Style
 	left        core.Widget
 	right       core.Widget
@@ -19,7 +20,13 @@ type Widget struct {
 }
 
 func New(left, right core.Widget) Widget {
-	return Widget{left: left, right: right, visualCache: &statusBarVisualCache{}}
+	return Widget{key: core.AutoKey("status-bar"), left: left, right: right, visualCache: &statusBarVisualCache{}}
+}
+
+// Key sets the stable identity used by style transitions.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -49,7 +56,8 @@ func (w Widget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions 
 		w.style,
 	)
 	if len(resolved.Transitions) != 0 {
-		resolved = computed.ApplyTransitions(ctx, rootGtx, core.ClaimKey(ctx, core.KindStyle, "status-bar"), resolved)
+		key := core.ClaimDerivedKey(ctx, core.KindStyle, w.key, "style")
+		resolved = computed.ApplyTransitions(ctx, rootGtx, key, resolved)
 	}
 	return layoutui.Resolved(ctx, rootGtx, resolved, content)
 }

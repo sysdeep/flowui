@@ -18,7 +18,7 @@ func BenchmarkTitleBarLayoutSteadyState(b *testing.B) {
 	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
 	router := new(input.Router)
-	value := New("workspace", "FlowUI", nil)
+	value := New("FlowUI", nil).Key("workspace")
 	layoutTitleBarWithConstraints(ctx, router, value, time.Unix(0, 0), layout.Exact(image.Pt(800, 35)))
 	baseline := value.visualCache.Stats()
 	b.ReportAllocs()
@@ -33,7 +33,7 @@ func BenchmarkTitleBarLayoutSteadyState(b *testing.B) {
 func BenchmarkTitleBarVisualCacheHit(b *testing.B) {
 	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
-	value := New("workspace", "FlowUI", nil)
+	value := New("FlowUI", nil).Key("workspace")
 	value.visualWithCache(ctx)
 	baseline := value.visualCache.Stats()
 	b.ReportAllocs()
@@ -57,7 +57,7 @@ func BenchmarkTitleBarVisualCacheInvalidation(b *testing.B) {
 	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
-	value := New("workspace", "FlowUI", nil)
+	value := New("FlowUI", nil).Key("workspace")
 	value.visualWithCache(firstContext)
 
 	b.ReportAllocs()
@@ -90,7 +90,7 @@ func BenchmarkTitleBarVisualCacheInvalidation(b *testing.B) {
 
 func BenchmarkTitleBarStyledVisualCacheHit(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
-	value := New("workspace", "FlowUI", nil).Style(style.Style{}.Height(40))
+	value := New("FlowUI", nil).Key("workspace").Style(style.Style{}.Height(40))
 	value.visualWithCache(ctx)
 	b.ReportAllocs()
 	b.ResetTimer()

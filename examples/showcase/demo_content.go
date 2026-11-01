@@ -30,7 +30,7 @@ func demoText(m demoState, send ui.Send[Msg]) ui.Widget {
 		text.New(m.text("用 Go 构建桌面应用")).Size(28).Weight(font.Bold),
 		text.New(m.text("正文 · 默认字号与主题前景色")),
 		muted(m.text("辅助信息 · 随明暗主题调整对比度")),
-		text.Selectable("selectable-text", m.text("这段文字可以用鼠标选择并复制。")),
+		text.Selectable(m.text("这段文字可以用鼠标选择并复制。")).Key("selectable-text"),
 		field(m.text("单行省略 · 调整窗口宽度查看截断"),
 			text.New(m.text("这是一段较长的项目说明，用于展示有限宽度下的单行省略效果，完整内容可以在详情页继续阅读。")).
 				MaxLines(1).Truncator("…")),
@@ -190,7 +190,7 @@ func demoSurface(m demoState, _ ui.Send[Msg]) ui.Widget {
 func demoCode(m demoState, _ ui.Send[Msg]) ui.Widget {
 	return layout.Column(
 		text.New(m.text("语法高亮 · 可拖拽选中")).Size(13).Weight(font.Bold),
-		code.New("demo-code", "go", `// Save writes the model to disk.
+		code.New("go", `// Save writes the model to disk.
 func (m *Model) Save() error {
 	if !m.Dirty {
 		return nil
@@ -198,11 +198,11 @@ func (m *Model) Save() error {
 	return os.WriteFile(m.Path, m.Bytes(), 0o644)
 }`),
 		muted(m.text("右上角按钮复制全部代码；也可拖拽选中后按 Ctrl/Cmd+C 复制。长行按容器宽度换行。")),
-		field(m.text("JSON · 隐藏行号"), code.New("demo-json", "json", `{
+		field(m.text("JSON · 隐藏行号"), code.New("json", `{
   "name": "FlowUI",
   "enabled": true,
   "components": ["Button", "Input", "Table"]
 }`).LineNumbers(false)),
-		field(m.text("纯文本"), code.New("demo-plain", "text", "go run ./examples/showcase").LineNumbers(false)),
+		field(m.text("纯文本"), code.New("text", "go run ./examples/showcase").Key("demo-plain").LineNumbers(false)),
 	).Gap(12)
 }

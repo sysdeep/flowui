@@ -9,6 +9,7 @@ import (
 
 // Widget presents compact, non-interactive metadata or status information.
 type Widget struct {
+	key   string
 	style style.Style
 	label string
 	// Keep the label widget alive across frames so its text visual cache is
@@ -25,7 +26,13 @@ type Widget struct {
 // New creates a Chip with the default color and secondary variant.
 func New(label string) Widget {
 	text := textui.New(label)
-	return Widget{label: label, labelWidget: &text, visualCache: &chipVisualCache{}}
+	return Widget{key: core.AutoKey("chip"), label: label, labelWidget: &text, visualCache: &chipVisualCache{}}
+}
+
+// Key sets the stable identity used by style transitions.
+func (c Widget) Key(key string) Widget {
+	c.key = key
+	return c
 }
 
 // Color sets the semantic color.

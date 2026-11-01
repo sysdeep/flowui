@@ -44,7 +44,7 @@ popover.New(trigger, helpBody).Key("help").Open(m.HelpOpen).
 interaction calls for it:
 
 ```go
-dropdown.New("actions", trigger, items).
+dropdown.New(trigger, items).Key("actions").
 	TriggerMode(dropdown.TriggerHover)
 ```
 
@@ -55,7 +55,7 @@ Dropdowns can also open from a secondary click, draw an anchor arrow, and size
 their panel to its content:
 
 ```go
-dropdown.New("actions", trigger, items).
+dropdown.New(trigger, items).Key("actions").
 	TriggerMode(dropdown.TriggerContextMenu).
 	AutoWidth().
 	MinWidth(160).
@@ -67,7 +67,7 @@ Use `MatchTriggerWidth(true)` when the panel should be at least as wide as the
 trigger. Hover and long-press delays are configurable:
 
 ```go
-dropdown.New("actions", trigger, items).
+dropdown.New(trigger, items).Key("actions").
 	TriggerMode(dropdown.TriggerHover).
 	HoverOpenDelay(200 * time.Millisecond).
 	HoverCloseDelay(120 * time.Millisecond)
@@ -78,7 +78,7 @@ the interaction source, while `MenuActionEvent` and `DropdownActionEvent` carry
 the complete item and submenu path:
 
 ```go
-dropdown.New("actions", trigger, items).
+dropdown.New(trigger, items).Key("actions").
 	OnOpenChangeEvent(func(event dropdown.OpenChangeEvent) {
 		// event.Source identifies trigger, context menu, menu, outside, and more.
 	}).
@@ -108,7 +108,7 @@ Menus use `MenuItem` values, separators, groups, and `OnChange` messages. A
 context menu wraps a trigger area:
 
 ```go
-menu.ContextMenu("file-menu", fileRow, menu.New("file-actions", items))
+menu.ContextMenu("file-menu", fileRow, menu.New(items).Key("file-actions"))
 ```
 
 ## Portal
@@ -118,10 +118,10 @@ system. The content callback receives the anchor rectangle and whether the
 overlay is interactive:
 
 ```go
-portal.New("custom", m.Open, trigger,
+portal.New(m.Open, trigger,
 	func(anchor image.Rectangle, interactive bool) ui.Widget {
 		return layout.Box(content)
-	})
+	}).Key("custom")
 ```
 
 Most application code should prefer the higher-level overlay components. The

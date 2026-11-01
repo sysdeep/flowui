@@ -76,7 +76,7 @@ func BenchmarkProgressComponentTreeSteadyState(b *testing.B) {
 		} else if index%3 == 1 {
 			values[index] = Bar(float64(index % 100)).Key(fmt.Sprintf("bar-%d", index)).ShowValue()
 		} else {
-			values[index] = Meter(fmt.Sprintf("meter-%d", index), float64(index%100))
+			values[index] = Meter(float64(index % 100)).Key(fmt.Sprintf("meter-%d", index))
 		}
 	}
 	value := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {

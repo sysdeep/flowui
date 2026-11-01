@@ -58,7 +58,7 @@ func nodeGraphBenchmarkGraph(index int) Graph {
 }
 
 func nodeGraphBenchmarkValue(index int) Widget {
-	return New("graph-"+strconv.Itoa(index), nodeGraphBenchmarkGraph(index)).
+	return New(nodeGraphBenchmarkGraph(index)).Key("graph-" + strconv.Itoa(index)).
 		Grid(false).
 		Controls(true).
 		Minimap(true)

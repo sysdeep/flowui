@@ -128,7 +128,7 @@ func (d markdownDocument) tableFlow(key string, rows [][]ast.Node) ui.Widget {
 		}
 		body = append(body, table.Row{Key: fmt.Sprintf("row-%d", rowIndex), Label: label, Cells: cells})
 	}
-	return table.New(key, columns, body).Flow().HeaderHeight(36).RowHeight(36)
+	return table.New(columns, body).Key(key).Flow().HeaderHeight(36).RowHeight(36)
 }
 
 // tableBlocks is the narrow fallback: the header row becomes per-field labels,
@@ -162,7 +162,7 @@ func (d markdownDocument) tableBlocks(key string, rows [][]ast.Node) ui.Widget {
 // markdownCode renders a code block through the reusable code component, so
 // documentation snippets are highlighted and still selectable.
 func markdownCode(key, lang string, lines []byte) ui.Widget {
-	return widgetcode.New(key, lang, strings.TrimSuffix(string(lines), "\n"))
+	return widgetcode.New(lang, strings.TrimSuffix(string(lines), "\n")).Key(key)
 }
 
 type markdownSpan struct {

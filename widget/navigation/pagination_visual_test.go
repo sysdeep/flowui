@@ -16,7 +16,7 @@ func TestPaginationVisualCacheTracksSizeAndTheme(t *testing.T) {
 	second := first
 	firstContext := core.New(nil, &first, locale.LanguageEnglish)
 	secondContext := core.New(nil, &second, locale.LanguageEnglish)
-	value := NewPagination("cache", 1, 5)
+	value := NewPagination(1, 5).Key("cache")
 	value.visualWithCache(firstContext)
 	value.visualWithCache(firstContext)
 	value.Size(PaginationSizeSmall).visualWithCache(firstContext)
@@ -30,7 +30,7 @@ func TestPaginationVisualCacheTracksSizeAndTheme(t *testing.T) {
 func TestPaginationInstanceStyleAppliesLast(t *testing.T) {
 	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	value := NewPagination("style", 1, 5).Style(style.Style{}.Padding(3))
+	value := NewPagination(1, 5).Key("style").Style(style.Style{}.Padding(3))
 	visual := value.visualWithCache(ctx)
 	resolved := style.Cascade(style.State{}, visual.Defaults, value.style)
 	if resolved.Box == nil || resolved.Box.Padding == nil {

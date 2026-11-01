@@ -39,14 +39,17 @@ type Widget struct {
 }
 
 // New attaches a text tooltip to trigger. Use Content for rich tooltip content.
-func New(key string, trigger core.Widget, label string) Widget {
+func New(trigger core.Widget, label string) Widget {
 	return Widget{
-		key:       key,
+		key:       core.AutoKey("tooltip"),
 		trigger:   trigger,
 		content:   text.New(label),
 		placement: core.PopoverTop,
 	}
 }
+
+// Key sets a stable identity for tooltip hover and focus state.
+func (t Widget) Key(key string) Widget { t.key = key; return t }
 
 // Content replaces the tooltip text with custom content.
 func (t Widget) Content(value core.Widget) Widget {

@@ -32,7 +32,7 @@ func NewMenu(key, label string, items []menu.Item) Item {
 	return Item{
 		key:   key,
 		label: label,
-		menu:  menu.New(key+":menu", items),
+		menu:  menu.New(items).Key(key + ":menu"),
 	}
 }
 
@@ -41,7 +41,7 @@ func NewMenuSections(key, label string, sections []menu.Section) Item {
 	return Item{
 		key:   key,
 		label: label,
-		menu:  menu.Sections(key+":menu", sections),
+		menu:  menu.Sections(sections).Key(key + ":menu"),
 	}
 }
 
@@ -126,8 +126,13 @@ type Widget struct {
 	style             style.Style
 }
 
-func New(key string, items []Item) Widget {
-	return Widget{key: key, items: items, loopFocus: true, modal: true}
+func New(items []Item) Widget {
+	return Widget{key: core.AutoKey("menubar"), items: items, loopFocus: true, modal: true}
+}
+
+func (m Widget) Key(key string) Widget {
+	m.key = key
+	return m
 }
 
 func (m Widget) Orientation(orientation Orientation) Widget {

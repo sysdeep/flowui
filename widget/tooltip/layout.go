@@ -96,7 +96,7 @@ func (p Popup) slideOffset(gtx layout.Context, placement core.PopoverPlacement, 
 func (p Popup) resolvePanelStyle(ctx *core.Context, gtx layout.Context, state style.State, visual tooltipVisual) style.ResolvedStyle {
 	key := p.styleKey
 	if key == "" {
-		key = core.FullKey(ctx, "tooltip-style")
+		key = core.DerivedKey(ctx, core.FullKey(ctx, p.key), "style")
 	}
 	return computed.Resolve(ctx, gtx, key, state, visual.Defaults, style.Style{}, style.Style{}, p.style)
 }

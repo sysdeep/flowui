@@ -25,6 +25,37 @@ const (
 	testTooltipMoveDuration  = 400 * time.Millisecond
 )
 
+func TestInlinePopupStyleTransitionsAreIsolatedAcrossInstances(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		t.Run(map[bool]string{false: "automatic", true: "explicit"}[explicit], func(t *testing.T) {
+			ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
+			visual := tooltipVisualWithCache(ctx, nil)
+			start := time.Unix(1, 0)
+			for frame := range 3 {
+				core.BeginFrame(ctx)
+				gtx := testContextAt(start.Add(time.Duration(frame) * time.Second))
+				for index, opacity := range []float32{.2, .8} {
+					if frame > 0 && index == 0 {
+						opacity = 1
+					}
+					value := NewPopup(nil).Style(style.New().Opacity(opacity).Transition(style.PropOpacity, time.Second))
+					if explicit {
+						value = value.Key([]string{"first", "second"}[index])
+					}
+					resolved := value.resolvePanelStyle(ctx, gtx, style.State{}, visual)
+					if frame == 1 && index == 0 {
+						opacity = .2
+					}
+					if resolved.Paint == nil || resolved.Paint.Opacity == nil || *resolved.Paint.Opacity != opacity {
+						t.Fatalf("frame %d instance %d opacity = %v, want %v", frame, index, resolved.Paint, opacity)
+					}
+				}
+				core.EndFrame(ctx)
+			}
+		})
+	}
+}
+
 func TestTooltipBorderUsesThemeColor(t *testing.T) {
 	themeValue := new(theme.Light())
 	visual := tooltipVisualWithCache(core.New(nil, themeValue, locale.LanguageAuto), nil)
@@ -88,13 +119,13 @@ func TestTooltipOffsetUsesArrowDefault(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	gtx := testContextAt(time.Time{})
 	visual := tooltipVisualWithCache(ctx, nil)
-	if got := New("plain", nil, "").Content(nil).popup(1, false).offsetPx(gtx, visual); got != 3 {
+	if got := New(nil, "").Key("plain").Content(nil).popup(1, false).offsetPx(gtx, visual); got != 3 {
 		t.Fatalf("plain offset = %d, want 3", got)
 	}
-	if got := New("arrow", nil, "").Content(nil).Arrow(true).popup(1, false).offsetPx(gtx, visual); got != 7 {
+	if got := New(nil, "").Key("arrow").Content(nil).Arrow(true).popup(1, false).offsetPx(gtx, visual); got != 7 {
 		t.Fatalf("arrow offset = %d, want 7", got)
 	}
-	if got := New("custom", nil, "").Content(nil).Arrow(true).Offset(11).popup(1, false).offsetPx(gtx, visual); got != 11 {
+	if got := New(nil, "").Key("custom").Content(nil).Arrow(true).Offset(11).popup(1, false).offsetPx(gtx, visual); got != 11 {
 		t.Fatalf("custom offset = %d, want 11", got)
 	}
 }
@@ -106,7 +137,7 @@ func TestTooltipPositionAndFlip(t *testing.T) {
 	trigger := image.Rect(100, 50, 140, 70)
 	panel := image.Pt(80, 40)
 	bounds := image.Pt(300, 200)
-	value := New("help", nil, "").Content(nil).Delay(0).Offset(3).AvoidOverflow(false)
+	value := New(nil, "").Key("help").Content(nil).Delay(0).Offset(3).AvoidOverflow(false)
 	popup := value.popup(1, false)
 	if got := popup.resolvedPosition(gtx, trigger, panel, bounds, visual).Position; got != image.Pt(80, 7) {
 		t.Fatalf("top position = %v, want (80,7)", got)
@@ -145,7 +176,7 @@ func TestTooltipPanelHonorsInstancePadding(t *testing.T) {
 	ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 	gtx := testContextAt(time.Time{})
 	visual := tooltipVisualWithCache(ctx, nil)
-	popup := New("help", nil, "").Content(fixedWidget{size: image.Pt(30, 10)}).
+	popup := New(nil, "").Key("help").Content(fixedWidget{size: image.Pt(30, 10)}).
 		Style(style.New().Padding(10).Radius(6)).popup(1, false)
 	dims := popup.layoutPanel(ctx, gtx, visual)
 	if dims.Size != image.Pt(50, 30) {
@@ -157,7 +188,7 @@ func TestTooltipTextAndCustomContentLayoutWhenOpened(t *testing.T) {
 	for _, custom := range []bool{false, true} {
 		ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 		router := new(input.Router)
-		value := New("help", fixedWidget{size: image.Pt(40, 24)}, "Save all pending changes").Delay(0)
+		value := New(fixedWidget{size: image.Pt(40, 24)}, "Save all pending changes").Key("help").Delay(0)
 		laidOut := false
 		if custom {
 			value = value.Content(core.WidgetFunc(func(_ *core.Context, _ layout.Context) layout.Dimensions {
@@ -183,7 +214,7 @@ func TestTooltipTextAndCustomContentLayoutWhenOpened(t *testing.T) {
 		gtx := testContextAt(start.Add(time.Second))
 		visual := tooltipVisualWithCache(ctx, nil)
 		dims := value.popup(1, false).layoutPanel(ctx, gtx, visual)
-		empty := New("empty", nil, "").Content(nil).popup(1, false).layoutPanel(ctx, gtx, visual)
+		empty := New(nil, "").Key("empty").Content(nil).popup(1, false).layoutPanel(ctx, gtx, visual)
 		if dims.Size.X <= empty.Size.X || dims.Size.Y <= empty.Size.Y {
 			t.Fatalf("tooltip content has no layout size: %v, empty %v", dims.Size, empty.Size)
 		}
@@ -311,7 +342,7 @@ func TestHoverAreaDoesNotBlockChildClick(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
 	child := new(clickProbe)
-	value := New("help", child, "Helpful text").Delay(0)
+	value := New(child, "Helpful text").Key("help").Delay(0)
 	layoutTooltipFrame(ctx, router, value, time.Unix(1, 0))
 
 	router.Queue(
@@ -327,7 +358,7 @@ func TestHoverAreaDoesNotBlockChildClick(t *testing.T) {
 func TestHoverEventStartsShowDelay(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
-	value := New("help", fixedWidget{size: image.Pt(40, 24)}, "Helpful text")
+	value := New(fixedWidget{size: image.Pt(40, 24)}, "Helpful text").Key("help")
 	start := time.Unix(1, 0)
 	layoutTooltipFrame(ctx, router, value, start)
 
@@ -350,7 +381,7 @@ func TestHoverEventStartsShowDelay(t *testing.T) {
 func TestFocusTriggerStartsShowDelay(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	router := new(input.Router)
-	value := New("help", fixedWidget{size: image.Pt(40, 24)}, "Helpful text").Trigger(Focus)
+	value := New(fixedWidget{size: image.Pt(40, 24)}, "Helpful text").Key("help").Trigger(Focus)
 	start := time.Unix(1, 0)
 	layoutTooltipFrame(ctx, router, value, start)
 	state, _ := core.PeekState[tooltipState](ctx, "help", stateSlotTooltip)
@@ -463,11 +494,11 @@ func layoutTooltipPairFrame(ctx *core.Context, router *input.Router, now time.Ti
 	}
 	core.BeginFrameWithViewport(ctx, gtx.Constraints.Max)
 	first := func() {
-		New("first", fixedWidget{size: image.Pt(40, 24)}, "First").Delay(0).Layout(ctx, gtx)
+		New(fixedWidget{size: image.Pt(40, 24)}, "First").Key("first").Delay(0).Layout(ctx, gtx)
 	}
 	second := func() {
 		offset := op.Offset(image.Pt(60, 0)).Push(gtx.Ops)
-		New("second", fixedWidget{size: image.Pt(40, 24)}, "Second").Layout(ctx, gtx)
+		New(fixedWidget{size: image.Pt(40, 24)}, "Second").Key("second").Layout(ctx, gtx)
 		offset.Pop()
 	}
 	if reverse {

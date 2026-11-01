@@ -16,7 +16,7 @@ import (
 
 func TestHeatmapBuildsCalendarWeekGrid(t *testing.T) {
 	start := time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC)
-	widget := New("calendar", start, start.AddDate(0, 0, 6), []CalendarValue{{Date: start, Value: 4}})
+	widget := New(start, start.AddDate(0, 0, 6), []CalendarValue{{Date: start, Value: 4}}).Key("calendar")
 	if len(widget.values) != 7 || len(widget.values[0]) != 2 {
 		t.Fatalf("calendar grid = %d rows x %d columns", len(widget.values), len(widget.values[0]))
 	}
@@ -27,7 +27,7 @@ func TestHeatmapBuildsCalendarWeekGrid(t *testing.T) {
 
 func TestHeatmapCalendarLabelsFollowWindowLanguage(t *testing.T) {
 	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
-	widget := New("calendar-labels", start, start.AddDate(0, 0, 6), nil)
+	widget := New(start, start.AddDate(0, 0, 6), nil).Key("calendar-labels")
 	english, englishWeekdays := widget.calendarLabels(core.New(nil, new(theme.Light()), locale.LanguageEnglish))
 	chinese, chineseWeekdays := widget.calendarLabels(core.New(nil, new(theme.Light()), locale.LanguageChinese))
 	if english[0] != "Jan" || englishWeekdays[int(time.Monday)] != "Mon" {
@@ -49,7 +49,7 @@ func TestHeatmapMapsValuesAcrossTimeZones(t *testing.T) {
 		{Date: time.Date(2025, time.January, 1, 0, 0, 0, 0, tokyo), Value: 7},
 		{Date: time.Date(2025, time.January, 3, 0, 0, 0, 0, tokyo), Value: 9},
 	}
-	w := New("cross-tz", start, end, values)
+	w := New(start, end, values).Key("cross-tz")
 
 	jan1 := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	if got := w.values[int(jan1.Weekday())][0]; got != 7 {
@@ -67,7 +67,7 @@ func TestHeatmapComparesRangeAsCivilDates(t *testing.T) {
 	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, west)
 	end := time.Date(2025, time.January, 1, 0, 0, 0, 0, east)
 
-	w := New("civil-range", start, end, nil)
+	w := New(start, end, nil).Key("civil-range")
 	if len(w.values) != 7 || len(w.values[0]) != 1 {
 		t.Fatalf("calendar grid = %d rows x %d columns", len(w.values), len(w.values[0]))
 	}
@@ -75,7 +75,7 @@ func TestHeatmapComparesRangeAsCivilDates(t *testing.T) {
 
 func TestHeatmapValueRangeOverridesData(t *testing.T) {
 	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
-	w := New("test", start, start, []CalendarValue{{Date: start, Value: 10}}).ValueRange(0, 100)
+	w := New(start, start, []CalendarValue{{Date: start, Value: 10}}).Key("test").ValueRange(0, 100)
 	minimum, maximum := w.valueExtent(1, 1)
 	if minimum != 0 || maximum != 100 {
 		t.Fatalf("range = %v, %v", minimum, maximum)
@@ -84,7 +84,7 @@ func TestHeatmapValueRangeOverridesData(t *testing.T) {
 
 func TestHeatmapVisualCacheTracksThemeLifecycle(t *testing.T) {
 	active := new(theme.Light())
-	value := New("cache", time.Unix(1, 0), time.Unix(2, 0), nil)
+	value := New(time.Unix(1, 0), time.Unix(2, 0), nil).Key("cache")
 
 	value.resolveVisual(active)
 	value.resolveVisual(active)
@@ -100,7 +100,7 @@ func TestHeatmapVisualCacheTracksThemeLifecycle(t *testing.T) {
 func TestHeatmapDefaultsUseComponentDefaults(t *testing.T) {
 	active := new(theme.Light())
 
-	value := New("token-theme", time.Unix(1, 0), time.Unix(2, 0), nil)
+	value := New(time.Unix(1, 0), time.Unix(2, 0), nil).Key("token-theme")
 	visual := value.resolveVisual(active)
 	if visual.metrics.Height != defaultHeatmapMetrics.Height {
 		t.Fatalf("heatmap height = %v, want %v", visual.metrics.Height, defaultHeatmapMetrics.Height)
@@ -118,7 +118,7 @@ func TestHeatmapDefaultsUseComponentDefaults(t *testing.T) {
 func TestHeatmapStyleIsLastCascadeLayer(t *testing.T) {
 	active := new(theme.Light())
 	ctx := core.New(nil, active, locale.LanguageEnglish)
-	value := New("styled", time.Unix(1, 0), time.Unix(2, 0), nil).
+	value := New(time.Unix(1, 0), time.Unix(2, 0), nil).Key("styled").
 		Style(style.Style{}.Padding(9))
 	visual := value.resolveVisual(active)
 
@@ -127,7 +127,7 @@ func TestHeatmapStyleIsLastCascadeLayer(t *testing.T) {
 		t.Fatalf("instance style did not reach the root cascade: %#v", resolved.Box)
 	}
 
-	plain := New("styled", time.Unix(1, 0), time.Unix(2, 0), nil).resolveVisual(active)
+	plain := New(time.Unix(1, 0), time.Unix(2, 0), nil).Key("styled").resolveVisual(active)
 	if visual.defaults.Hash64() != plain.defaults.Hash64() {
 		t.Fatal("instance style leaked into the cached theme defaults")
 	}
@@ -135,7 +135,7 @@ func TestHeatmapStyleIsLastCascadeLayer(t *testing.T) {
 
 func TestHeatmapStyleDoesNotChangeDefaultsCacheKey(t *testing.T) {
 	active := new(theme.Light())
-	value := New("style-cache", time.Unix(1, 0), time.Unix(2, 0), nil)
+	value := New(time.Unix(1, 0), time.Unix(2, 0), nil).Key("style-cache")
 	value.resolveVisual(active)
 
 	styled := value.Style(style.Style{}.Padding(9))
@@ -151,7 +151,7 @@ func TestHeatmapColorOverrides(t *testing.T) {
 	active := new(theme.Light())
 	minColor := color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff}
 	maxColor := color.NRGBA{R: 0xd0, G: 0xe0, B: 0xf0, A: 0xff}
-	value := New("colors", time.Unix(1, 0), time.Unix(2, 0), nil).
+	value := New(time.Unix(1, 0), time.Unix(2, 0), nil).Key("colors").
 		MinColor(minColor).
 		MaxColor(maxColor)
 
@@ -178,7 +178,7 @@ func TestHeatmapColorOverrides(t *testing.T) {
 }
 
 func TestHeatmapSelectionUsesColorScale(t *testing.T) {
-	value := New("scale", time.Unix(1, 0), time.Unix(2, 0), nil)
+	value := New(time.Unix(1, 0), time.Unix(2, 0), nil).Key("scale")
 	value.values = [][]float64{{5}}
 	value.cellLabels = [][]string{{"cell"}}
 	want := color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}

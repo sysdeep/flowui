@@ -19,6 +19,7 @@ const (
 
 // Widget displays a small status or count over an anchor component.
 type Widget struct {
+	key    string
 	style  style.Style
 	anchor core.Widget
 	label  string
@@ -36,12 +37,18 @@ type Widget struct {
 
 // New creates a Badge. An empty label renders a dot indicator.
 func New(anchor core.Widget, label string) Widget {
-	value := Widget{anchor: anchor, label: label, visualCache: &badgeVisualCache{}}
+	value := Widget{key: core.AutoKey("badge"), anchor: anchor, label: label, visualCache: &badgeVisualCache{}}
 	if label != "" {
 		text := textui.New(label)
 		value.labelWidget = &text
 	}
 	return value
+}
+
+// Key sets the stable identity used by style transitions.
+func (b Widget) Key(key string) Widget {
+	b.key = key
+	return b
 }
 
 // Content replaces the text label with custom content.

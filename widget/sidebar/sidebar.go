@@ -80,13 +80,19 @@ type Widget struct {
 }
 
 // New creates a controlled Sidebar.
-func New(key, selectedKey string, items []Item) Widget {
-	return Widget{key: key, selectedKey: selectedKey, items: append([]Item(nil), items...)}
+func New(selectedKey string, items []Item) Widget {
+	return Widget{key: core.AutoKey("sidebar"), selectedKey: selectedKey, items: append([]Item(nil), items...)}
 }
 
 // NewSections creates a controlled Sidebar with grouped destinations.
-func NewSections(key, selectedKey string, sections []Section) Widget {
-	return Widget{key: key, selectedKey: selectedKey, sections: cloneSections(sections)}
+func NewSections(selectedKey string, sections []Section) Widget {
+	return Widget{key: core.AutoKey("sidebar-sections"), selectedKey: selectedKey, sections: cloneSections(sections)}
+}
+
+// Key overrides the automatically generated root identity.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 func (w Widget) Header(header core.Widget) Widget {

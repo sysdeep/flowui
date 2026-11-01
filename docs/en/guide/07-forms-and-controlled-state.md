@@ -63,9 +63,9 @@ Call `.DefaultContextMenu(false)` to turn the built-in menu off, or
 input.New(m.Email).DefaultContextMenu(false)
 
 input.New(m.Email).
-	ContextMenu(menu.New("email-menu", []menu.Item{
+	ContextMenu(menu.New([]menu.Item{
 		{Key: "copy", Label: "Copy address"},
-	}))
+	}).Key("email-menu"))
 ```
 
 ### input.Group actions

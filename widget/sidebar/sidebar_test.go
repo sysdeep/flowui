@@ -37,7 +37,7 @@ func TestSidebarGroupDescriptionUsesCatalog(t *testing.T) {
 func TestSidebarCopiesMutableInputs(t *testing.T) {
 	items := []Item{{Key: "home", Label: "Home"}}
 	disabled := []string{"settings"}
-	widget := New("primary", "home", items).DisabledKeys(disabled)
+	widget := New("home", items).Key("primary").DisabledKeys(disabled)
 	items[0].Key = "changed"
 	disabled[0] = "changed"
 
@@ -51,7 +51,7 @@ func TestSidebarSectionsCopyAndCollapseHeaders(t *testing.T) {
 		{Title: "Workspace", Items: []Item{{Key: "home", Label: "Home"}}},
 		{Title: "Account", Items: []Item{{Key: "settings", Label: "Settings"}}},
 	}
-	widget := NewSections("primary", "home", sections)
+	widget := NewSections("home", sections).Key("primary")
 	sections[0].Items[0].Key = "changed"
 	entries, items := widget.entriesAndItems()
 	if len(entries) != 4 || len(items) != 2 || entries[0].title != "Workspace" || items[0].Key != "home" {
@@ -64,14 +64,14 @@ func TestSidebarSectionsCopyAndCollapseHeaders(t *testing.T) {
 }
 
 func TestSidebarSectionsNormalizeEmptyItemsToNil(t *testing.T) {
-	widget := NewSections("primary", "", []Section{{Title: "Empty", Items: []Item{}}})
+	widget := NewSections("", []Section{{Title: "Empty", Items: []Item{}}}).Key("primary")
 	if widget.sections[0].Items != nil {
 		t.Fatalf("empty section items = %#v, want nil", widget.sections[0].Items)
 	}
 }
 
 func TestSidebarDataVersionCachesEntries(t *testing.T) {
-	widget := NewSections("cached", "home", []Section{{Title: "Main", Items: []Item{{Key: "home", Label: "Home"}}}}).DataVersion(1)
+	widget := NewSections("home", []Section{{Title: "Main", Items: []Item{{Key: "home", Label: "Home"}}}}).Key("cached").DataVersion(1)
 	state := new(sidebarState)
 	entries, items := state.resolveEntries(widget)
 	cachedEntries, cachedItems := state.resolveEntries(widget)
@@ -93,7 +93,7 @@ func TestSidebarNestedItemsUseControlledOpenKeys(t *testing.T) {
 			{Key: "reports", Label: "Reports"},
 		},
 	}}
-	widget := New("nested", "overview", items).DataVersion(1)
+	widget := New("overview", items).Key("nested").DataVersion(1)
 	state := new(sidebarState)
 	closed, closedItems := state.resolveEntries(widget)
 	if len(closed) != 1 || len(closedItems) != 1 || closed[0].item.Key != "workspace" {
@@ -112,7 +112,7 @@ func TestSidebarNestedItemsUseControlledOpenKeys(t *testing.T) {
 func TestSidebarOpenKeysRequestIsImmutable(t *testing.T) {
 	keys := []string{"workspace"}
 	var requested []string
-	widget := New("nested", "", nil).OpenKeys(keys).OnOpenChange(func(next []string) { requested = next })
+	widget := New("", nil).Key("nested").OpenKeys(keys).OnOpenChange(func(next []string) { requested = next })
 	keys[0] = "changed"
 	widget.requestOpen("reports", true)
 	if got, want := requested, []string{"workspace", "reports"}; !slices.Equal(got, want) {
@@ -129,11 +129,11 @@ func TestSidebarPointerActivationRequestsOpenKeys(t *testing.T) {
 	router := new(input.Router)
 	var openKeys []string
 	widget := func() Widget {
-		return New("nested", "", []Item{{
+		return New("", []Item{{
 			Key:      "workspace",
 			Label:    "Workspace",
 			Children: []Item{{Key: "overview", Label: "Overview"}},
-		}}).OpenKeys(openKeys).OnOpenChange(func(next []string) { openKeys = next })
+		}}).Key("nested").OpenKeys(openKeys).OnOpenChange(func(next []string) { openKeys = next })
 	}
 	now := time.Unix(10, 0)
 	layoutSidebarFrame(ctx, router, widget(), now)
@@ -153,11 +153,11 @@ func TestSidebarKeyboardActivationRequestsOpenKeys(t *testing.T) {
 	router := new(input.Router)
 	var openKeys []string
 	widget := func() Widget {
-		return New("nested", "", []Item{{
+		return New("", []Item{{
 			Key:      "workspace",
 			Label:    "Workspace",
 			Children: []Item{{Key: "overview", Label: "Overview"}},
-		}}).OpenKeys(openKeys).OnOpenChange(func(next []string) { openKeys = next })
+		}}).Key("nested").OpenKeys(openKeys).OnOpenChange(func(next []string) { openKeys = next })
 	}
 	now := time.Unix(11, 0)
 	layoutSidebarFrame(ctx, router, widget(), now)
@@ -205,7 +205,7 @@ func BenchmarkSidebarLargeLayout(b *testing.B) {
 	for index := range items {
 		items[index] = Item{Key: fmt.Sprintf("item-%d", index), Label: "Item"}
 	}
-	widget := New("large", "", items).DataVersion(1)
+	widget := New("", items).Key("large").DataVersion(1)
 	ctx := sidebarTestContext(new(theme.Light()))
 	b.ReportAllocs()
 	for b.Loop() {
@@ -219,7 +219,7 @@ func BenchmarkSidebarLargeLayoutSteadyState(b *testing.B) {
 	for index := range items {
 		items[index] = Item{Key: fmt.Sprintf("item-%d", index), Label: "Item"}
 	}
-	widget := New("large-steady", "", items).DataVersion(1)
+	widget := New("", items).Key("large-steady").DataVersion(1)
 	ctx := sidebarTestContext(new(theme.Light()))
 	router := new(input.Router)
 	var ops op.Ops
@@ -247,7 +247,7 @@ func TestSidebarItemHeightOverridesDefault(t *testing.T) {
 	gtx := layout.Context{Constraints: layout.Constraints{Max: viewport}, Ops: &ops}
 	item := Item{Key: "home", Label: "Home"}
 	state := new(sidebarState)
-	widget := New("primary", "home", []Item{item}).ItemHeight(32)
+	widget := New("home", []Item{item}).Key("primary").ItemHeight(32)
 	active := core.ActiveTheme(ctx)
 	defaults := state.defaults.resolve(active, widget.metrics(active))
 	resolved := sidebarResolved{defaults: defaults, styleKey: core.FullKey(ctx, widget.key)}
@@ -259,7 +259,7 @@ func TestSidebarItemHeightOverridesDefault(t *testing.T) {
 
 func TestSidebarUsesExpandedAndCollapsedWidths(t *testing.T) {
 	ctx := sidebarTestContext(new(theme.Light()))
-	widget := New("primary", "home", sidebarTestItems())
+	widget := New("home", sidebarTestItems()).Key("primary")
 	expanded := layoutSidebarFrame(ctx, new(input.Router), widget, time.Unix(1, 0))
 	if expanded.Size != image.Pt(248, 320) {
 		t.Fatalf("expanded dimensions = %v", expanded.Size)
@@ -300,7 +300,7 @@ func TestSidebarUsesExpandedAndCollapsedWidths(t *testing.T) {
 
 func TestCollapsedSidebarLaysOutItemIcons(t *testing.T) {
 	icon := &sidebarProbe{size: image.Pt(18, 18)}
-	widget := New("primary", "home", []Item{{Key: "home", Label: "Home", Leading: icon}}).Collapsed(true)
+	widget := New("home", []Item{{Key: "home", Label: "Home", Leading: icon}}).Key("primary").Collapsed(true)
 	layoutSidebarFrame(sidebarTestContext(new(theme.Light())), new(input.Router), widget, time.Unix(2, 0))
 	if icon.layouts != 1 {
 		t.Fatalf("collapsed item icon layouts = %d, want 1", icon.layouts)
@@ -309,7 +309,7 @@ func TestCollapsedSidebarLaysOutItemIcons(t *testing.T) {
 
 func TestCollapsedSidebarCompactMetricsPreserveIconSpace(t *testing.T) {
 	icon := &sidebarProbe{size: image.Pt(32, 32)}
-	widget := New("primary", "home", []Item{{Key: "home", Label: "Home", Leading: icon}}).
+	widget := New("home", []Item{{Key: "home", Label: "Home", Leading: icon}}).Key("primary").
 		Collapsed(true).
 		Width(40).
 		CollapsedWidth(40).
@@ -330,7 +330,7 @@ func TestCollapsedSidebarCompactMetricsPreserveIconSpace(t *testing.T) {
 func TestSidebarExpandedHeaderUsesFinalWidthDuringTransition(t *testing.T) {
 	ctx := sidebarTestContext(new(theme.Light()))
 	header := &sidebarProbe{size: image.Pt(20, 20)}
-	widget := New("primary", "home", sidebarTestItems()).Header(header)
+	widget := New("home", sidebarTestItems()).Key("primary").Header(header)
 	layoutSidebarFrame(ctx, new(input.Router), widget.Collapsed(true), time.Unix(1, 0))
 	if header.maxWidth != 48 {
 		t.Fatalf("collapsed header max width = %d, want 48", header.maxWidth)
@@ -348,7 +348,7 @@ func TestCollapsedSidebarTracksItemOverlayThroughHeaderAndList(t *testing.T) {
 	gtx := layout.Context{Constraints: layout.Constraints{Max: viewport}, Ops: &ops}
 	anchor := image.Rectangle{}
 	icon := &sidebarOverlayProbe{size: image.Pt(18, 18), anchor: &anchor}
-	widget := New("primary", "home", []Item{{Key: "home", Label: "Home", Leading: icon}}).
+	widget := New("home", []Item{{Key: "home", Label: "Home", Leading: icon}}).Key("primary").
 		Header(&sidebarProbe{size: image.Pt(20, 20)}).
 		Collapsed(true)
 
@@ -366,7 +366,7 @@ func TestSidebarKeyboardNavigationSkipsDisabledAndActivates(t *testing.T) {
 	router := new(input.Router)
 	selected := "home"
 	widget := func() Widget {
-		return New("primary", selected, sidebarTestItems()).
+		return New(selected, sidebarTestItems()).Key("primary").
 			DisabledKeys([]string{"projects"}).
 			OnChange(func(key string) { selected = key })
 	}
@@ -395,7 +395,7 @@ func TestSidebarPointerClickDoesNotShowKeyboardFocus(t *testing.T) {
 	router := new(input.Router)
 	selected := "home"
 	widget := func() Widget {
-		return New("primary", selected, sidebarTestItems()).OnChange(func(key string) { selected = key })
+		return New(selected, sidebarTestItems()).Key("primary").OnChange(func(key string) { selected = key })
 	}
 	now := time.Unix(4, 0)
 	layoutSidebarFrame(ctx, router, widget(), now)
@@ -419,7 +419,7 @@ func TestSidebarDisablingCancelsPendingActivation(t *testing.T) {
 	router := new(input.Router)
 	disabled, actions := false, 0
 	view := func() Widget {
-		return New("primary", "home", sidebarTestItems()).Disabled(disabled).
+		return New("home", sidebarTestItems()).Key("primary").Disabled(disabled).
 			OnAction(func(string) { actions++ })
 	}
 	now := time.Unix(10, 0)
@@ -458,7 +458,7 @@ func TestSidebarDisablingCancelsPendingActivation(t *testing.T) {
 func TestSidebarSelectedColorsFollowTheme(t *testing.T) {
 	activeTheme := theme.Light()
 	probe := new(sidebarColorProbe)
-	widget := New("primary", "home", []Item{{Key: "home", Label: "Home", Leading: probe}})
+	widget := New("home", []Item{{Key: "home", Label: "Home", Leading: probe}}).Key("primary")
 	layoutSidebarFrame(sidebarTestContext(&activeTheme), new(input.Router), widget, time.Unix(2, 0))
 	if probe.background != activeTheme.Colors.Tones[theme.TonePrimary].Soft || probe.foreground != activeTheme.Colors.Tones[theme.TonePrimary].OnSoft {
 		t.Fatalf("selected colors = %#v/%#v", probe.background, probe.foreground)
@@ -468,12 +468,12 @@ func TestSidebarSelectedColorsFollowTheme(t *testing.T) {
 func TestSidebarDefaultSwitcherPreservesCustomWidget(t *testing.T) {
 	ctx := sidebarTestContext(new(theme.Light()))
 	custom := &sidebarProbe{size: image.Pt(7, 9)}
-	widget := New("primary", "", []Item{{
+	widget := New("", []Item{{
 		Key:      "workspace",
 		Label:    "Workspace",
 		Switcher: custom,
 		Children: []Item{{Key: "overview", Label: "Overview"}},
-	}})
+	}}).Key("primary")
 	layoutSidebarFrame(ctx, new(input.Router), widget, time.Unix(2, 0))
 	if custom.layouts != 1 {
 		t.Fatalf("custom switcher layouts = %d, want 1", custom.layouts)
@@ -489,7 +489,7 @@ func TestSidebarDefaultSwitcherPreservesCustomWidget(t *testing.T) {
 func TestSidebarContentInheritsSurfaceColors(t *testing.T) {
 	activeTheme := theme.Light()
 	probe := new(sidebarColorProbe)
-	widget := New("primary", "home", []Item{{Key: "home", Label: "Home"}}).Header(probe)
+	widget := New("home", []Item{{Key: "home", Label: "Home"}}).Key("primary").Header(probe)
 	layoutSidebarFrame(sidebarTestContext(&activeTheme), new(input.Router), widget, time.Unix(5, 0))
 	if probe.foreground != activeTheme.Colors.SurfaceForeground || probe.background != activeTheme.Colors.Surface {
 		t.Fatalf("Sidebar content colors = %#v/%#v", probe.foreground, probe.background)
@@ -501,7 +501,7 @@ func TestSidebarStyleIsTheLastCascadeLayer(t *testing.T) {
 	probe := new(sidebarColorProbe)
 	foreground := color.NRGBA{R: 0x11, G: 0x22, B: 0x33, A: 0xff}
 	background := color.NRGBA{R: 0x44, G: 0x55, B: 0x66, A: 0xff}
-	widget := New("primary", "", []Item{{Key: "home", Label: "Home", Leading: probe}}).
+	widget := New("", []Item{{Key: "home", Label: "Home", Leading: probe}}).Key("primary").
 		Style(style.Style{}.
 			TextColor(style.Solid(foreground)).
 			Part(style.PartItem, style.Style{}.Background(style.Solid(background))))
@@ -515,7 +515,7 @@ func TestSidebarItemStyleTextColorReachesContent(t *testing.T) {
 	activeTheme := theme.Light()
 	probe := new(sidebarColorProbe)
 	foreground := color.NRGBA{R: 0x77, G: 0x88, B: 0x99, A: 0xff}
-	widget := New("primary", "", []Item{{Key: "home", Label: "Home", Leading: probe}}).
+	widget := New("", []Item{{Key: "home", Label: "Home", Leading: probe}}).Key("primary").
 		Style(style.Style{}.Part(style.PartItem, style.Style{}.TextColor(style.Solid(foreground))))
 	layoutSidebarFrame(sidebarTestContext(&activeTheme), new(input.Router), widget, time.Unix(2, 0))
 	if probe.foreground != foreground {

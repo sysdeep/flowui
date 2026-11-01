@@ -22,8 +22,14 @@ type CloseButtonWidget struct {
 	styleCache *closeStyleCache
 }
 
-func NewCloseButton(key string) CloseButtonWidget {
-	return CloseButtonWidget{key: key, styleCache: &closeStyleCache{}}
+func NewCloseButton() CloseButtonWidget {
+	return CloseButtonWidget{key: core.AutoKey("close-button"), styleCache: &closeStyleCache{}}
+}
+
+// Key sets a stable identity for the close button's interaction state.
+func (b CloseButtonWidget) Key(key string) CloseButtonWidget {
+	b.key = key
+	return b
 }
 
 func (b CloseButtonWidget) OnClick(fn func()) CloseButtonWidget {

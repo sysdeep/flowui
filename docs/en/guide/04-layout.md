@@ -31,7 +31,7 @@ for top/right/bottom/left.
 
 ```go
 layout.Row(
-	sidebar.New("navigation", "home", items),
+	sidebar.New("home", items).Key("navigation"),
 	layout.Expanded(layout.Scroll(layout.Column(/* content */))),
 )
 ```
@@ -128,9 +128,9 @@ constraints, and containers decide how children are placed.
 ```go
 func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
-		titlebar.NewPlatform("title", "FlowUI", menu),
+		titlebar.NewPlatform("FlowUI", menu).Key("title"),
 		layout.Expanded(layout.Row(
-			sidebar.New("sidebar", m.Selected, items),
+			sidebar.New(m.Selected, items).Key("sidebar"),
 			layout.Expanded(layout.Scroll(content)),
 		)),
 		statusbar.New(left, right),

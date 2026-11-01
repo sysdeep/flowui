@@ -38,7 +38,7 @@ func (b Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual badge
 	if !computed.HasTransitions(root, label) {
 		return badgeResolvedStyle{root: root, label: label}
 	}
-	key := core.ClaimKey(ctx, core.KindStyle, "badge")
+	key := core.ClaimDerivedKey(ctx, core.KindStyle, b.key, "style")
 	return badgeResolvedStyle{
 		root:  computed.ApplyTransitions(ctx, gtx, key, root),
 		label: computed.ApplyPartTransitions(ctx, gtx, key, style.PartLabel, label),

@@ -45,7 +45,7 @@ func View(_ *ui.Context, m Model, send ui.Send[Msg]) ui.Widget {
 				layout.Expanded(body),
 				statusbar.New(text.New(m.status).MaxLines(1).Truncator("…"), text.New("FlowUI · Go / Gio")),
 			)),
-			layout.Overlay(toast.New("showcase-toasts", toastItems(m.demo)).
+			layout.Overlay(toast.New(toastItems(m.demo)).Key("showcase-toasts").
 				OnClose(func(key string) { removeToast(send, key) }).
 				OnAction(func(key string) {
 					removeToast(send, key)
@@ -65,7 +65,7 @@ func navigation(m Model, send ui.Send[Msg], compact bool) ui.Widget {
 			OnChange(func(value string) { send(searchMsg(value)) }),
 		muted(fmt.Sprintf(m.text("%d / %d 个演示"), count, len(catalog))),
 	}
-	nav := sidebar.NewSections("catalog", m.selected, sections).
+	nav := sidebar.NewSections(m.selected, sections).Key("catalog").
 		Width(280).Padding(16).ItemHeight(34).ItemGap(2).
 		Header(layout.Column(header...).Gap(12)).
 		EmptyText(m.text("没有匹配组件，请换个关键词")).
@@ -109,7 +109,7 @@ func detail(m Model, send ui.Send[Msg], compact bool) ui.Widget {
 		section(m.text("交互演示"), item.demo(m.demo, send)),
 	}
 	if item.code != "" {
-		sections = append(sections, section(m.text("基本用法"), widgetcode.New("code-"+item.key, "go", item.code)))
+		sections = append(sections, section(m.text("基本用法"), widgetcode.New("go", item.code).Key("code-"+item.key)))
 	}
 	if documentation := componentDocumentation(item.key, m.demo.language); documentation != nil {
 		sections = append(sections, documentation)
@@ -184,7 +184,7 @@ func (m Model) currentTitle() string {
 func headerAction(key, label string, glyph []byte, onClick func()) ui.Widget {
 	trigger := button.New(label).Key(key).Content(icon.New(glyph).Size(18)).
 		IconOnly().Size(button.Small).Variant(button.Ghost).OnClick(onClick)
-	return tooltip.New(key+"-hint", trigger, label).Placement(popover.Bottom).Offset(8)
+	return tooltip.New(trigger, label).Key(key + "-hint").Placement(popover.Bottom).Offset(8)
 }
 
 func languageMenu(m Model, send ui.Send[Msg]) ui.Widget {
@@ -200,8 +200,8 @@ func languageMenu(m Model, send ui.Send[Msg]) ui.Widget {
 		{Key: string(window.LanguageEnglish), Label: "English", IndicatorType: dropdown.IndicatorCheckmark,
 			OnAction: func() { send(languageMsg(window.LanguageEnglish)) }},
 	}
-	return dropdown.New("showcase-language", trigger, items).
-		Menu(menu.New("showcase-language-menu", items).Width(176).Compact(true).
+	return dropdown.New(trigger, items).Key("showcase-language").
+		Menu(menu.New(items).Key("showcase-language-menu").Width(176).Compact(true).
 			SelectionMode(menu.SelectionSingle).SelectedKey(string(m.demo.language))).
 		Placement(popover.BottomEnd).Offset(8)
 }

@@ -97,22 +97,30 @@ type Widget struct {
 	onOpenChangeEvent  func(OpenChangeEvent)
 }
 
-func New(key string, trigger core.Widget, items []Item) Widget {
+func New(trigger core.Widget, items []Item) Widget {
+	key := core.AutoKey("dropdown")
 	return Widget{
 		key:       key,
 		trigger:   trigger,
-		menu:      menu.New(key+":menu", items),
+		menu:      menu.New(items).Key(key + ":menu"),
 		placement: core.PopoverBottomStart,
 	}
 }
 
-func NewSections(key string, trigger core.Widget, sections []Section) Widget {
+func NewSections(trigger core.Widget, sections []Section) Widget {
+	key := core.AutoKey("dropdown-sections")
 	return Widget{
 		key:       key,
 		trigger:   trigger,
-		menu:      menu.Sections(key+":menu", sections).AutoSeparateSections(false),
+		menu:      menu.Sections(sections).Key(key + ":menu").AutoSeparateSections(false),
 		placement: core.PopoverBottomStart,
 	}
+}
+
+// Key assigns the stable identity used for dropdown interaction state.
+func (d Widget) Key(key string) Widget {
+	d.key = key
+	return d
 }
 
 // Menu replaces the popup menu configuration. Configure selection, actions,

@@ -188,7 +188,7 @@ func TestTextClampsNegativeLayoutValues(t *testing.T) {
 func TestSelectableTextUsesGioSelectionAndClipboard(t *testing.T) {
 	ctx := textTestContext()
 	router := new(input.Router)
-	selectable := Selectable("message", "Copy this text").MaxLines(1)
+	selectable := Selectable("Copy this text").Key("message").MaxLines(1)
 	start := time.Unix(1, 0)
 	layoutTextFrame(ctx, router, selectable, start, image.Pt(240, 80))
 	if !textSemanticTreeContains(router.AppendSemantics(nil), "Copy this text") {
@@ -219,7 +219,7 @@ func TestTextSelectionColorOverrideAndTextColor(t *testing.T) {
 	customSelection := color.NRGBA{R: 0xff, G: 0x88, B: 0x00, A: 0xff}
 	customText := color.NRGBA{R: 0x11, G: 0x22, B: 0x33, A: 0xff}
 
-	selectable := Selectable("styled-selection", "FlowUI").
+	selectable := Selectable("FlowUI").Key("styled-selection").
 		SelectionColor(customSelection).
 		Color(customText)
 	label := selectable.labelStyle(ctx, selectable.resolveStyleStatic(ctx, style.State{}))
@@ -241,7 +241,7 @@ func TestTextSelectionColorOverrideAndTextColor(t *testing.T) {
 func TestSelectableTextPointerDragKeepsFocusAndSelection(t *testing.T) {
 	ctx := textTestContext()
 	router := new(input.Router)
-	selectable := Selectable("pointer-selection", "Select this text")
+	selectable := Selectable("Select this text").Key("pointer-selection")
 	start := time.Unix(2, 0)
 	layoutTextFrame(ctx, router, selectable, start, image.Pt(240, 80))
 	router.Queue(
@@ -274,7 +274,7 @@ func TestSelectableTextPointerDragKeepsFocusAndSelection(t *testing.T) {
 func TestSelectableTextReportsTruncation(t *testing.T) {
 	ctx := textTestContext()
 	router := new(input.Router)
-	selectable := Selectable("summary", "A long line of text that cannot fit in the available width").MaxLines(1)
+	selectable := Selectable("A long line of text that cannot fit in the available width").Key("summary").MaxLines(1)
 	layoutTextFrame(ctx, router, selectable, time.Unix(2, 0), image.Pt(100, 80))
 	stateValue, ok := core.PeekState[selectableTextState](ctx, "summary", stateSlotSelectableText)
 	if !ok || !stateValue.Selectable.Truncated() {
@@ -337,7 +337,7 @@ func TestTextStyleJoinsSeveralDeclarations(t *testing.T) {
 func TestSelectableTextMenuHookQueuesCopy(t *testing.T) {
 	ctx := textTestContext()
 	router := new(input.Router)
-	selectable := Selectable("hooked", "Copy this text")
+	selectable := Selectable("Copy this text").Key("hooked")
 	start := time.Unix(3, 0)
 	layoutTextFrame(ctx, router, selectable, start, image.Pt(240, 80))
 
@@ -370,7 +370,7 @@ func TestSelectableTextMenuHookQueuesCopy(t *testing.T) {
 func TestSelectableTextMenuHookSelectAll(t *testing.T) {
 	ctx := textTestContext()
 	router := new(input.Router)
-	selectable := Selectable("selall", "Select this text")
+	selectable := Selectable("Select this text").Key("selall")
 	start := time.Unix(4, 0)
 	layoutTextFrame(ctx, router, selectable, start, image.Pt(240, 80))
 

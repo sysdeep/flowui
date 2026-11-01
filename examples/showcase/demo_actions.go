@@ -95,11 +95,11 @@ func demoToggle(m demoState, send ui.Send[Msg]) ui.Widget {
 
 func demoClose(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(layout.Row(text.New(m.text("关闭操作会在底部显示反馈")),
-		button.NewCloseButton("close-demo").OnClick(report(send, m.text("已点击关闭按钮"))),
+		button.NewCloseButton().Key("close-demo").OnClick(report(send, m.text("已点击关闭按钮"))),
 	).Gap(16).AlignMiddle(),
 		field(m.text("禁用与自定义图标"), layout.Wrap(
-			button.NewCloseButton("close-disabled").Disabled(true).Label(m.text("禁用关闭")),
-			button.NewCloseButton("close-custom").Icon(icon.New(lucide.Minus).Size(16)).Label(m.text("收起")).
+			button.NewCloseButton().Key("close-disabled").Disabled(true).Label(m.text("禁用关闭")),
+			button.NewCloseButton().Key("close-custom").Icon(icon.New(lucide.Minus).Size(16)).Label(m.text("收起")).
 				OnClick(report(send, m.text("已点击关闭按钮"))),
 		).Gap(16)),
 	).Gap(20)

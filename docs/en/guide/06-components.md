@@ -21,8 +21,8 @@ multi-line blocks show a line-number gutter by default; single-line blocks hide
 it. Use `LineNumbers` to force either state.
 
 ```go
-code.New("sample", "go", source)
-code.New("inline", "go", oneLine).LineNumbers(false)
+code.New("go", source).Key("sample")
+code.New("go", oneLine).Key("inline").LineNumbers(false)
 ```
 
 ## Actions
@@ -45,7 +45,7 @@ directly. Use `Content` when an icon, styled text, or a layout is needed:
 
 ```go
 toggle.NewToggleButton("Bold").Key("bold").Selected(model.Bold).OnChange(setBold)
-tooltip.New("save-tip", saveButton, "Save changes")
+tooltip.New(saveButton, "Save changes").Key("save-tip")
 input.GroupAction("clear", "Clear").OnClick(clear)
 button.New("Save").Content(icon.New(lucide.Save)).IconOnly()
 button.New("Save").Content(text.New("Save").Size(20))
@@ -75,7 +75,7 @@ each choice an equal share of the container. Clicking the current choice does
 not deselect it.
 
 ```go
-numericinput.New("amount", model.Amount).Range(-100, 100).Step(0.25).
+numericinput.New(model.Amount).Key("amount").Range(-100, 100).Step(0.25).
 	Precision(2).Label("Amount").OnChange(setAmount)
 
 toggle.NewSegmented([]toggle.SegmentedItem{
@@ -96,10 +96,10 @@ single-line title, automatic 3-second timeout, content-driven width, and no
 description, action, or close button. Use `toast.NewItem` when the feedback needs
 a description or action.
 
-`navigation.NewBreadcrumb("path", items).OnChange(navigate)` displays a hierarchy: ancestors
+`navigation.NewBreadcrumb(items).Key("path").OnChange(navigate)` displays a hierarchy: ancestors
 are clickable, and the final item is the current location. It wraps in narrow containers.
 
-`commandpalette.New("commands", model.Open, commands).OnOpenChange(setOpen)` shares
+`commandpalette.New(model.Open, commands).Key("commands").OnOpenChange(setOpen)` shares
 `[]command.Command` with buttons and menus. It searches labels, descriptions, and
 keys, supports arrow keys, Enter, Escape, disabled commands, and `KeepOpen`.
 Register application shortcuts separately through `command.Scope`.
@@ -120,7 +120,7 @@ slots, icon/content tab items, close actions, and independently configured
 label, indicator, and panel motion:
 
 ```go
-tabs.New("workspace-tabs", model.Active, items).
+tabs.New(model.Active, items).Key("workspace-tabs").
 	Variant(tabs.Secondary).
 	Size(tabs.Large).
 	Placement(tabs.Bottom).
@@ -169,7 +169,7 @@ candlestick, heatmap, and Gantt charts. `nodegraph.New` provides a node-and-edge
 canvas with controlled panning and zooming; see [Node graph](17-node-graph.md).
 
 Use `layout.List(count, rowAt)` or
-`table.NewVirtual("table", columns, count, rowAt)` with a bounded viewport for
+`table.NewVirtual(columns, count, rowAt).Key("table")` with a bounded viewport for
 large datasets. Rows are built on demand; the application applies virtual-table
 sorting in its row callback. Showcase includes 10,000-row list and table demos,
 plus a tree page covering loading, filtering, checkboxes, rename, and drag and drop.

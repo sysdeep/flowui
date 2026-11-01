@@ -29,9 +29,12 @@ type Widget struct {
 	disabled bool
 }
 
-func New(key string, visible bool, anchor core.Widget, content Content) Widget {
-	return Widget{key: key, visible: visible, anchor: anchor, content: content}
+func New(visible bool, anchor core.Widget, content Content) Widget {
+	return Widget{key: core.AutoKey("portal"), visible: visible, anchor: anchor, content: content}
 }
+
+// Key sets a stable identity for the overlay registration.
+func (p Widget) Key(key string) Widget { p.key = key; return p }
 
 // Layer sets the root stacking group. It controls ordering, not modal behavior.
 func (p Widget) Layer(layer Layer) Widget {

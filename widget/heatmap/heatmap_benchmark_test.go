@@ -38,7 +38,7 @@ func newHeatmapBenchmarkFrame(count int) *heatmapBenchmarkFrame {
 	}
 	frame.values = make([]Widget, count)
 	for index := range frame.values {
-		frame.values[index] = New("heatmap-"+strconv.Itoa(index), start, end, values)
+		frame.values[index] = New(start, end, values).Key("heatmap-" + strconv.Itoa(index))
 	}
 	return frame
 }

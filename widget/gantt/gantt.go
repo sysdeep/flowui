@@ -189,16 +189,19 @@ type Widget struct {
 	visualCache        *ganttDefaultsCache
 }
 
-func New(key string, tasks []Task) Widget {
-	if key == "" {
-		panic("flowui: empty gantt chart key")
-	}
+func New(tasks []Task) Widget {
 	copyTasks := make([]Task, len(tasks))
 	for index, task := range tasks {
 		copyTasks[index] = task
 		copyTasks[index].dependsOn = append([]string(nil), task.dependsOn...)
 	}
-	return Widget{key: key, tasks: copyTasks, showGrid: true, showTooltip: true, showDependencies: true, tickCount: 6, animation: true, animationEasing: animation.EaseCubicOut, updateEasing: animation.EaseCubicInOut, visualCache: &ganttDefaultsCache{}}
+	return Widget{key: core.AutoKey("gantt-chart"), tasks: copyTasks, showGrid: true, showTooltip: true, showDependencies: true, tickCount: 6, animation: true, animationEasing: animation.EaseCubicOut, updateEasing: animation.EaseCubicInOut, visualCache: &ganttDefaultsCache{}}
+}
+
+// Key overrides the automatically generated root identity.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 func (w Widget) Height(dp int) Widget {

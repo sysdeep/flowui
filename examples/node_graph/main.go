@@ -127,20 +127,20 @@ func update(value *model, msg message) ui.Cmd[message] {
 func view(_ *ui.Context, value model, send ui.Send[message]) ui.Widget {
 	return layout.Column(
 		text.New("Node Graph").Size(20),
-		tabs.New("node-graph-pages", value.page, []tabs.TabItem{
+		tabs.New(value.page, []tabs.TabItem{
 			{Key: "editing", Label: "Editing", Panel: editingPanel(value, send)},
 			{Key: "creator", Label: "Create nodes", Panel: creatorPanel(value, send)},
 			{Key: "database", Label: "Relational data", Panel: databasePanel(value, send)},
 			{Key: "groups", Label: "Groups", Panel: groupsPanel(value, send)},
 			{Key: "overlays", Label: "Overlays", Panel: overlaysPanel()},
 			{Key: "large", Label: "Large graph", Panel: largeGraphPanel()},
-		}).OnChange(func(page string) { send(message{page: page, pageChanged: true}) }),
+		}).Key("node-graph-pages").OnChange(func(page string) { send(message{page: page, pageChanged: true}) }),
 	).Gap(10)
 }
 
 func databasePanel(value model, send ui.Send[message]) ui.Widget {
 	graph := nodegraph.Graph{Nodes: value.databaseNodes, Edges: value.databaseEdges}
-	return nodegraph.New("relational-data", graph).
+	return nodegraph.New(graph).Key("relational-data").
 		Height(520).
 		FitView(true).
 		FitViewPadding(.16).
@@ -178,7 +178,7 @@ func creatorPanel(value model, send ui.Send[message]) ui.Widget {
 			OnClick(addNode),
 	).Gap(6).AlignMiddle()
 
-	return nodegraph.New("creator", nodegraph.Graph{Nodes: value.creatorNodes, Edges: value.creatorEdges}).
+	return nodegraph.New(nodegraph.Graph{Nodes: value.creatorNodes, Edges: value.creatorEdges}).Key("creator").
 		Height(520).
 		DefaultViewport(nodegraph.Viewport{Origin: nodegraph.Point{X: -32, Y: -32}, Zoom: 1}).
 		GridPattern(nodegraph.GridDots).
@@ -206,7 +206,7 @@ func editingPanel(value model, send ui.Send[message]) ui.Widget {
 		Nodes: value.nodes,
 		Edges: value.edges,
 	}
-	return nodegraph.New("workflow", graph).
+	return nodegraph.New(graph).Key("workflow").
 		Height(520).
 		Viewport(value.viewport).
 		FitView(true).
@@ -227,7 +227,7 @@ func editingPanel(value model, send ui.Send[message]) ui.Widget {
 
 func groupsPanel(value model, send ui.Send[message]) ui.Widget {
 	graph := nodegraph.Graph{Nodes: value.groupNodes, Edges: groupEdges()}
-	return nodegraph.New("groups", graph).Height(520).FitView(true).NodesResizable(true).ResizeHandles(nodegraph.ResizeHandleAll).GridPattern(nodegraph.GridDots).
+	return nodegraph.New(graph).Key("groups").Height(520).FitView(true).NodesResizable(true).ResizeHandles(nodegraph.ResizeHandleAll).GridPattern(nodegraph.GridDots).
 		OnNodesChange(func(changes []nodegraph.NodeChange) { send(message{nodeChanges: changes, nodeGraph: "groups"}) })
 }
 
@@ -236,7 +236,7 @@ func overlaysPanel() ui.Widget {
 		nodegraph.NewNode("request", "Request", nodegraph.Point{X: 100, Y: 160}).Outputs(nodegraph.NewPort("out", "Out")),
 		nodegraph.NewNode("response", "Response", nodegraph.Point{X: 480, Y: 160}).Inputs(nodegraph.NewPort("in", "In")),
 	}, Edges: []nodegraph.Edge{nodegraph.NewEdge("request-response", nodegraph.NewEndpoint("request", "out"), nodegraph.NewEndpoint("response", "in")).Label("200 OK")}}
-	return nodegraph.New("overlays", graph).
+	return nodegraph.New(graph).Key("overlays").
 		Height(520).
 		FitView(true).
 		GridPattern(nodegraph.GridDots).
@@ -247,7 +247,7 @@ func overlaysPanel() ui.Widget {
 }
 
 func largeGraphPanel() ui.Widget {
-	return nodegraph.New("large-graph", nodegraph.Graph{Nodes: largeGraphNodes(), Edges: largeGraphEdges()}).
+	return nodegraph.New(nodegraph.Graph{Nodes: largeGraphNodes(), Edges: largeGraphEdges()}).Key("large-graph").
 		Height(520).
 		FitView(true).
 		Culling(true).

@@ -45,7 +45,7 @@ func (f *paginationBenchmarkFrame) layout(value core.Widget) layout.Dimensions {
 
 func BenchmarkPaginationLayoutSteadyState(b *testing.B) {
 	frame := newPaginationBenchmarkFrame(image.Pt(640, 80))
-	value := NewPagination("benchmark-pagination", 6, 128).Size(PaginationSizeMedium)
+	value := NewPagination(6, 128).Key("benchmark-pagination").Size(PaginationSizeMedium)
 	frame.layout(value)
 
 	b.ReportAllocs()
@@ -59,7 +59,7 @@ func BenchmarkPaginationComponentTreeSteadyState(b *testing.B) {
 	frame := newPaginationBenchmarkFrame(image.Pt(640, 1200))
 	values := make([]PaginationWidget, 128)
 	for index := range values {
-		value := NewPagination(fmt.Sprintf("pagination-%d", index), index%64+1, 128)
+		value := NewPagination(index%64+1, 128).Key(fmt.Sprintf("pagination-%d", index))
 		if index%3 == 0 {
 			value = value.Size(PaginationSizeSmall)
 		} else if index%3 == 1 {
@@ -87,7 +87,7 @@ func BenchmarkPaginationComponentTreeSteadyState(b *testing.B) {
 
 func BenchmarkPaginationVisualCacheHit(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
-	value := NewPagination("pagination-cache", 6, 128)
+	value := NewPagination(6, 128).Key("pagination-cache")
 	value.visualWithCache(ctx)
 
 	b.ReportAllocs()
@@ -108,7 +108,7 @@ func BenchmarkPaginationVisualCacheMiss(b *testing.B) {
 	ctx := core.New(nil, active, locale.LanguageEnglish)
 	b.ReportAllocs()
 	for b.Loop() {
-		value := NewPagination("pagination-cache", 6, 128)
+		value := NewPagination(6, 128).Key("pagination-cache")
 		value.visualWithCache(ctx)
 	}
 	b.StopTimer()
@@ -123,7 +123,7 @@ func BenchmarkPaginationVisualCacheThemeInvalidation(b *testing.B) {
 	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
-	value := NewPagination("pagination-cache", 6, 128)
+	value := NewPagination(6, 128).Key("pagination-cache")
 	value.visualWithCache(firstContext)
 
 	b.ReportAllocs()

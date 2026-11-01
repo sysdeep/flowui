@@ -49,7 +49,7 @@ func ganttBenchmarkValue(index int) Widget {
 		NewTask("ship-"+strconv.Itoa(index), "Ship "+strconv.Itoa(index), base.Add(3*24*time.Hour), base.Add(6*24*time.Hour)).Group("delivery").DependsOn("plan-" + strconv.Itoa(index)),
 		NewMilestone("review-"+strconv.Itoa(index), "Review "+strconv.Itoa(index), base.Add(7*24*time.Hour)).DependsOn("ship-" + strconv.Itoa(index)),
 	}
-	return New("gantt-"+strconv.Itoa(index), tasks).Animation(false).Legend(true).TaskLabels(true)
+	return New(tasks).Key("gantt-" + strconv.Itoa(index)).Animation(false).Legend(true).TaskLabels(true)
 }
 
 func ganttBenchmarkTree() []Widget {

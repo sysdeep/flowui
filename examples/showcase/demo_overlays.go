@@ -48,8 +48,8 @@ func actionItems(m demoState, send ui.Send[Msg]) []menu.Item {
 
 func demoMenu(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
-		menu.New("inline-menu", actionItems(m, send)),
-		field(m.text("勾选与互斥菜单"), menu.New("settings-menu", []menu.Item{
+		menu.New(actionItems(m, send)).Key("inline-menu"),
+		field(m.text("勾选与互斥菜单"), menu.New([]menu.Item{
 			{Key: "sync", Label: m.text("自动同步"), Kind: menu.ItemCheckbox, Checked: m.enabled,
 				OnAction: func() { send(demoMsg(func(m *demoState) { m.enabled = !m.enabled })) }},
 			menu.Separator(),
@@ -57,32 +57,32 @@ func demoMenu(m demoState, send ui.Send[Msg]) ui.Widget {
 				OnAction: func() { send(demoMsg(func(m *demoState) { m.segment = "day" })) }},
 			{Key: "week", Label: m.text("周"), Kind: menu.ItemRadio, Checked: m.segment == "week", RadioGroup: "period",
 				OnAction: func() { send(demoMsg(func(m *demoState) { m.segment = "week" })) }},
-		}).Compact(true)),
+		}).Key("settings-menu").Compact(true)),
 		menu.ContextMenu("context-demo", button.New(m.text("在此右键打开菜单")).Variant(button.Secondary),
-			menu.New("context-actions", actionItems(m, send))),
+			menu.New(actionItems(m, send)).Key("context-actions")),
 	).Gap(24)
 }
 
 func demoDropdown(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Wrap(
-		dropdown.New("dropdown-demo", button.New(m.text("更多操作")), actionItems(m, send)),
+		dropdown.New(button.New(m.text("更多操作")), actionItems(m, send)).Key("dropdown-demo"),
 		dropdown.Button("dropdown-split", button.New(m.text("发布")), actionItems(m, send)).
 			OnClick(report(send, m.text("已发布演示项目"))),
-		dropdown.New("dropdown-hover", button.New(m.text("悬停展开")).Variant(button.Secondary), actionItems(m, send)).
+		dropdown.New(button.New(m.text("悬停展开")).Variant(button.Secondary), actionItems(m, send)).Key("dropdown-hover").
 			TriggerMode(dropdown.TriggerHover),
-		dropdown.New("dropdown-disabled", button.New(m.text("不可用")).Variant(button.Secondary), actionItems(m, send)).Disabled(true),
+		dropdown.New(button.New(m.text("不可用")).Variant(button.Secondary), actionItems(m, send)).Key("dropdown-disabled").Disabled(true),
 	).Gap(16).LineGap(16)
 }
 
 func demoMenubar(m demoState, send ui.Send[Msg]) ui.Widget {
-	return menubar.New("menubar-demo", []menubar.Item{
+	return menubar.New([]menubar.Item{
 		menubar.NewMenu("file", m.text("文件"), actionItems(m, send)),
 		menubar.NewMenu("edit", m.text("编辑"), []menu.Item{
 			{Key: "undo", Label: m.text("撤销"), OnAction: report(send, m.text("撤销操作"))},
 			{Key: "copy", Label: m.text("复制"), OnAction: report(send, m.text("复制操作"))},
 		}),
 		menubar.NewMenu("unavailable", m.text("暂不可用"), nil).Disabled(true),
-	})
+	}).Key("menubar-demo")
 }
 
 func demoModal(m demoState, send ui.Send[Msg]) ui.Widget {
@@ -195,11 +195,11 @@ func demoPopover(m demoState, send ui.Send[Msg]) ui.Widget {
 func demoTooltip(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
 		layout.Wrap(
-			tooltip.New("tooltip-demo", button.New(m.text("悬停或聚焦我")).
-				OnClick(report(send, m.text("已保存当前文档"))), m.text("保存当前文档（Ctrl+S）")),
-			tooltip.New("tooltip-bottom", button.New(m.text("下方提示")).Variant(button.Secondary), m.text("保存当前文档（Ctrl+S）")).
+			tooltip.New(button.New(m.text("悬停或聚焦我")).
+				OnClick(report(send, m.text("已保存当前文档"))), m.text("保存当前文档（Ctrl+S）")).Key("tooltip-demo"),
+			tooltip.New(button.New(m.text("下方提示")).Variant(button.Secondary), m.text("保存当前文档（Ctrl+S）")).Key("tooltip-bottom").
 				Placement(popover.Bottom).Arrow(true),
-			tooltip.New("tooltip-focus", button.New(m.text("聚焦时提示")).Variant(button.Secondary), m.text("保存当前文档（Ctrl+S）")).
+			tooltip.New(button.New(m.text("聚焦时提示")).Variant(button.Secondary), m.text("保存当前文档（Ctrl+S）")).Key("tooltip-focus").
 				Trigger(tooltip.Focus),
 		).Gap(12).LineGap(12),
 		muted(m.text("使用 Tab 聚焦按钮，查看焦点触发的提示。")),
@@ -210,7 +210,7 @@ func demoPortal(m demoState, send ui.Send[Msg]) ui.Widget {
 	trigger := button.New(m.text("切换根浮层")).OnClick(func() {
 		send(demoMsg(func(m *demoState) { m.portal = !m.portal }))
 	})
-	return portal.New("portal-demo", m.portal, trigger, func(anchor image.Rectangle, _ bool) ui.Widget {
+	return portal.New(m.portal, trigger, func(anchor image.Rectangle, _ bool) ui.Widget {
 		return ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
 			position := image.Pt(anchor.Min.X, anchor.Max.Y+8)
 			defer op.Offset(position).Push(gtx.Ops).Pop()
@@ -219,7 +219,7 @@ func demoPortal(m demoState, send ui.Send[Msg]) ui.Widget {
 			gtx.Constraints.Max.Y = max(1, gtx.Constraints.Max.Y-position.Y)
 			return surface.NewCard(text.New(m.text("这段内容绘制在窗口根浮层。"))).Layout(ctx, gtx)
 		})
-	}).Passive(true)
+	}).Key("portal-demo").Passive(true)
 }
 
 func demoAlert(m demoState, send ui.Send[Msg]) ui.Widget {
@@ -310,7 +310,7 @@ func demoProgress(m demoState, send ui.Send[Msg]) ui.Widget {
 		slider.New(m.value).Key("progress-control").Label(m.text("调整进度")).ShowValue().OnChange(setNumber(send)),
 		progress.Bar(m.value).Key("progress-bar").Label(m.text("上传进度")).ShowValue(),
 		progress.Circle(m.value).Key("progress-circle"),
-		progress.Meter("progress-meter", m.value).Label(m.text("存储使用量")).ShowValue(),
+		progress.Meter(m.value).Key("progress-meter").Label(m.text("存储使用量")).ShowValue(),
 		field(m.text("语义颜色与尺寸"), layout.Column(
 			progress.Bar(100).Color(progress.BarSuccess).Key("progress-success").Size(progress.BarSmall).ShowValue(),
 			progress.Bar(m.value).Color(progress.BarWarning).Key("progress-warning").ShowValue(),

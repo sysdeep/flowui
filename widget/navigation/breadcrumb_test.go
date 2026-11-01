@@ -13,11 +13,11 @@ import (
 func TestNavigation(t *testing.T) {
 	h := uitest.New(image.Pt(460, 48), theme.Light())
 	selected, changes := "", 0
-	root := NewBreadcrumb("path", []BreadcrumbItem{
+	root := NewBreadcrumb([]BreadcrumbItem{
 		{Key: "home", Label: "Home"},
 		{Key: "locked", Label: "Locked", Disabled: true},
 		{Key: "current", Label: "Current"},
-	}).OnChange(func(key string) { selected = key; changes++ })
+	}).Key("path").OnChange(func(key string) { selected = key; changes++ })
 	h.Frame(root)
 	h.Frame(root)
 	for _, label := range []string{"Home", "Locked", "Current"} {

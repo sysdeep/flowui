@@ -26,7 +26,7 @@ import (
 
 func TestCandlestickChartCopiesMutableInputs(t *testing.T) {
 	values := []Candle{OHLC(10, 12, 9, 13)}
-	widget := New("market", values)
+	widget := New(values).Key("market")
 	values[0].open = 99
 	if widget.data[0].open != 10 {
 		t.Fatal("CandlestickChart retained caller data")
@@ -45,7 +45,7 @@ func TestCandlestickChartCopiesMutableInputs(t *testing.T) {
 
 func TestCandlestickChartInstanceStyleIsLastLayerAndNotCached(t *testing.T) {
 	ctx := candlestickTestContext()
-	base := New("market", nil)
+	base := New(nil).Key("market")
 	styled := base.Style(style.Style{}.Height(123))
 	base.defaultsFor(ctx)
 	before := base.defaultsCache.Stats()
@@ -74,16 +74,16 @@ func TestCandlestickChartDataVersionCachesResolvedData(t *testing.T) {
 	activeTheme := theme.Light()
 	defaults := candlestickTestDefaults()
 	cache := new(chartDataCache)
-	first := cache.resolve(New("chart", []Candle{OHLC(1, 2, 0, 3)}).DataVersion(1), &activeTheme, defaults)
-	second := cache.resolve(New("chart", []Candle{OHLC(10, 20, 0, 30)}).DataVersion(1), &activeTheme, defaults)
+	first := cache.resolve(New([]Candle{OHLC(1, 2, 0, 3)}).Key("chart").DataVersion(1), &activeTheme, defaults)
+	second := cache.resolve(New([]Candle{OHLC(10, 20, 0, 30)}).Key("chart").DataVersion(1), &activeTheme, defaults)
 	if first.generation == 0 || second.generation != first.generation || second.candles[0].close != 2 {
 		t.Fatalf("same-version CandlestickChart data was not reused: first %#v second %#v", first, second)
 	}
-	third := cache.resolve(New("chart", []Candle{OHLC(10, 20, 0, 30)}).DataVersion(2), &activeTheme, defaults)
+	third := cache.resolve(New([]Candle{OHLC(10, 20, 0, 30)}).Key("chart").DataVersion(2), &activeTheme, defaults)
 	if third.generation == second.generation || third.candles[0].close != 20 {
 		t.Fatalf("new-version CandlestickChart data was not resolved: %#v", third)
 	}
-	uncached := cache.resolve(New("chart", []Candle{OHLC(3, 4, 2, 5)}), &activeTheme, defaults)
+	uncached := cache.resolve(New([]Candle{OHLC(3, 4, 2, 5)}).Key("chart"), &activeTheme, defaults)
 	if uncached.generation != 0 || uncached.candles[0].close != 4 {
 		t.Fatalf("unversioned CandlestickChart data was cached: %#v", uncached)
 	}
@@ -99,7 +99,7 @@ func TestCandlestickChartMatchesEChartsSignsAndExtent(t *testing.T) {
 	}
 	defaults := candlestickTestDefaults()
 	defaults.Colors.Doji = color.NRGBA{}
-	data := resolveChartData(New("market", values), defaults)
+	data := resolveChartData(New(values).Key("market"), defaults)
 	if data.extent.Minimum != 8 || data.extent.Maximum != 14 || !data.extent.Valid {
 		t.Fatalf("CandlestickChart extent = %#v", data.extent)
 	}
@@ -114,23 +114,23 @@ func TestCandlestickChartMatchesEChartsSignsAndExtent(t *testing.T) {
 	}
 
 	doji := color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff}
-	data = resolveChartData(New("market", values).DojiColor(doji), defaults)
+	data = resolveChartData(New(values).Key("market").DojiColor(doji), defaults)
 	if data.candles[2].sign != signDoji || data.candles[3].sign != signDoji || data.candles[2].color != doji {
 		t.Fatalf("configured doji candles = %#v %#v", data.candles[2], data.candles[3])
 	}
 }
 
 func TestCandlestickChartUsesEChartsWidthAndWindowRules(t *testing.T) {
-	if got := New("chart", nil).resolveCandleWidth(20, testDp); got != 10 {
+	if got := New(nil).Key("chart").resolveCandleWidth(20, testDp); got != 10 {
 		t.Fatalf("automatic candle width = %v, want 10", got)
 	}
-	if got := New("chart", nil).MaxWidth(6).resolveCandleWidth(20, testDp); got != 6 {
+	if got := New(nil).Key("chart").MaxWidth(6).resolveCandleWidth(20, testDp); got != 6 {
 		t.Fatalf("maximum candle width = %v, want 6", got)
 	}
-	if got := New("chart", nil).MinWidth(12).resolveCandleWidth(20, testDp); got != 12 {
+	if got := New(nil).Key("chart").MinWidth(12).resolveCandleWidth(20, testDp); got != 12 {
 		t.Fatalf("minimum candle width = %v, want 12", got)
 	}
-	if got := New("chart", nil).Width(18).resolveCandleWidth(20, testDp); got != 18 {
+	if got := New(nil).Key("chart").Width(18).resolveCandleWidth(20, testDp); got != 18 {
 		t.Fatalf("explicit candle width = %v, want 18", got)
 	}
 	start, end := chart.VisibleCategoryRange(10, chart.DataWindow{Start: .25, End: .75})
@@ -140,12 +140,12 @@ func TestCandlestickChartUsesEChartsWidthAndWindowRules(t *testing.T) {
 }
 
 func TestCandlestickChartAutoScalesVisibleWindow(t *testing.T) {
-	widget := New("market", []Candle{
+	widget := New([]Candle{
 		OHLC(90, 95, 80, 100),
 		OHLC(92, 88, 85, 98),
 		OHLC(42, 46, 40, 48),
 		OHLC(46, 44, 41, 50),
-	}).DataWindow(.5, 1)
+	}).Key("market").DataWindow(.5, 1)
 	data := resolveChartData(widget, candlestickTestDefaults())
 	scale := widget.resolveYScale(data)
 	if scale.Minimum > 40 || scale.Maximum < 50 || scale.Maximum >= 80 {
@@ -173,14 +173,14 @@ func TestCandlestickChartFormatsVisibleTimePeriods(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			widget := New("market", nil).Times(test.values)
+			widget := New(nil).Key("market").Times(test.values)
 			if got := widget.timeAxisFormat(0, len(test.values)); got != test.want {
 				t.Fatalf("time axis format = %q, want %q", got, test.want)
 			}
 		})
 	}
 
-	widget := New("market", nil).Times([]time.Time{base.Add(3*time.Hour + 4*time.Minute)})
+	widget := New(nil).Key("market").Times([]time.Time{base.Add(3*time.Hour + 4*time.Minute)})
 	if got := widget.categoryLabel(0); got != "2026-01-01 03:04:00" {
 		t.Fatalf("full time label = %q", got)
 	}
@@ -200,7 +200,7 @@ func TestCandlestickChartScaleHandlesExtremeFiniteValues(t *testing.T) {
 }
 
 func TestCandlestickChartAnimationAndSelectionPreserveOHLC(t *testing.T) {
-	widget := New("market", []Candle{OHLC(10, 14, 8, 16)}).Categories([]string{"Mon"}).Label("Price")
+	widget := New([]Candle{OHLC(10, 14, 8, 16)}).Key("market").Categories([]string{"Mon"}).Label("Price")
 	target := resolveChartData(widget, candlestickTestDefaults())
 	baseline := candleBaselineData(target)
 	if baseline.candles[0].open != 10 || baseline.candles[0].close != 10 || baseline.candles[0].low != 10 || baseline.candles[0].high != 10 {
@@ -235,7 +235,7 @@ func TestCandlestickChartLaysOutCustomMarkPointContent(t *testing.T) {
 		markerColor = ctx.ForegroundColor()
 		return layout.Dimensions{Size: markerSize}
 	})
-	widget := New("market", []Candle{OHLC(10, 12, 9, 13)}).
+	widget := New([]Candle{OHLC(10, 12, 9, 13)}).Key("market").
 		MarkPoints([]chart.MarkPoint{chart.NewMarkPoint(0, 11).Size(15).Color(wantColor).Content(content)})
 	layoutCandlestickFrame(ctx, router, widget, time.Unix(4, 0))
 	if !laidOut || markerSize != image.Pt(15, 15) || markerColor != wantColor {
@@ -244,7 +244,7 @@ func TestCandlestickChartLaysOutCustomMarkPointContent(t *testing.T) {
 }
 
 func TestCandlestickChartTooltipUsesConventionalOHLCOrder(t *testing.T) {
-	widget := New("market", nil).FormatY(func(value float64) string { return fmt.Sprintf("$%.2f", value) })
+	widget := New(nil).Key("market").FormatY(func(value float64) string { return fmt.Sprintf("$%.2f", value) })
 	rows := widget.candlestickTooltipRows(candlestickTestContext(), chartSelection{candle: resolvedCandle{open: 10, high: 13, low: 9, close: 12}}, 1)
 	if len(rows) != 4 || rows[0] != "Open  $10.00" || rows[1] != "High  $13.00" || rows[2] != "Low  $9.00" || rows[3] != "Close  $12.00" {
 		t.Fatalf("CandlestickChart tooltip rows = %#v", rows)
@@ -267,7 +267,7 @@ func TestCandlestickChartPrunesLabelsAfterClampingToLeftEdge(t *testing.T) {
 		{label: label, pixel: first + float32(width+16)},
 	}}
 
-	ticks := New("market", nil).pruneCategoryTicks(ctx, gtx, geometry, defaults, candlestickStyleFor(defaults, false))
+	ticks := New(nil).Key("market").pruneCategoryTicks(ctx, gtx, geometry, defaults, candlestickStyleFor(defaults, false))
 	core.EndFrame(ctx)
 	if len(ticks) != 1 {
 		t.Fatalf("left-edge time labels were not pruned: %#v", ticks)
@@ -286,7 +286,7 @@ func TestCandlestickChartFormatsOnlyPrunedCategoryLabels(t *testing.T) {
 		ticks[index] = categoryTick{index: index, pixel: 100}
 	}
 	formats := 0
-	widget := New("market", nil).Times(times).FormatTime(func(time.Time) string {
+	widget := New(nil).Key("market").Times(times).FormatTime(func(time.Time) string {
 		formats++
 		return "07-07 07:00"
 	})
@@ -307,7 +307,7 @@ func TestCandlestickChartFormatsOnlyPrunedCategoryLabels(t *testing.T) {
 func TestCandlestickChartPointerSemanticsAndFocus(t *testing.T) {
 	ctx := candlestickTestContext()
 	router := new(input.Router)
-	widget := New("market", []Candle{OHLC(10, 12, 9, 13)}).Label("Market price")
+	widget := New([]Candle{OHLC(10, 12, 9, 13)}).Key("market").Label("Market price")
 	now := time.Unix(1, 0)
 	layoutCandlestickFrame(ctx, router, widget, now)
 	state, _ := core.PeekState[chartState](ctx, "market", stateSlotCandlestickChart)
@@ -334,12 +334,12 @@ func TestCandlestickChartClickAndDataWindowInteractions(t *testing.T) {
 	router := new(input.Router)
 	requested := chart.DataWindow{}
 	clicked := chart.Selection{}
-	widget := New("market", []Candle{
+	widget := New([]Candle{
 		OHLC(10, 12, 9, 13),
 		OHLC(12, 11, 10, 14),
 		OHLC(11, 15, 10, 16),
 		OHLC(15, 14, 13, 16),
-	}).
+	}).Key("market").
 		Categories([]string{"A", "B", "C", "D"}).
 		DataWindow(.2, .8).
 		OnDataWindowChange(func(window chart.DataWindow) { requested = window }).
@@ -375,7 +375,7 @@ func TestCandlestickChartHandlesSmallConstraints(t *testing.T) {
 	var ops op.Ops
 	gtx := layout.Context{Constraints: layout.Exact(viewport), Source: router.Source(), Ops: &ops, Now: time.Unix(2, 0)}
 	core.BeginFrameWithViewport(ctx, viewport)
-	dims := New("small", []Candle{OHLC(math.NaN(), 0, 0, 0)}).XAxis("Date").YAxis("Price").Layout(ctx, gtx)
+	dims := New([]Candle{OHLC(math.NaN(), 0, 0, 0)}).Key("small").XAxis("Date").YAxis("Price").Layout(ctx, gtx)
 	core.ApplyFrameCommands(ctx, gtx)
 	core.EndFrame(ctx)
 	router.Frame(&ops)

@@ -6,12 +6,12 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/animation"
-	"github.com/qianniancn/flowui/widget/internal/binding"
 	"github.com/qianniancn/flowui/internal/core"
 	layoutui "github.com/qianniancn/flowui/layout"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/base"
 	"github.com/qianniancn/flowui/widget/button"
+	"github.com/qianniancn/flowui/widget/internal/binding"
 )
 
 const stateSlotModal = "modal"
@@ -95,7 +95,7 @@ func (s *modalState) opening() bool {
 // keeping CloseButton's behavior and clickable state owned by modalState.
 func (s *modalState) closeButtonWidget() *button.CloseButtonWidget {
 	if s.closeButton == nil {
-		value := button.NewCloseButton("close")
+		value := button.NewCloseButton().Key("close")
 		s.closeButton = &value
 	}
 	return s.closeButton

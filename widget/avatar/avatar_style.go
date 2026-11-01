@@ -35,7 +35,7 @@ func (a Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual avata
 	if !computed.HasTransitions(resolved.root, resolved.label, resolved.icon) {
 		return resolved
 	}
-	key := core.ClaimKey(ctx, core.KindStyle, "avatar")
+	key := core.ClaimDerivedKey(ctx, core.KindStyle, a.key, "style")
 	resolved.root = computed.ApplyTransitions(ctx, gtx, key, resolved.root)
 	resolved.label = computed.ApplyPartTransitions(ctx, gtx, key, style.PartLabel, resolved.label)
 	resolved.icon = computed.ApplyPartTransitions(ctx, gtx, key, style.PartIcon, resolved.icon)

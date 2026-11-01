@@ -38,10 +38,10 @@ func newLineChartBenchmarkFrame(count int) *lineChartBenchmarkFrame {
 	}
 	frame.values = make([]Widget, count)
 	for index := range frame.values {
-		frame.values[index] = New("line-"+strconv.Itoa(index), []Series{
+		frame.values[index] = New([]Series{
 			Values("primary", "Primary", primary),
 			Values("secondary", "Secondary", secondary),
-		}).Categories([]string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"}).Legend(true)
+		}).Key("line-" + strconv.Itoa(index)).Categories([]string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X"}).Legend(true)
 	}
 	return frame
 }

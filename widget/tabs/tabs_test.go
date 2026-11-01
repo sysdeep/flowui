@@ -74,7 +74,7 @@ func TestTabsItemPartAppliesStateOpacity(t *testing.T) {
 func TestTabsUsesDefaultCursor(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	tabs := New("cursor", "account", tabsTestItems())
+	tabs := New("account", tabsTestItems()).Key("cursor")
 	layoutTabsFrame(ctx, router, tabs, time.Unix(1, 0), image.Pt(300, 100))
 	router.Queue(pointer.Event{Kind: pointer.Move, Source: pointer.Mouse, PointerID: 1, Position: f32.Pt(50, 20)})
 	layoutTabsFrame(ctx, router, tabs, time.Unix(1, int64(time.Millisecond)), image.Pt(300, 100))
@@ -125,8 +125,8 @@ func TestSmallFitTabsUseNaturalWidth(t *testing.T) {
 		{Key: "monthly", Label: "Monthly"},
 	}
 
-	full := New("full", "daily", items).Layout(newContext(nil), gtx)
-	fit := New("fit", "daily", items).Size(Small).Fit().Layout(newContext(nil), gtx)
+	full := New("daily", items).Key("full").Layout(newContext(nil), gtx)
+	fit := New("daily", items).Key("fit").Size(Small).Fit().Layout(newContext(nil), gtx)
 	if full.Size.X != 500 {
 		t.Fatalf("full tabs width = %d, want 500", full.Size.X)
 	}
@@ -146,7 +146,7 @@ func TestHorizontalGapMatchesIndicatorGeometry(t *testing.T) {
 		{Key: "weekly", Label: "Weekly"},
 		{Key: "monthly", Label: "Monthly"},
 	}
-	layoutTabsFrame(ctx, router, New("horizontal-gap", "daily", items).Fit(), time.Unix(1, 0), image.Pt(400, 100))
+	layoutTabsFrame(ctx, router, New("daily", items).Key("horizontal-gap").Fit(), time.Unix(1, 0), image.Pt(400, 100))
 	state := testComponentState[tabsState](ctx, "horizontal-gap", stateSlotTabs)
 	wantGap := testLayoutContext().Dp(4)
 	if state.list.Gap != wantGap {
@@ -165,7 +165,7 @@ func TestTabsOverflowIndicatorIncludesGapBeforeLastVisibleTab(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	selectedKey := "Conversions"
-	widget := New("overflow-indicator-gap", selectedKey, tabsOverflowItems()).
+	widget := New(selectedKey, tabsOverflowItems()).Key("overflow-indicator-gap").
 		Overflow(OverflowMenu).
 		OverflowTrigger(text.New("More"))
 	viewport := image.Pt(640, 160)
@@ -210,7 +210,7 @@ func TestCenteredTabsCenterIntrinsicStrip(t *testing.T) {
 		{Key: "a", Label: "A"},
 		{Key: "b", Label: "B"},
 	}
-	layoutTabsFrame(ctx, router, New("centered", "a", items).Centered(true), time.Unix(1, 0), image.Pt(400, 100))
+	layoutTabsFrame(ctx, router, New("a", items).Key("centered").Centered(true), time.Unix(1, 0), image.Pt(400, 100))
 
 	bounds, ok := semanticBoundsForLabel(router.AppendSemantics(nil), "A")
 	if !ok {
@@ -225,7 +225,7 @@ func TestCenteredVerticalTabsKeepPanelAtStart(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	items := []TabItem{{Key: "a", Label: "A", Panel: text.New("Panel")}}
-	layoutTabsFrame(ctx, router, New("centered-vertical", "a", items).Vertical().Centered(true), time.Unix(1, 0), image.Pt(300, 240))
+	layoutTabsFrame(ctx, router, New("a", items).Key("centered-vertical").Vertical().Centered(true), time.Unix(1, 0), image.Pt(300, 240))
 
 	bounds, ok := semanticBoundsForLabel(router.AppendSemantics(nil), "A")
 	if !ok {
@@ -245,7 +245,7 @@ func TestTabsPropagatesPanelPositionToOverlayHost(t *testing.T) {
 	items := []TabItem{{Key: "account", Label: "Account", Panel: panel}}
 
 	core.BeginFrameWithViewport(ctx, viewport)
-	New("settings", "account", items).Layout(ctx, gtx)
+	New("account", items).Key("settings").Layout(ctx, gtx)
 	core.LayoutOverlays(ctx, gtx)
 	core.EndFrame(ctx)
 
@@ -264,7 +264,7 @@ func TestBottomPlacementMovesPanelBeforeTheStrip(t *testing.T) {
 	items := []TabItem{{Key: "account", Label: "Account", Panel: panel}}
 
 	core.BeginFrameWithViewport(ctx, viewport)
-	New("settings-bottom", "account", items).Placement(Bottom).Layout(ctx, gtx)
+	New("account", items).Key("settings-bottom").Placement(Bottom).Layout(ctx, gtx)
 	core.LayoutOverlays(ctx, gtx)
 	core.EndFrame(ctx)
 
@@ -279,7 +279,7 @@ func TestTabsClickChangesSelection(t *testing.T) {
 	router := new(input.Router)
 	selected := "account"
 	widget := func() Widget {
-		return New("settings", selected, tabsTestItems()).OnChange(func(key string) {
+		return New(selected, tabsTestItems()).Key("settings").OnChange(func(key string) {
 			selected = key
 		})
 	}
@@ -297,7 +297,7 @@ func TestTabsUncontrolledClickChangesSelection(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	items := tabsTestItems()
-	widget := New("uncontrolled-settings", "", items).DefaultSelectedKey("account")
+	widget := New("", items).Key("uncontrolled-settings").DefaultSelectedKey("account")
 
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(300, 200))
 	securityBounds, ok := semanticBoundsForLabel(router.AppendSemantics(nil), "Security")
@@ -323,7 +323,7 @@ func TestTabsDisabledItemDoesNotChangeSelection(t *testing.T) {
 	items := tabsTestItems()
 	items[1].Disabled = true
 	selected := "account"
-	widget := New("settings", selected, items).OnChange(func(key string) {
+	widget := New(selected, items).Key("settings").OnChange(func(key string) {
 		selected = key
 	})
 
@@ -343,7 +343,7 @@ func TestTabsArrowKeysSelectAndFocusNextEnabledTab(t *testing.T) {
 	items[1].Disabled = true
 	selected := "account"
 	widget := func() Widget {
-		return New("settings", selected, items).OnChange(func(key string) {
+		return New(selected, items).Key("settings").OnChange(func(key string) {
 			selected = key
 		})
 	}
@@ -369,7 +369,7 @@ func TestTabsWorkbenchShortcutMovesSelection(t *testing.T) {
 	selected := "account"
 	items := tabsTestItems()
 	widgetForFrame := func() Widget {
-		return New("shortcut-tabs", selected, items).OnChange(func(key string) { selected = key })
+		return New(selected, items).Key("shortcut-tabs").OnChange(func(key string) { selected = key })
 	}
 	layoutTabsFrame(ctx, router, widgetForFrame(), time.Unix(1, 0), image.Pt(360, 180))
 	state := testComponentState[tabsState](ctx, "shortcut-tabs", stateSlotTabs)
@@ -388,7 +388,7 @@ func TestTabsManualActivationMovesFocusBeforeSelection(t *testing.T) {
 	selected := "account"
 	items := tabsTestItems()
 	widgetForFrame := func() Widget {
-		return New("manual-activation", selected, items).
+		return New(selected, items).Key("manual-activation").
 			Activation(ActivationManual).
 			OnChange(func(key string) { selected = key })
 	}
@@ -427,7 +427,7 @@ func TestTabsNavigationAxisAndReverseShortcut(t *testing.T) {
 			router := new(input.Router)
 			selected := "account"
 			view := func() Widget {
-				return New("axis-tabs", selected, tabsTestItems()).Orientation(tc.orientation).
+				return New(selected, tabsTestItems()).Key("axis-tabs").Orientation(tc.orientation).
 					OnChange(func(next string) { selected = next })
 			}
 			now := time.Unix(10, 0)
@@ -458,7 +458,7 @@ func TestVerticalTabsUseVerticalArrowKeys(t *testing.T) {
 	router := new(input.Router)
 	selected := "account"
 	widget := func() Widget {
-		return New("settings", selected, tabsTestItems()).Vertical().OnChange(func(key string) {
+		return New(selected, tabsTestItems()).Key("settings").Vertical().OnChange(func(key string) {
 			selected = key
 		})
 	}
@@ -486,7 +486,7 @@ func TestTabsHomeEndKeysSelectEdges(t *testing.T) {
 	}
 	selected := "billing"
 	widget := func() Widget {
-		return New("settings", selected, items).OnChange(func(key string) {
+		return New(selected, items).Key("settings").OnChange(func(key string) {
 			selected = key
 		})
 	}
@@ -523,7 +523,7 @@ func TestTabsSelectedPanelOnly(t *testing.T) {
 		{Key: "security", Label: "Security", Panel: &tabsPanelProbe{layouts: &securityLayouts}},
 	}
 
-	New("settings", "security", items).Layout(newContext(nil), testLayoutContext())
+	New("security", items).Key("settings").Layout(newContext(nil), testLayoutContext())
 	if accountLayouts != 0 || securityLayouts != 1 {
 		t.Fatalf("panel layouts = account %d security %d, want 0 and 1", accountLayouts, securityLayouts)
 	}
@@ -535,7 +535,7 @@ func TestPanelFadeHonorsDurationAndMotion(t *testing.T) {
 	selected := "account"
 	items := tabsTestItems()
 	widgetForFrame := func() Widget {
-		return New("panel-fade", selected, items).PanelTransition(PanelFade)
+		return New(selected, items).Key("panel-fade").PanelTransition(PanelFade)
 	}
 
 	start := time.Unix(1, 0)
@@ -580,7 +580,7 @@ func TestTabsForceRenderInitializesHiddenPanelsWithoutExposingThem(t *testing.T)
 		{Key: "security", Label: "Security", Panel: security},
 	}
 	widgetForFrame := func() Widget {
-		return New("force-render", selected, items).ForceRender(true)
+		return New(selected, items).Key("force-render").ForceRender(true)
 	}
 
 	layoutTabsFrame(ctx, router, widgetForFrame(), time.Unix(1, 0), image.Pt(360, 180))
@@ -611,7 +611,7 @@ func TestTabsForceRenderYieldsToDestroyOnHidden(t *testing.T) {
 		{Key: "account", Label: "Account", Panel: &tabsStatePanelProbe{}},
 		{Key: "security", Label: "Security", Panel: &tabsStatePanelProbe{}},
 	}
-	widget := New("force-render-destroy", "account", items).ForceRender(true).DestroyOnHidden(true)
+	widget := New("account", items).Key("force-render-destroy").ForceRender(true).DestroyOnHidden(true)
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(360, 180))
 	state := testComponentState[tabsState](ctx, "force-render-destroy", stateSlotTabs)
 	if state == nil || len(state.renderedPanels) != 0 {
@@ -639,7 +639,7 @@ func TestTabsHiddenPanelStateLifecycle(t *testing.T) {
 				{Key: "security", Label: "Security", Panel: security},
 			}
 			widgetForFrame := func() Widget {
-				return New("settings", selected, items).KeepAlive(true).DestroyOnHidden(test.destroyOnHidden)
+				return New(selected, items).Key("settings").KeepAlive(true).DestroyOnHidden(test.destroyOnHidden)
 			}
 
 			layoutTabsFrame(ctx, router, widgetForFrame(), time.Unix(1, 0), image.Pt(360, 180))
@@ -671,7 +671,7 @@ func TestTabsRemovedItemReleasesRetainedPanelState(t *testing.T) {
 		{Key: "security", Label: "Security", Panel: security},
 	}
 	widgetForFrame := func() Widget {
-		return New("removed-panel", selected, items).KeepAlive(true)
+		return New(selected, items).Key("removed-panel").KeepAlive(true)
 	}
 	layoutTabsFrame(ctx, router, widgetForFrame(), time.Unix(1, 0), image.Pt(360, 180))
 	selected = "security"
@@ -697,7 +697,7 @@ func TestTabsPanelKeysAreScopedPerItem(t *testing.T) {
 		{Key: "account", Label: "Account", Panel: account},
 		{Key: "security", Label: "Security", Panel: security},
 	}
-	widgetForFrame := func() Widget { return New("settings", selected, items) }
+	widgetForFrame := func() Widget { return New(selected, items).Key("settings") }
 	layoutTabsFrame(ctx, router, widgetForFrame(), time.Unix(1, 0), image.Pt(360, 180))
 	selected = "security"
 	layoutTabsFrame(ctx, router, widgetForFrame(), time.Unix(1, int64(time.Millisecond)), image.Pt(360, 180))
@@ -710,7 +710,7 @@ func TestTabsCustomContentUsesMeasuredWidth(t *testing.T) {
 	ctx := newContext(nil)
 	gtx := testLayoutContext()
 	content := &tabsMeasurableProbe{}
-	widget := New("custom-content-width", "custom", []TabItem{{Key: "custom", Content: content}}).Fit()
+	widget := New("custom", []TabItem{{Key: "custom", Content: content}}).Key("custom-content-width").Fit()
 	dims := widget.Layout(ctx, gtx)
 	wantMin := 44 + 2*gtx.Dp(12)
 	if dims.Size.X < wantMin {
@@ -728,7 +728,7 @@ func TestTabsCustomContentKeysAreScopedPerItem(t *testing.T) {
 		{Key: "security", Content: security},
 	}
 
-	layoutTabsFrame(ctx, router, New("content-scope", "account", items).Fit(), time.Unix(1, 0), image.Pt(320, 100))
+	layoutTabsFrame(ctx, router, New("account", items).Key("content-scope").Fit(), time.Unix(1, 0), image.Pt(320, 100))
 
 	if account.measureKey == "" || account.layoutKey == "" || security.measureKey == "" {
 		t.Fatalf("content keys were not observed: account %#v security %#v", account, security)
@@ -746,7 +746,7 @@ func TestTabsHostSlotsUseDistinctKeyScopes(t *testing.T) {
 	router := new(input.Router)
 	leading := &tabsScopedContentProbe{}
 	trailing := &tabsScopedContentProbe{}
-	widget := New("slot-scope", "account", []TabItem{{Key: "account", Label: "Account"}}).
+	widget := New("account", []TabItem{{Key: "account", Label: "Account"}}).Key("slot-scope").
 		Fit().
 		Leading(leading).
 		Trailing(trailing)
@@ -765,7 +765,7 @@ func TestFitTabsKeepCustomContentIntrinsic(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	content := &tabsConstraintProbe{}
-	widget := New("fit-content", "custom", []TabItem{{Key: "custom", Content: content}}).Fit()
+	widget := New("custom", []TabItem{{Key: "custom", Content: content}}).Key("fit-content").Fit()
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(400, 100))
 
 	if content.constraints.Min.X != 0 {
@@ -781,8 +781,8 @@ func TestClosableTabsDoNotDoubleRightPadding(t *testing.T) {
 	gtx := testLayoutContext()
 	sizeStyle := tabsTestSizeStyle(Medium)
 	item := TabItem{Key: "file", Label: "file.go"}
-	plain := New("plain-width", "file", []TabItem{item}).Fit()
-	closable := New("closable-width", "file", []TabItem{{Key: item.Key, Label: item.Label, Closable: true}}).
+	plain := New("file", []TabItem{item}).Key("plain-width").Fit()
+	closable := New("file", []TabItem{{Key: item.Key, Label: item.Label, Closable: true}}).Key("closable-width").
 		Fit().OnClose(func(string) {})
 
 	plainWidth := plain.measureTabWidth(ctx, gtx, item, sizeStyle)
@@ -806,7 +806,7 @@ func TestTabsCloseButtonDoesNotSelectAnotherTab(t *testing.T) {
 		{Key: "account", Label: "Account", Closable: true, Panel: text.New("Account")},
 		{Key: "security", Label: "Security", Closable: true, Panel: text.New("Security")},
 	}
-	widget := New("settings-close", selected, items).
+	widget := New(selected, items).Key("settings-close").
 		OnChange(func(key string) { changed = key }).
 		OnClose(func(key string) { closed = key })
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(400, 180))
@@ -827,7 +827,7 @@ func TestTabsCloseButtonDoesNotSelectAnotherTab(t *testing.T) {
 func TestTabsDefaultSelectionDoesNotHideFittingItems(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	layoutTabsFrame(ctx, router, New("settings", "billing", tabsTestItems()), time.Unix(1, 0), image.Pt(500, 200))
+	layoutTabsFrame(ctx, router, New("billing", tabsTestItems()).Key("settings"), time.Unix(1, 0), image.Pt(500, 200))
 
 	state := testComponentState[tabsState](ctx, "settings", stateSlotTabs)
 	if state.list.Position.First != 0 || state.list.Position.Count != len(tabsTestItems()) {
@@ -887,7 +887,7 @@ func TestTabsSelectionVisibilityRechecksAfterResize(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	items := tabsOverflowItems()
-	widget := New("resize-selection", "Revenue", items)
+	widget := New("Revenue", items).Key("resize-selection")
 
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(560, 120))
 	state := testComponentState[tabsState](ctx, "resize-selection", stateSlotTabs)
@@ -923,7 +923,7 @@ func TestOverflowScrollButtonsAdvanceList(t *testing.T) {
 			ctx := newContext(nil)
 			router := new(input.Router)
 			items := tabsOverflowItems()
-			widget := New("overflow", "Overview", items)
+			widget := New("Overview", items).Key("overflow")
 			if test.vertical {
 				widget = widget.Vertical()
 			}
@@ -963,7 +963,7 @@ func TestOverflowMenuReservesTrigger(t *testing.T) {
 			ctx := newContext(nil)
 			router := new(input.Router)
 			items := tabsOverflowItems()
-			widget := New("overflow-menu", "Overview", items).Overflow(OverflowMenu)
+			widget := New("Overview", items).Key("overflow-menu").Overflow(OverflowMenu)
 			if test.vertical {
 				widget = widget.Vertical()
 			}
@@ -987,7 +987,7 @@ func TestTabsOverflowTriggerUsesMeasuredCustomContent(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	trigger := &tabsMeasurableProbe{}
-	widget := New("overflow-custom-trigger", "Overview", tabsOverflowItems()).
+	widget := New("Overview", tabsOverflowItems()).Key("overflow-custom-trigger").
 		Overflow(OverflowMenu).
 		OverflowTrigger(trigger).
 		MoreLabel("More tabs")
@@ -1005,7 +1005,7 @@ func TestTabsOverflowTriggerCanMeasureStatefulButton(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	trigger := buttonui.New("More").Label("More tabs")
-	widget := New("overflow-button-trigger", "Overview", tabsOverflowItems()).
+	widget := New("Overview", tabsOverflowItems()).Key("overflow-button-trigger").
 		Overflow(OverflowMenu).
 		OverflowTrigger(trigger)
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(300, 160))
@@ -1028,8 +1028,8 @@ func TestTabsOverflowTriggersAreScopedPerTabs(t *testing.T) {
 	trigger := buttonui.New("More")
 
 	core.BeginFrameWithViewport(ctx, gtx.Constraints.Max)
-	New("first", "one", items).Fit().Overflow(OverflowMenu).OverflowTrigger(trigger).Layout(ctx, gtx)
-	New("second", "one", items).Fit().Overflow(OverflowMenu).OverflowTrigger(trigger).Layout(ctx, gtx)
+	New("one", items).Key("first").Fit().Overflow(OverflowMenu).OverflowTrigger(trigger).Layout(ctx, gtx)
+	New("one", items).Key("second").Fit().Overflow(OverflowMenu).OverflowTrigger(trigger).Layout(ctx, gtx)
 	core.LayoutOverlays(ctx, gtx)
 	core.EndFrame(ctx)
 }
@@ -1041,7 +1041,7 @@ func TestOverflowMenuSelectsHiddenItemAndRequestsVisibility(t *testing.T) {
 	changed := ""
 	items := tabsOverflowItems()
 	widgetForFrame := func() Widget {
-		return New("overflow-menu-select", selected, items).
+		return New(selected, items).Key("overflow-menu-select").
 			Overflow(OverflowMenu).
 			OnChange(func(key string) { changed = key; selected = key })
 	}
@@ -1090,7 +1090,7 @@ func TestTabsOverflowSelectedLastVisibleGeometry(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	items := tabsOverflowItems()
-	widget := New("overflow-selected-last", "Conversions", items).
+	widget := New("Conversions", items).Key("overflow-selected-last").
 		Overflow(OverflowMenu).
 		OverflowTrigger(text.New("More"))
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(640, 160))
@@ -1113,7 +1113,7 @@ func TestTabsOverflowMeasurementAllocatesSiblingsWithinExactConstraints(t *testi
 	ctx := newContext(nil)
 	gtx := testLayoutContext()
 	gtx.Constraints = layout.Exact(image.Pt(660, 160))
-	widget := New("overflow-measure-exact", "Conversions", tabsOverflowItems()).
+	widget := New("Conversions", tabsOverflowItems()).Key("overflow-measure-exact").
 		Overflow(OverflowMenu).
 		OverflowTrigger(text.New("More"))
 	overflow := widget.measureOverflow(ctx, gtx, "Conversions")
@@ -1150,7 +1150,7 @@ func TestTabsCloseSelectedFallsBackToNextEnabledTab(t *testing.T) {
 		{Key: "billing", Label: "Billing", Disabled: true, Panel: text.New("Billing")},
 	}
 	widgetForFrame := func() Widget {
-		return New("close-fallback", selected, items).
+		return New(selected, items).Key("close-fallback").
 			OnChange(func(key string) { changed = key; selected = key }).
 			OnClose(func(key string) { closed = key })
 	}
@@ -1170,7 +1170,7 @@ func TestTabsOnAddExposesAddTabAction(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	added := 0
-	widget := New("add-tab", "account", []TabItem{{Key: "account", Label: "Account"}}).
+	widget := New("account", []TabItem{{Key: "account", Label: "Account"}}).Key("add-tab").
 		OnAdd(func() { added++ })
 	layoutTabsFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(320, 120))
 	bounds, ok := semanticBoundsForLabel(router.AppendSemantics(nil), "Add tab")
@@ -1190,7 +1190,7 @@ func TestTabsInlineEditCommitsWithEnter(t *testing.T) {
 	committedKey, committedLabel := "", ""
 	editing := "account"
 	widgetForFrame := func() Widget {
-		return New("edit-tab", "account", []TabItem{{Key: "account", Label: "Account", Editable: true}}).
+		return New("account", []TabItem{{Key: "account", Label: "Account", Editable: true}}).Key("edit-tab").
 			EditingKey(editing).
 			OnEdit(func(key, label string) { committedKey, committedLabel = key, label })
 	}
@@ -1210,7 +1210,7 @@ func TestTabsInlineEditEscapeCancels(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	committed := false
-	value := New("edit-cancel", "account", []TabItem{{Key: "account", Label: "Account", Editable: true}}).
+	value := New("account", []TabItem{{Key: "account", Label: "Account", Editable: true}}).Key("edit-cancel").
 		EditingKey("account").OnEdit(func(string, string) { committed = true })
 	start := time.Unix(1, 0)
 	layoutTabsFrame(ctx, router, value, start, image.Pt(320, 120))
@@ -1234,7 +1234,7 @@ func TestTabsInlineEditCommitsWhenFocusLeavesEditor(t *testing.T) {
 		{Key: "security", Label: "Security"},
 	}
 	widgetForFrame := func() Widget {
-		return New("edit-blur", "account", items).
+		return New("account", items).Key("edit-blur").
 			EditingKey(editing).
 			OnEdit(func(key, label string) {
 				committed = key + ":" + label
@@ -1260,7 +1260,7 @@ func TestVerticalOverflowMenuMeasuresCustomTriggerWidth(t *testing.T) {
 	gtx := testLayoutContext()
 	gtx.Constraints = layout.Exact(image.Pt(320, 120))
 	trigger := &tabsMeasurableProbe{size: image.Pt(180, 24)}
-	widget := New("vertical-custom-more", "Overview", tabsOverflowItems()).
+	widget := New("Overview", tabsOverflowItems()).Key("vertical-custom-more").
 		Vertical().
 		Overflow(OverflowMenu).
 		OverflowTrigger(trigger)
@@ -1309,7 +1309,7 @@ func TestTabsSemanticContracts(t *testing.T) {
 	router := new(input.Router)
 	items := tabsTestItems()
 	items[1].AccessibleLabel = "Security settings"
-	layoutTabsFrame(ctx, router, New("semantic-roles", "security", items), time.Unix(1, 0), image.Pt(400, 200))
+	layoutTabsFrame(ctx, router, New("security", items).Key("semantic-roles"), time.Unix(1, 0), image.Pt(400, 200))
 
 	gioNodes := router.AppendSemantics(nil)
 	selected := selectedSemanticLabels(gioNodes)
@@ -1664,14 +1664,14 @@ func containsString(values []string, want string) bool {
 }
 
 func TestUncontrolledPreservesEmptySelectionWithoutControl(t *testing.T) {
-	widget := New("tabs", "", nil).Uncontrolled()
+	widget := New("", nil).Key("tabs").Uncontrolled()
 	if widget.hasSelectedKey || !widget.hasDefaultSelected || widget.defaultSelectedKey != "" {
 		t.Fatalf("Uncontrolled() = hasSelectedKey=%v hasDefault=%v default=%q", widget.hasSelectedKey, widget.hasDefaultSelected, widget.defaultSelectedKey)
 	}
 }
 
 func TestSelectedKeyAfterDefaultSelectedKeyWinsControl(t *testing.T) {
-	widget := New("tabs", "", nil).DefaultSelectedKey("seed").SelectedKey("live")
+	widget := New("", nil).Key("tabs").DefaultSelectedKey("seed").SelectedKey("live")
 	if !widget.hasSelectedKey || widget.selectedKey != "live" {
 		t.Fatalf("SelectedKey after DefaultSelectedKey = hasSelectedKey=%v selectedKey=%q", widget.hasSelectedKey, widget.selectedKey)
 	}

@@ -115,7 +115,7 @@ func (c ComboboxWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dim
 }
 
 func (c ComboboxWidget) inputField(ctx *core.Context, state *comboboxState, triggerWidth *int) core.Widget {
-	return base.TextInput(c.key+"-input", c.input).
+	return base.TextInput(core.DerivedKey(ctx, core.FullKey(ctx, c.key), "input"), c.input).
 		Hint(c.hint).
 		Disabled(c.disabled).
 		Invalid(c.invalid).
@@ -156,7 +156,7 @@ func (c ComboboxWidget) inputField(ctx *core.Context, state *comboboxState, trig
 							slot := gtx
 							slot.Constraints = layout.Exact(image.Pt(indicatorWidth, iconSize))
 							return layout.Center.Layout(slot, func(gtx layout.Context) layout.Dimensions {
-								button := base.Button(c.key + "-open").
+								button := base.Button(core.DerivedKey(ctx, core.FullKey(ctx, c.key), "open")).
 									Label("Open options").
 									Disabled(c.disabled).
 									OnClick(func() {
@@ -230,7 +230,8 @@ func (c ComboboxWidget) panel(ctx *core.Context, state *comboboxState, triggerWi
 	} else {
 		children := make([]layoutui.Widget, 0, len(items))
 		for index, item := range items {
-			children = append(children, base.NewSelectItem(c.key+"-item-"+item.Key, item.Label).
+			itemKey := core.DerivedKey(ctx, core.FullKey(ctx, c.key), "item:"+item.Key)
+			children = append(children, base.NewSelectItem(itemKey, item.Label).
 				Selected(item.Key == c.selected).
 				Highlighted(index == state.highlighted).
 				Disabled(item.Disabled).

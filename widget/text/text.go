@@ -57,11 +57,17 @@ type Widget struct {
 }
 
 func New(text string) Widget {
-	return Widget{text: text, visualCache: &textVisualCache{}}
+	return Widget{key: core.AutoKey("text"), text: text, visualCache: &textVisualCache{}}
 }
 
-func Selectable(key, text string) Widget {
-	return Widget{key: key, text: text, selectable: true, visualCache: &textVisualCache{}}
+func Selectable(text string) Widget {
+	return Widget{key: core.AutoKey("selectable-text"), text: text, selectable: true, visualCache: &textVisualCache{}}
+}
+
+// Key assigns the stable identity used by selection and style transitions.
+func (t Widget) Key(key string) Widget {
+	t.key = key
+	return t
 }
 
 // WithDefaults supplies component-owned text defaults without exposing them
@@ -271,7 +277,7 @@ func (t Widget) resolveLayoutStyle(ctx *core.Context, gtx layout.Context) style.
 	if len(resolved.Transitions) == 0 {
 		return resolved
 	}
-	key := core.ClaimKey(ctx, core.KindStyle, "text")
+	key := core.ClaimDerivedKey(ctx, core.KindStyle, t.key, "style")
 	return computed.ApplyTransitions(ctx, gtx, key, resolved)
 }
 

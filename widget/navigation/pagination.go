@@ -32,10 +32,10 @@ type PaginationWidget struct {
 	visualCache      *paginationVisualCache
 }
 
-func NewPagination(key string, page, total int) PaginationWidget {
+func NewPagination(page, total int) PaginationWidget {
 	total = max(total, 1)
 	return PaginationWidget{
-		key:          key,
+		key:          core.AutoKey("pagination"),
 		page:         min(max(page, 1), total),
 		total:        total,
 		siblings:     1,
@@ -43,6 +43,12 @@ func NewPagination(key string, page, total int) PaginationWidget {
 		showControls: true,
 		visualCache:  &paginationVisualCache{},
 	}
+}
+
+// Key sets a stable identity for pagination interaction state.
+func (p PaginationWidget) Key(key string) PaginationWidget {
+	p.key = key
+	return p
 }
 
 func (p PaginationWidget) Size(size PaginationSize) PaginationWidget {

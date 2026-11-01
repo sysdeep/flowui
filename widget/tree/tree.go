@@ -320,13 +320,19 @@ type Widget struct {
 }
 
 // New creates a controlled Tree.
-func New(key, selectedKey string, items []Item) Widget {
+func New(selectedKey string, items []Item) Widget {
 	return Widget{
-		key:          key,
+		key:          core.AutoKey("tree"),
 		selectedKey:  selectedKey,
 		items:        items,
 		expandAction: ExpandActionClick,
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (t Widget) Key(key string) Widget {
+	t.key = key
+	return t
 }
 
 // DataVersion enables validation and flattened-data reuse. Increase version

@@ -261,7 +261,7 @@ func TestInputContextMenuOptOut(t *testing.T) {
 func TestInputContextMenuCustomReplacesDefault(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	custom := menu.New("custom", []menu.Item{{Key: "clear", Label: "Clear"}})
+	custom := menu.New([]menu.Item{{Key: "clear", Label: "Clear"}}).Key("custom")
 	i := New("Ada").Key("name").ContextMenu(custom)
 	start := time.Unix(7, 0)
 

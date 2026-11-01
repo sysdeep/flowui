@@ -27,7 +27,7 @@ func TestBarChartCopiesMutableInputs(t *testing.T) {
 	series := Values("sales", "Sales", values).ItemColors(colors)
 	allSeries := []Series{series}
 	categories := []string{"Mon", "Tue"}
-	widget := New("sales", allSeries).Categories(categories)
+	widget := New(allSeries).Key("sales").Categories(categories)
 
 	values[0] = 99
 	colors[0] = color.NRGBA{}
@@ -47,16 +47,16 @@ func TestBarChartDataVersionCachesResolvedData(t *testing.T) {
 	cache := new(chartDataCache)
 	metric := unit.Metric{PxPerDp: 1, PxPerSp: 1}
 	colors := testBarChartSeriesColors()
-	first := cache.resolveWithColors(New("chart", []Series{Values("series", "Series", []float64{1})}).DataVersion(1), &activeTheme, colors, metric)
-	second := cache.resolveWithColors(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(1), &activeTheme, colors, metric)
+	first := cache.resolveWithColors(New([]Series{Values("series", "Series", []float64{1})}).Key("chart").DataVersion(1), &activeTheme, colors, metric)
+	second := cache.resolveWithColors(New([]Series{Values("series", "Series", []float64{99})}).Key("chart").DataVersion(1), &activeTheme, colors, metric)
 	if first.generation == 0 || second.generation != first.generation || second.series[0].values[0].value != 1 {
 		t.Fatalf("same-version BarChart data was not reused: first %#v second %#v", first, second)
 	}
-	third := cache.resolveWithColors(New("chart", []Series{Values("series", "Series", []float64{99})}).DataVersion(2), &activeTheme, colors, metric)
+	third := cache.resolveWithColors(New([]Series{Values("series", "Series", []float64{99})}).Key("chart").DataVersion(2), &activeTheme, colors, metric)
 	if third.generation == second.generation || third.series[0].values[0].value != 99 {
 		t.Fatalf("new-version BarChart data was not resolved: %#v", third)
 	}
-	uncached := cache.resolveWithColors(New("chart", []Series{Values("series", "Series", []float64{7})}), &activeTheme, colors, metric)
+	uncached := cache.resolveWithColors(New([]Series{Values("series", "Series", []float64{7})}).Key("chart"), &activeTheme, colors, metric)
 	if uncached.generation != 0 || uncached.series[0].values[0].value != 7 {
 		t.Fatalf("unversioned BarChart data was cached: %#v", uncached)
 	}
@@ -74,7 +74,7 @@ func TestBarChartResolvesCategoryLabelsAfterPruning(t *testing.T) {
 	for index := range categories {
 		categories[index] = "Category"
 	}
-	widget := New("chart", nil).Categories(categories)
+	widget := New(nil).Key("chart").Categories(categories)
 	data := resolveChartData(widget, testBarChartSeriesColors(), testDp)
 	plot := image.Rect(80, 0, 480, 240)
 	geometry := widget.resolveGeometry(data, image.Pt(520, 320), plot)
@@ -119,7 +119,7 @@ func TestBarChartAnnotationGeometryUsesVisibleScales(t *testing.T) {
 }
 
 func TestHorizontalBarChartGeometryAndRectangles(t *testing.T) {
-	widget := New("horizontal", []Series{Values("values", "Values", []float64{25, 50, -20, 75})}).
+	widget := New([]Series{Values("values", "Values", []float64{25, 50, -20, 75})}).Key("horizontal").
 		Categories([]string{"A", "B", "C", "D"}).
 		Orientation(Horizontal)
 	data := resolveChartData(widget, testBarChartSeriesColors(), testDp)
@@ -140,7 +140,7 @@ func TestHorizontalBarChartGeometryAndRectangles(t *testing.T) {
 }
 
 func TestBarChartAxisLabelsFollowOrientation(t *testing.T) {
-	widget := New("chart", nil).CategoryAxis("Category").ValueAxis("Value")
+	widget := New(nil).Key("chart").CategoryAxis("Category").ValueAxis("Value")
 	if x, y := widget.axisLabels(); x != "Category" || y != "Value" {
 		t.Fatalf("vertical axis labels = %q, %q", x, y)
 	}
@@ -150,10 +150,10 @@ func TestBarChartAxisLabelsFollowOrientation(t *testing.T) {
 }
 
 func TestBarChartAnimationInterpolatesStackGeometry(t *testing.T) {
-	target := resolveChartData(New("chart", []Series{
+	target := resolveChartData(New([]Series{
 		Values("first", "First", []float64{10}).Stack("total"),
 		Values("second", "Second", []float64{5}).Stack("total"),
-	}), testBarChartSeriesColors(), testDp)
+	}).Key("chart"), testBarChartSeriesColors(), testDp)
 	from := barBaselineData(target)
 	midpoint := interpolateBarData(from, target, 0.5)
 	first := midpoint.series[0].values[0]
@@ -167,8 +167,8 @@ func TestBarChartAnimationInterpolatesStackGeometry(t *testing.T) {
 }
 
 func TestBarChartUpdateAnimationStartsFromDisplayedData(t *testing.T) {
-	previous := resolveChartData(New("chart", []Series{Values("series", "Series", []float64{4})}), testBarChartSeriesColors(), testDp)
-	target := resolveChartData(New("chart", []Series{Values("series", "Series", []float64{10})}), testBarChartSeriesColors(), testDp)
+	previous := resolveChartData(New([]Series{Values("series", "Series", []float64{4})}).Key("chart"), testBarChartSeriesColors(), testDp)
+	target := resolveChartData(New([]Series{Values("series", "Series", []float64{10})}).Key("chart"), testBarChartSeriesColors(), testDp)
 	from := barTransitionFrom(previous, target)
 	if from.series[0].values[0].value != 4 || from.series[0].values[0].end != 4 {
 		t.Fatalf("BarChart update start = %#v", from.series[0].values[0])
@@ -176,11 +176,11 @@ func TestBarChartUpdateAnimationStartsFromDisplayedData(t *testing.T) {
 }
 
 func TestResolveChartDataGroupsAndStacksSameSignValues(t *testing.T) {
-	data := resolveChartData(New("chart", []Series{
+	data := resolveChartData(New([]Series{
 		Values("desktop", "Desktop", []float64{10, -4, math.NaN()}).Stack("traffic"),
 		Values("mobile", "Mobile", []float64{5, -3, 2}).Stack("traffic"),
 		Values("direct", "Direct", []float64{7, 8}),
-	}).Categories([]string{"A", "B", "C"}), testBarChartSeriesColors(), testDp)
+	}).Key("chart").Categories([]string{"A", "B", "C"}), testBarChartSeriesColors(), testDp)
 	if data.categories != 3 || len(data.series) != 3 || len(data.columns) != 2 {
 		t.Fatalf("resolved BarChart data = %#v", data)
 	}
@@ -200,9 +200,9 @@ func TestResolveChartDataGroupsAndStacksSameSignValues(t *testing.T) {
 
 func TestResolveChartDataAppliesItemColors(t *testing.T) {
 	red := color.NRGBA{R: 0xff, A: 0xff}
-	data := resolveChartData(New("chart", []Series{
+	data := resolveChartData(New([]Series{
 		Values("values", "Values", []float64{1, 2, 3}).ItemColors([]color.NRGBA{red}),
-	}), testBarChartSeriesColors(), testDp)
+	}).Key("chart"), testBarChartSeriesColors(), testDp)
 	if data.series[0].values[0].color != red {
 		t.Fatalf("first item color = %#v", data.series[0].values[0].color)
 	}
@@ -212,21 +212,21 @@ func TestResolveChartDataAppliesItemColors(t *testing.T) {
 }
 
 func TestResolveChartDataIgnoresHiddenSeriesForCategoryCount(t *testing.T) {
-	data := resolveChartData(New("chart", []Series{
+	data := resolveChartData(New([]Series{
 		Values("visible", "Visible", []float64{1, 2}),
 		Values("hidden", "Hidden", []float64{1, 2, 3, 4}).Hidden(true),
-	}), testBarChartSeriesColors(), testDp)
+	}).Key("chart"), testBarChartSeriesColors(), testDp)
 	if data.categories != 2 || len(data.series) != 1 || len(data.legend) != 2 || !data.legend[1].hidden || len(data.columns) != 1 {
 		t.Fatalf("hidden BarChart series affected layout: %#v", data)
 	}
 }
 
 func TestIncludeZeroControlsAutomaticExtent(t *testing.T) {
-	data := resolveChartData(New("chart", []Series{Values("values", "Values", []float64{10, 20})}).IncludeZero(false), testBarChartSeriesColors(), testDp)
+	data := resolveChartData(New([]Series{Values("values", "Values", []float64{10, 20})}).Key("chart").IncludeZero(false), testBarChartSeriesColors(), testDp)
 	if data.yExtent.Minimum != 10 || data.yExtent.Maximum != 20 {
 		t.Fatalf("scale extent includes zero when disabled: %#v", data.yExtent)
 	}
-	data = resolveChartData(New("chart", []Series{Values("values", "Values", []float64{10, 20})}), testBarChartSeriesColors(), testDp)
+	data = resolveChartData(New([]Series{Values("values", "Values", []float64{10, 20})}).Key("chart"), testBarChartSeriesColors(), testDp)
 	if data.yExtent.Minimum != 0 || data.yExtent.Maximum != 20 {
 		t.Fatalf("default scale extent excludes zero: %#v", data.yExtent)
 	}
@@ -243,7 +243,7 @@ func TestResolveChartDataRejectsSeriesKeys(t *testing.T) {
 					t.Fatal("invalid BarChart series keys did not panic")
 				}
 			}()
-			resolveChartData(New("chart", series), testBarChartSeriesColors(), testDp)
+			resolveChartData(New(series).Key("chart"), testBarChartSeriesColors(), testDp)
 		}()
 	}
 }
@@ -284,10 +284,10 @@ func TestBarRectangleHonorsMinimumHeight(t *testing.T) {
 }
 
 func TestBarChartSelectionUsesCategoryIndex(t *testing.T) {
-	widget := New("chart", []Series{
+	widget := New([]Series{
 		Values("first", "First", []float64{10, 20}),
 		Values("second", "Second", []float64{12, math.NaN()}),
-	})
+	}).Key("chart")
 	data := resolveChartData(widget, testBarChartSeriesColors(), testDp)
 	geometry := chartGeometry{plot: image.Rect(0, 0, 100, 100), bandWidth: 50, categoryEnd: 2}
 	selection := widget.resolveSelection(data, geometry, 1, true)
@@ -299,7 +299,7 @@ func TestBarChartSelectionUsesCategoryIndex(t *testing.T) {
 func TestBarChartPointerSelection(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
-	widget := New("chart", []Series{Values("series", "Series", []float64{10, 20, 30})}).Categories([]string{"A", "B", "C"})
+	widget := New([]Series{Values("series", "Series", []float64{10, 20, 30})}).Key("chart").Categories([]string{"A", "B", "C"})
 	now := time.Unix(1, 0)
 	layoutBarChartFrame(ctx, router, widget, now)
 	state, _ := core.PeekState[chartState](ctx, "chart", stateSlotBarChart)
@@ -316,10 +316,10 @@ func TestBarChartPointerSelection(t *testing.T) {
 func TestBarChartRootDoesNotEnterKeyboardFocusOrder(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
-	widget := New("chart", []Series{
+	widget := New([]Series{
 		Values("first", "First", []float64{10, 20}),
 		Values("second", "Second", []float64{12, 24}),
-	}).OnLegendChange(func(string, bool) {})
+	}).Key("chart").OnLegendChange(func(string, bool) {})
 	layoutBarChartFrame(ctx, router, widget, time.Unix(1, 0))
 	state, _ := core.PeekState[chartState](ctx, "chart", stateSlotBarChart)
 
@@ -338,7 +338,7 @@ func TestBarChartDoubleClickResetsDataWindow(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
 	requested := chart.DataWindow{}
-	widget := New("chart", []Series{Values("series", "Series", []float64{1, 2, 3, 4})}).
+	widget := New([]Series{Values("series", "Series", []float64{1, 2, 3, 4})}).Key("chart").
 		DataWindow(.2, .8).
 		OnDataWindowChange(func(window chart.DataWindow) { requested = window })
 	start := time.Unix(2, 0)
@@ -356,7 +356,7 @@ func TestHorizontalBarChartWheelRequestsControlledDataWindow(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
 	requested := chart.DataWindow{}
-	widget := New("chart", []Series{Values("series", "Series", []float64{1, 2, 3, 4})}).
+	widget := New([]Series{Values("series", "Series", []float64{1, 2, 3, 4})}).Key("chart").
 		Orientation(Horizontal).
 		DataWindow(0.2, 0.8).
 		OnDataWindowChange(func(window chart.DataWindow) { requested = window })
@@ -373,7 +373,7 @@ func TestBarChartWithoutDataWindowDoesNotConsumeParentScroll(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
 	list := &layout.List{Axis: layout.Vertical}
-	widget := New("chart", []Series{Values("series", "Series", []float64{1, 2, 3})})
+	widget := New([]Series{Values("series", "Series", []float64{1, 2, 3})}).Key("chart")
 	now := time.Unix(9, 0)
 	layoutBarChartListFrame(ctx, router, list, widget, now)
 
@@ -391,10 +391,10 @@ func TestBarChartLegendClickDataClickAndCustomTooltip(t *testing.T) {
 	var legendHidden bool
 	var clicked chart.Selection
 	tooltipLaidOut := false
-	widget := New("chart", []Series{
+	widget := New([]Series{
 		Values("visible", "Visible", []float64{10, 20}),
 		Values("hidden", "Hidden", []float64{30, 40}).Hidden(true),
-	}).Categories([]string{"A", "B"}).
+	}).Key("chart").Categories([]string{"A", "B"}).
 		OnLegendChange(func(key string, hidden bool) {
 			legendKey, legendHidden = key, hidden
 		}).
@@ -438,7 +438,7 @@ func TestBarChartLegendClickDataClickAndCustomTooltip(t *testing.T) {
 func TestBarChartTooltipDisabledClearsInteraction(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
-	widget := New("chart", []Series{Values("series", "Series", []float64{10, 20})})
+	widget := New([]Series{Values("series", "Series", []float64{10, 20})}).Key("chart")
 	now := time.Unix(4, 0)
 	layoutBarChartFrame(ctx, router, widget, now)
 	state, _ := core.PeekState[chartState](ctx, "chart", stateSlotBarChart)
@@ -462,7 +462,7 @@ func TestBarChartTooltipAnimatesOutWithLastSelection(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
 	tooltipLayouts := 0
-	widget := New("chart", []Series{Values("series", "Series", []float64{10, 20})}).
+	widget := New([]Series{Values("series", "Series", []float64{10, 20})}).Key("chart").
 		TooltipContent(func(chart.Selection) core.Widget {
 			return core.WidgetFunc(func(*core.Context, layout.Context) layout.Dimensions {
 				tooltipLayouts++
@@ -494,7 +494,7 @@ func TestBarChartTooltipAnimatesOutWithLastSelection(t *testing.T) {
 func TestBarChartSemantics(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
-	layoutBarChartFrame(ctx, router, New("chart", []Series{Values("series", "Series", []float64{1})}).Label("Quarterly sales"), time.Unix(2, 0))
+	layoutBarChartFrame(ctx, router, New([]Series{Values("series", "Series", []float64{1})}).Key("chart").Label("Quarterly sales"), time.Unix(2, 0))
 	if !uitest.HasSemanticDescription(router.AppendSemantics(nil), "Quarterly sales, 1 series, 1 categories") {
 		t.Fatal("BarChart semantic description is missing")
 	}
@@ -503,7 +503,7 @@ func TestBarChartSemantics(t *testing.T) {
 func TestBarChartHandlesSmallConstraintsAndEmptyData(t *testing.T) {
 	ctx := barChartTestContext()
 	router := new(input.Router)
-	widget := New("small", []Series{Values("series", "Series", []float64{math.NaN()})}).XAxis("X").YAxis("Y")
+	widget := New([]Series{Values("series", "Series", []float64{math.NaN()})}).Key("small").XAxis("X").YAxis("Y")
 	viewport := image.Pt(24, 18)
 	var ops op.Ops
 	gtx := layout.Context{Constraints: layout.Exact(viewport), Source: router.Source(), Ops: &ops, Now: time.Unix(3, 0)}

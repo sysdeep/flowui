@@ -36,7 +36,7 @@ func demoList(m demoState, send ui.Send[Msg]) ui.Widget {
 			OnSelectionChange(func(keys []string) { send(demoMsg(func(m *demoState) { m.keys = keys })) }),
 		text.New(m.text("已选：")+strings.Join(m.keys, ", ")),
 		muted(m.text("分组与描述 · 含图标、尾部信息和禁用项")),
-		listbox.Sections("list-grouped", m.listGrouped, []listbox.Section{
+		listbox.Sections(m.listGrouped, []listbox.Section{
 			{Title: m.text("项目"), Items: []listbox.Item{
 				{Key: "flowui", Label: "FlowUI", Description: m.text("组件库"),
 					Leading: icon.New(lucide.Folder).Size(16), Trailing: muted("12")},
@@ -45,7 +45,7 @@ func demoList(m demoState, send ui.Send[Msg]) ui.Widget {
 			{Title: m.text("资源"), Items: []listbox.Item{
 				{Key: "docs", Label: m.text("文档"), Leading: icon.New(lucide.FileText).Size(16)},
 			}},
-		}).FillWidth().OnChange(setString(send, func(m *demoState) *string { return &m.listGrouped })),
+		}).Key("list-grouped").FillWidth().OnChange(setString(send, func(m *demoState) *string { return &m.listGrouped })),
 		muted(m.text("允许取消选择 · 再次点击当前项可清空")),
 		listbox.New(languageItems(m)).Key("list-optional").SelectedKey(m.listOptional).
 			AllowEmptySelection().HideIndicator().FillWidth().MaxHeight(180).
@@ -86,23 +86,23 @@ func demoTable(m demoState, send ui.Send[Msg]) ui.Widget {
 			}
 		}))
 	}
-	selectSingle := table.New("project-table", columns, rows).
+	selectSingle := table.New(columns, rows).Key("project-table").
 		Variant(table.VariantSecondary).Border(true).MinWidth(520).RowHeight(36).HeaderHeight(36).
 		SelectionMode(table.SelectionSingle).AllowEmptySelection().SelectedKey(m.selected).
 		DisabledKeys([]string{"studio"}).OnChange(selection(m, send)).OnSortChange(setSort).SortDescriptor(m.tableSort).
 		OnColumnResize(setWidth).OnRowActivate(func(key string) { send(logMsg(m.text("双击激活：") + key)) }).
 		OnAction(func(key string) { send(demoMsg(func(m *demoState) { m.tableRowSelected = key })) })
 	selectSingle = selectSingle.RowContextMenu(func(row table.Row) menu.Widget {
-		return menu.New("table-row-actions", []menu.Item{
+		return menu.New([]menu.Item{
 			{Key: "open", Label: m.text("打开 ") + row.Key, OnAction: report(send, m.text("右键菜单打开：")+row.Key)},
 			{Key: "copy", Label: m.text("复制项目键"), OnAction: report(send, m.text("右键菜单复制：")+row.Key)},
-		})
+		}).Key("table-row-actions")
 	})
 	if m.tableEmpty {
 		selectSingle = selectSingle.EmptyText(m.text("没有项目")).EmptyContent(text.New(m.text("空状态：可以通过下方按钮恢复示例数据。")))
 	}
 
-	grid := table.New("project-table-grid", columns, gridRows).
+	grid := table.New(columns, gridRows).Key("project-table-grid").
 		Border(true).GridLines(true).Striped(true).MaxHeight(230).RowHeight(36).
 		SelectionMode(table.SelectionMultiple).ShowSelectionIndicator().
 		SelectedKeys(m.tableSelected).DisabledKeys([]string{"studio"}).
@@ -111,7 +111,7 @@ func demoTable(m demoState, send ui.Send[Msg]) ui.Widget {
 			send(logMsg(m.text("多选项目：") + strings.Join(keys, "、")))
 		}).OnAction(func(key string) { send(logMsg(m.text("操作行：") + key)) })
 
-	loadMore := table.New("project-table-more", columns, loadRows).
+	loadMore := table.New(columns, loadRows).Key("project-table-more").
 		Border(true).Variant(table.VariantSecondary).MaxHeight(190).RowHeight(36).
 		LoadMore(m.tableLoadCount < 2, false, func() {
 			send(demoMsg(func(m *demoState) { m.tableLoadCount++ }))
@@ -137,14 +137,14 @@ func demoTable(m demoState, send ui.Send[Msg]) ui.Widget {
 			}),
 		).Gap(8),
 		text.New(m.text("Footer 与布局参数：")),
-		table.New("project-table-footer", columns, footerRows[:min(len(footerRows), 3)]).Variant(table.VariantSecondary).
+		table.New(columns, footerRows[:min(len(footerRows), 3)]).Key("project-table-footer").Variant(table.VariantSecondary).
 			Border(true).GridLines(true).Flow().MinWidth(520).HeaderHeight(34).RowHeight(36).
 			Footer(text.New(fmt.Sprintf(m.text("共 %d 条 · VariantSecondary · Flow · MinWidth"), len(rows)))),
 		muted(m.text("行高对比 · 28dp 紧凑与 44dp 宽松；默认行高为 36dp")),
-		table.New("table-compact", columns, gridRows).RowHeight(28).HeaderHeight(28).Border(true),
-		table.New("table-comfortable", columns, gridRows).RowHeight(44).Border(true),
+		table.New(columns, gridRows).Key("table-compact").RowHeight(28).HeaderHeight(28).Border(true),
+		table.New(columns, gridRows).Key("table-comfortable").RowHeight(44).Border(true),
 		muted(m.text("整组禁用")),
-		table.New("table-disabled", columns, gridRows).Border(true).
+		table.New(columns, gridRows).Key("table-disabled").Border(true).
 			SelectionMode(table.SelectionSingle).SelectedKey("flowui").Disabled(true),
 	).Gap(16)
 }
@@ -208,23 +208,23 @@ func demoTree(m demoState, send ui.Send[Msg]) ui.Widget {
 		{Key: "archive", Label: "archive", Disabled: true},
 	}
 	return layout.Column(
-		fixedHeight(270, tree.New("file-tree", m.selected, items).ExpandedKeys(m.expandedKeys).
+		fixedHeight(270, tree.New(m.selected, items).Key("file-tree").ExpandedKeys(m.expandedKeys).
 			OnExpandedChange(func(keys []string) { send(demoMsg(func(m *demoState) { m.expandedKeys = keys })) }).
 			OnChange(selection(m, send))),
 		text.New(m.text("当前文件：")+m.selected),
 		muted(m.text("多选与右键菜单 · Ctrl/Command 切换选择，Shift 连续选择")),
-		fixedHeight(240, tree.New("file-tree-multi", "", items).
+		fixedHeight(240, tree.New("", items).Key("file-tree-multi").
 			SelectionMode(tree.SelectionMultiple).SelectedKeys(m.treeMultiSelected).
 			ExpandedKeys([]string{"src", "widgets"}).Guides(true).GuideStyle(tree.GuideDashed).
 			OnSelectionChange(func(keys []string) {
 				send(demoMsg(func(m *demoState) { m.treeMultiSelected = keys }))
-			}).ContextMenu(menu.New("tree-file-menu", []menu.Item{
+			}).ContextMenu(menu.New([]menu.Item{
 			{Key: "open", Label: m.text("打开"), OnAction: report(send, m.text("打开选中文件"))},
 			{Key: "copy", Label: m.text("复制项目键"), OnAction: report(send, m.text("复制选中文件"))},
-		})).OnContextMenu(func(key string) { send(logMsg(m.text("右键文件：") + key)) })),
+		}).Key("tree-file-menu")).OnContextMenu(func(key string) { send(logMsg(m.text("右键文件：") + key)) })),
 		text.New(m.text("选中文件：")+strings.Join(m.treeMultiSelected, ", ")),
 		muted(m.text("独立勾选 · 父子节点互不联动 · 紧凑表面变体")),
-		fixedHeight(220, tree.New("file-tree-strict", "", items).
+		fixedHeight(220, tree.New("", items).Key("file-tree-strict").
 			Variant(tree.VariantSurface).Size(tree.SizeSmall).SelectionMode(tree.SelectionNone).
 			ExpandedKeys([]string{"src", "widgets"}).Checkable(true).CheckStrictly(true).
 			CheckedKeys(m.treeStrictChecked).Guides(true).GuideConnectors(true).
@@ -233,8 +233,8 @@ func demoTree(m demoState, send ui.Send[Msg]) ui.Widget {
 			})),
 		text.New(m.text("独立勾选：")+strings.Join(m.treeStrictChecked, ", ")),
 		muted(m.text("空树与整组禁用")),
-		tree.New("file-tree-empty", "", []tree.Item{}).EmptyText(m.text("暂无文件")),
-		fixedHeight(130, tree.New("file-tree-disabled", "", items).Disabled(true)),
+		tree.New("", []tree.Item{}).Key("file-tree-empty").EmptyText(m.text("暂无文件")),
+		fixedHeight(130, tree.New("", items).Key("file-tree-disabled").Disabled(true)),
 	).Gap(16)
 }
 
@@ -262,19 +262,19 @@ func demoTabs(m demoState, send ui.Send[Msg]) ui.Widget {
 	}
 	return layout.Column(
 		muted(m.text("主要与次要样式 · 图标、数量与禁用项")),
-		tabs.New("tabs-primary", m.tab, items).OnChange(changed),
+		tabs.New(m.tab, items).Key("tabs-primary").OnChange(changed),
 		divider.New(),
-		tabs.New("tabs-secondary", m.tab, items).Variant(tabs.Secondary).OnChange(changed),
+		tabs.New(m.tab, items).Key("tabs-secondary").Variant(tabs.Secondary).OnChange(changed),
 		muted(m.text("尺寸与强调色")),
-		tabs.New("tabs-small", m.tab, items).Size(tabs.Small).OnChange(changed),
-		tabs.New("tabs-large", m.tab, items).Size(tabs.Large).Color(tabs.ColorAccent).
+		tabs.New(m.tab, items).Key("tabs-small").Size(tabs.Small).OnChange(changed),
+		tabs.New(m.tab, items).Key("tabs-large").Size(tabs.Large).Color(tabs.ColorAccent).
 			Fit().Separators(true).OnChange(changed),
 		muted(m.text("纵向与底部布局")),
-		fixedHeight(170, tabs.New("tabs-vertical", m.tab, items).Vertical().OnChange(changed)),
-		tabs.New("tabs-bottom", m.tab, items).Placement(tabs.Bottom).Centered(true).OnChange(changed),
+		fixedHeight(170, tabs.New(m.tab, items).Key("tabs-vertical").Vertical().OnChange(changed)),
+		tabs.New(m.tab, items).Key("tabs-bottom").Placement(tabs.Bottom).Centered(true).OnChange(changed),
 		muted(m.text("文档标签 · 新增、关闭与重命名")),
 		muted(m.text("点击加号新增；选中标签后按 F2 重命名，回车提交，Escape 取消。")),
-		tabs.New("tabs-documents", m.navTabSelected, documents).CloseOnHover(true).
+		tabs.New(m.navTabSelected, documents).Key("tabs-documents").CloseOnHover(true).
 			OnChange(setString(send, func(m *demoState) *string { return &m.navTabSelected })).
 			OnAdd(func() { send(demoMsg(addDemoTab)) }).
 			OnClose(func(key string) { send(demoMsg(func(m *demoState) { closeDemoTab(m, key) })) }).
@@ -289,13 +289,13 @@ func demoTabs(m demoState, send ui.Send[Msg]) ui.Widget {
 				}))
 			}),
 		muted(m.text("溢出菜单 · 缩窄窗口查看隐藏标签")),
-		tabs.New("tabs-overflow", "overflow-0", overflow).Uncontrolled().Overflow(tabs.OverflowMenu).
+		tabs.New("overflow-0", overflow).Key("tabs-overflow").Uncontrolled().Overflow(tabs.OverflowMenu).
 			MoreLabel(m.text("更多文档")),
 		muted(m.text("手动激活 · 方向键移动焦点，回车或空格切换")),
-		tabs.New("tabs-manual", m.tab, items).Activation(tabs.ActivationManual).
+		tabs.New(m.tab, items).Key("tabs-manual").Activation(tabs.ActivationManual).
 			PanelTransition(tabs.PanelFade).OnChange(changed),
 		muted(m.text("整组禁用")),
-		tabs.New("tabs-disabled", "overview", items).Disabled(true),
+		tabs.New("overview", items).Key("tabs-disabled").Disabled(true),
 	).Gap(24)
 }
 
@@ -326,12 +326,12 @@ func demoPagination(m demoState, send ui.Send[Msg]) ui.Widget {
 	changed := func(page int) { send(demoMsg(func(m *demoState) { m.navPage = page })) }
 	return layout.Column(
 		muted(m.text("基础分页 · 首尾页自动禁用前后按钮")),
-		widgetnav.NewPagination("pagination", m.page, 12).Labels(m.text("上一页"), m.text("下一页")).OnChange(func(page int) {
+		widgetnav.NewPagination(m.page, 12).Key("pagination").Labels(m.text("上一页"), m.text("下一页")).OnChange(func(page int) {
 			send(demoMsg(func(m *demoState) { m.page = page }))
 		}),
 		text.New(fmt.Sprintf(m.text("第 %d 页 / 共 12 页"), m.page)),
 		muted(m.text("大量页码 · 省略号与页码汇总")),
-		widgetnav.NewPagination("pagination-many", m.navPage, 100).Siblings(1).Boundaries(1).
+		widgetnav.NewPagination(m.navPage, 100).Key("pagination-many").Siblings(1).Boundaries(1).
 			Labels(m.text("上一页"), m.text("下一页")).Summary(text.New(fmt.Sprintf(m.text("第 %d 页 / 共 100 页"), m.navPage))).
 			OnChange(changed),
 		layout.Wrap(
@@ -341,16 +341,16 @@ func demoPagination(m demoState, send ui.Send[Msg]) ui.Widget {
 				OnClick(func() { changed(100) }),
 		).Gap(8),
 		muted(m.text("小尺寸 · 仅页码")),
-		widgetnav.NewPagination("pagination-small", m.navPage, 100).
+		widgetnav.NewPagination(m.navPage, 100).Key("pagination-small").
 			Size(widgetnav.PaginationSizeSmall).ShowControls(false).Siblings(0).OnChange(changed),
 		muted(m.text("大尺寸")),
-		widgetnav.NewPagination("pagination-large", m.page, 12).
+		widgetnav.NewPagination(m.page, 12).Key("pagination-large").
 			Size(widgetnav.PaginationSizeLarge).Labels(m.text("上一页"), m.text("下一页")).OnChange(func(page int) {
 			send(demoMsg(func(m *demoState) { m.page = page }))
 		}),
 		muted(m.text("单页与禁用状态")),
-		widgetnav.NewPagination("pagination-one", 1, 1).Labels(m.text("上一页"), m.text("下一页")),
-		widgetnav.NewPagination("pagination-disabled", 3, 12).Labels(m.text("上一页"), m.text("下一页")).Disabled(true),
+		widgetnav.NewPagination(1, 1).Key("pagination-one").Labels(m.text("上一页"), m.text("下一页")),
+		widgetnav.NewPagination(3, 12).Key("pagination-disabled").Labels(m.text("上一页"), m.text("下一页")).Disabled(true),
 	).Gap(20)
 }
 
@@ -377,7 +377,7 @@ func demoSidebar(m demoState, send ui.Send[Msg]) ui.Widget {
 	if m.sidebarCollapsed {
 		footer = icon.New(lucide.User).Size(18)
 	}
-	nav := sidebar.NewSections("sidebar-demo", m.sidebarSelected, sections).
+	nav := sidebar.NewSections(m.sidebarSelected, sections).Key("sidebar-demo").
 		Width(240).CollapsedWidth(56).Collapsed(m.sidebarCollapsed).OpenKeys(m.sidebarOpen).
 		Header(icon.New(lucide.PanelLeft).Size(20)).Footer(footer).
 		OnOpenChange(func(keys []string) {
@@ -395,10 +395,10 @@ func demoSidebar(m demoState, send ui.Send[Msg]) ui.Widget {
 		layout.Box(nav).Align(layout.AlignTopStart).Style(style.New().FillWidth().Height(500)),
 		text.New(m.text("当前选择：")+m.sidebarSelected),
 		muted(m.text("空侧栏与整组禁用")),
-		layout.Box(sidebar.New("sidebar-empty", "", []sidebar.Item{}).
+		layout.Box(sidebar.New("", []sidebar.Item{}).Key("sidebar-empty").
 			Width(240).EmptyText(m.text("暂无导航项"))).Align(layout.AlignTopStart).
 			Style(style.New().FillWidth().Height(80)),
-		layout.Box(sidebar.NewSections("sidebar-disabled", "overview", sections).Width(240).Disabled(true)).
+		layout.Box(sidebar.NewSections("overview", sections).Key("sidebar-disabled").Width(240).Disabled(true)).
 			Align(layout.AlignTopStart).Style(style.New().FillWidth().Height(260)),
 	).Gap(16)
 }

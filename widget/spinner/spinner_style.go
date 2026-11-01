@@ -57,7 +57,7 @@ func (s Widget) resolveStyle(ctx *core.Context, gtx layout.Context) spinnerResol
 		s.style,
 	)
 	if computed.HasTransitions(root, indicator) {
-		key := core.ClaimKey(ctx, core.KindStyle, "spinner")
+		key := core.ClaimDerivedKey(ctx, core.KindStyle, s.key, "style")
 		root = computed.ApplyTransitions(ctx, gtx, key, root)
 		indicator = computed.ApplyPartTransitions(ctx, gtx, key, style.PartIndicator, indicator)
 	}

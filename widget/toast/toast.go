@@ -112,8 +112,13 @@ type Widget struct {
 	visualCache   *toastVisualCache
 }
 
-func New(key string, items []Item) Widget {
-	return Widget{key: key, items: items, visualCache: &toastVisualCache{}}
+func New(items []Item) Widget {
+	return Widget{key: core.AutoKey("toast"), items: items, visualCache: &toastVisualCache{}}
+}
+
+func (p Widget) Key(key string) Widget {
+	p.key = key
+	return p
 }
 
 func (p Widget) OnClose(onClose func(string)) Widget {

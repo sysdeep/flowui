@@ -134,7 +134,8 @@ func TestComboboxKeyboardSelects(t *testing.T) {
 	}
 	h.Frame(build())
 	h.Frame(build())
-	tag := core.FieldFocusTag(h.Context(), "lang-keys-input")
+	inputKey := core.DerivedKey(h.Context(), "lang-keys", "input")
+	tag := core.FieldFocusTag(h.Context(), core.FullKey(h.Context(), inputKey))
 	if tag == nil {
 		t.Fatal("missing combobox input focus tag")
 	}
@@ -160,7 +161,8 @@ func TestComboboxSelectsFilteredResultWithKeyboard(t *testing.T) {
 	}
 	h.Frame(build())
 	h.Frame(build())
-	h.Router().Source().Execute(key.FocusCmd{Tag: core.FieldFocusTag(h.Context(), "filter-input")})
+	inputKey := core.DerivedKey(h.Context(), "filter", "input")
+	h.Router().Source().Execute(key.FocusCmd{Tag: core.FieldFocusTag(h.Context(), core.FullKey(h.Context(), inputKey))})
 	h.Frame(build())
 	h.Key(key.NameEnd, 0)
 	h.Frame(build())
@@ -197,7 +199,8 @@ func TestComboboxKeyboardSkipsDisabledOptions(t *testing.T) {
 			}
 			h.Frame(build())
 			h.Frame(build())
-			h.Router().Source().Execute(key.FocusCmd{Tag: core.FieldFocusTag(h.Context(), "disabled-options-input")})
+			inputKey := core.DerivedKey(h.Context(), "disabled-options", "input")
+			h.Router().Source().Execute(key.FocusCmd{Tag: core.FieldFocusTag(h.Context(), core.FullKey(h.Context(), inputKey))})
 			h.Frame(build())
 			for _, name := range test.keys {
 				h.Key(name, 0)
@@ -281,7 +284,8 @@ func TestComboboxClickFocusesAndEditsInput(t *testing.T) {
 	h.Frame(build())
 	h.Click(f32.Pt(40, 16))
 	h.Frame(build())
-	tag := core.FieldFocusTag(h.Context(), "click-edit-input")
+	inputKey := core.DerivedKey(h.Context(), "click-edit", "input")
+	tag := core.FieldFocusTag(h.Context(), core.FullKey(h.Context(), inputKey))
 	if tag == nil || !h.Router().Source().Focused(tag) {
 		t.Fatalf("combobox input did not receive focus: tag=%v", tag)
 	}

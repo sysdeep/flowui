@@ -12,7 +12,7 @@ tasks := []gantt.Task{
 	gantt.NewMilestone("launch", "Launch", day(12)),
 }
 
-chart := gantt.New("release-plan", tasks).
+chart := gantt.New(tasks).Key("release-plan").
 	TimeWindow(day(0), day(20))
 ```
 

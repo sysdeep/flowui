@@ -61,18 +61,18 @@ func demoBreadcrumb(m demoState, send ui.Send[Msg]) ui.Widget {
 		}
 	}
 	return layout.Column(
-		widgetnav.NewBreadcrumb("location", path).OnChange(setString(send, func(m *demoState) *string { return &m.location })),
+		widgetnav.NewBreadcrumb(path).Key("location").OnChange(setString(send, func(m *demoState) *string { return &m.location })),
 		text.New(m.text("当前位置：")+m.location),
 		button.New(m.text("回到组件页")).Variant(button.Secondary).
 			OnClick(func() { send(demoMsg(func(m *demoState) { m.location = "components" })) }),
 		muted(m.text("自定义分隔符与禁用层级")),
-		widgetnav.NewBreadcrumb("location-custom", []widgetnav.BreadcrumbItem{
+		widgetnav.NewBreadcrumb([]widgetnav.BreadcrumbItem{
 			{Key: "home", Label: m.text("首页")},
 			{Key: "archive", Label: m.text("归档"), Disabled: true},
 			{Key: "components", Label: m.text("组件")},
-		}).Separator("›").OnChange(func(key string) { send(logMsg(m.text("面包屑导航：") + key)) }),
+		}).Key("location-custom").Separator("›").OnChange(func(key string) { send(logMsg(m.text("面包屑导航：") + key)) }),
 		muted(m.text("较长路径 · 窄窗口自动换行")),
-		widgetnav.NewBreadcrumb("location-long", []widgetnav.BreadcrumbItem{
+		widgetnav.NewBreadcrumb([]widgetnav.BreadcrumbItem{
 			{Key: "workspace", Label: m.text("我的工作区")},
 			{Key: "projects", Label: m.text("项目")},
 			{Key: "flowui", Label: "FlowUI"},
@@ -80,7 +80,7 @@ func demoBreadcrumb(m demoState, send ui.Send[Msg]) ui.Widget {
 			{Key: "guide", Label: m.text("使用指南")},
 			{Key: "navigation", Label: m.text("数据与导航")},
 			{Key: "breadcrumb", Label: m.text("面包屑")},
-		}).OnChange(func(key string) { send(logMsg(m.text("面包屑导航：") + key)) }),
+		}).Key("location-long").OnChange(func(key string) { send(logMsg(m.text("面包屑导航：") + key)) }),
 	).Gap(16)
 }
 
@@ -114,7 +114,7 @@ func demoCommandPalette(m demoState, send ui.Send[Msg]) ui.Widget {
 			send(demoMsg(func(m *demoState) { m.palette = true }))
 		}),
 		muted(m.text("搜索名称或说明；↑ / ↓ 选择，Enter 执行，Esc 关闭。Ctrl+S 与菜单共用保存命令。")),
-		commandpalette.New("palette", m.palette, commands).
+		commandpalette.New(m.palette, commands).Key("palette").
 			OnOpenChange(setBool(send, func(m *demoState) *bool { return &m.palette })),
 	).Gap(16))
 }

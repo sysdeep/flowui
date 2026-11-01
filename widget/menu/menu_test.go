@@ -64,8 +64,8 @@ func menuTestLayoutContext(router *input.Router, now time.Time) layout.Context {
 func TestMenuAutoWidthMeasuresContentAndHonorsBounds(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	short := New("short", []Item{{Key: "one", Label: "One"}}).AutoWidth().MinWidth(160)
-	long := New("long", []Item{{Key: "one", Label: "A considerably longer menu action"}}).AutoWidth().MinWidth(160).MaxWidth(280)
+	short := New([]Item{{Key: "one", Label: "One"}}).Key("short").AutoWidth().MinWidth(160)
+	long := New([]Item{{Key: "one", Label: "A considerably longer menu action"}}).Key("long").AutoWidth().MinWidth(160).MaxWidth(280)
 	shortWidth := short.preferredWidthPxWithVisual(ctx, gtx, short.visual(ctx))
 	longWidth := long.preferredWidthPxWithVisual(ctx, gtx, long.visual(ctx))
 	if longWidth <= shortWidth {
@@ -89,7 +89,7 @@ func TestMenuAutoWidthIncludesLeadingContentGap(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	leading := fixedMenuWidget{size: image.Pt(16, 16)}
-	widget := New("leading-gap", nil)
+	widget := New(nil).Key("leading-gap")
 	item := Item{Key: "roadmap", Label: "Roadmap", Leading: leading}
 	visual := widget.visual(ctx)
 	defaults := visual.defaults
@@ -114,7 +114,7 @@ func TestMenuAutoWidthIncludesLeadingContentGap(t *testing.T) {
 func TestMenuAutoWidthMeasuresEmptyText(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	widget := New("empty", nil).EmptyText("No matching actions").AutoWidth()
+	widget := New(nil).Key("empty").EmptyText("No matching actions").AutoWidth()
 	visual := widget.visual(ctx)
 	width := widget.preferredWidthPxWithVisual(ctx, gtx, visual)
 	if width <= gtx.Dp(visual.defaults.Metrics.Padding*2) {
@@ -125,7 +125,7 @@ func TestMenuAutoWidthMeasuresEmptyText(t *testing.T) {
 func TestMenuAutoWidthIncludesSectionTitlePadding(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	widget := Sections("section-width", []Section{{Title: "A considerably long section title"}}).AutoWidth()
+	widget := Sections([]Section{{Title: "A considerably long section title"}}).Key("section-width").AutoWidth()
 	visual := widget.visual(ctx)
 	defaults := visual.defaults
 	metrics := defaults.Metrics
@@ -142,10 +142,10 @@ func TestMenuAutoWidthUsesSideEffectFreeWidgetMeasurement(t *testing.T) {
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	leading := &measurableMenuWidget{size: image.Pt(48, 16)}
 	indicator := &measurableMenuWidget{size: image.Pt(22, 16)}
-	widget := New("measurable", []Item{{
+	widget := New([]Item{{
 		Key: "more", Label: "More", Leading: leading,
 		Children: []Item{{Key: "copy", Label: "Copy"}}, SubmenuIndicator: indicator,
-	}}).AutoWidth()
+	}}).Key("measurable").AutoWidth()
 	width := widget.preferredWidthPxWithVisual(ctx, gtx, widget.visual(ctx))
 	if width <= 0 || leading.measureCalls != 1 || indicator.measureCalls != 1 || leading.layoutCalls != 0 || indicator.layoutCalls != 0 {
 		t.Fatalf("measurement width %d leading %#v indicator %#v", width, leading, indicator)
@@ -156,7 +156,7 @@ func TestMenuAutoWidthCachesVersionedMeasurement(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	leading := &measurableMenuWidget{size: image.Pt(48, 16)}
-	widget := New("cached-width", []Item{{Key: "more", Label: "More", Leading: leading}}).
+	widget := New([]Item{{Key: "more", Label: "More", Leading: leading}}).Key("cached-width").
 		AutoWidth().DataVersion(1)
 	state := &menuState{}
 	first := widget.preferredWidthPxCachedWithVisual(ctx, gtx, state, widget.visual(ctx))
@@ -175,7 +175,7 @@ func TestMenuAutoWidthCacheInvalidatesLayoutOptions(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	leading := &measurableMenuWidget{size: image.Pt(48, 16)}
-	widget := New("cached-options", []Item{{Key: "more", Label: "More", Leading: leading}}).
+	widget := New([]Item{{Key: "more", Label: "More", Leading: leading}}).Key("cached-options").
 		AutoWidth().DataVersion(1)
 	state := &menuState{}
 	widget.preferredWidthPxCachedWithVisual(ctx, gtx, state, widget.visual(ctx))
@@ -199,7 +199,7 @@ func TestMenuAutoWidthCacheInvalidatesLayoutOptions(t *testing.T) {
 
 func TestMenuActionEventIncludesSubmenuPath(t *testing.T) {
 	var got ActionEvent
-	root := New("actions", []Item{{Key: "more", Children: []Item{{Key: "copy", Label: "Copy"}}}}).
+	root := New([]Item{{Key: "more", Children: []Item{{Key: "copy", Label: "Copy"}}}}).Key("actions").
 		OnActionEvent(func(event ActionEvent) { got = event })
 	state := &menuState{key: "actions"}
 	child := root.submenu(state, root.items[0])
@@ -210,7 +210,7 @@ func TestMenuActionEventIncludesSubmenuPath(t *testing.T) {
 }
 
 func TestMenuDataVersionCachesEntries(t *testing.T) {
-	widget := Sections("cached", []Section{{Title: "Edit", Items: []Item{{Key: "copy", Label: "Copy"}}}}).DataVersion(1)
+	widget := Sections([]Section{{Title: "Edit", Items: []Item{{Key: "copy", Label: "Copy"}}}}).Key("cached").DataVersion(1)
 	state := new(menuState)
 	entries := state.resolveEntries(widget)
 	cachedEntries := state.resolveEntries(widget)
@@ -224,10 +224,10 @@ func TestMenuDataVersionCachesEntries(t *testing.T) {
 }
 
 func TestMenuDataCacheInvalidatesAutomaticSectionSeparators(t *testing.T) {
-	widget := Sections("sections", []Section{
+	widget := Sections([]Section{
 		{Title: "Edit", Items: []Item{{Key: "copy", Label: "Copy"}}},
 		{Title: "View", Items: []Item{{Key: "zoom", Label: "Zoom"}}},
-	}).DataVersion(1)
+	}).Key("sections").DataVersion(1)
 	state := new(menuState)
 	withSeparators := state.resolveEntries(widget)
 	withoutSeparators := state.resolveEntries(widget.AutoSeparateSections(false))
@@ -243,7 +243,7 @@ func TestMenuDataCacheInvalidatesAutomaticSectionSeparators(t *testing.T) {
 
 func TestMenuCompactTokensAndSubmenu(t *testing.T) {
 	ctx := menuTestContext()
-	base := New("actions", nil)
+	base := New(nil).Key("actions")
 	visual := base.Compact(true).visual(ctx)
 	metrics := visual.defaults.Metrics
 	if metrics.Padding != 4 || metrics.Radius != 8 || metrics.ItemGap != 0 || metrics.ItemMinHeight != 28 || metrics.ItemRadius != 4 || metrics.ItemPaddingX != 8 || metrics.ItemPaddingY != 3 {
@@ -261,7 +261,7 @@ func TestMenuCompactTokensAndSubmenu(t *testing.T) {
 }
 
 func TestMenuSubmenuInheritsDataAndSectionConfiguration(t *testing.T) {
-	root := New("actions", []Item{{Key: "more", Children: []Item{{Key: "copy", Label: "Copy"}}}}).
+	root := New([]Item{{Key: "more", Children: []Item{{Key: "copy", Label: "Copy"}}}}).Key("actions").
 		DataVersion(7).
 		AutoSeparateSections(false).
 		Compact(true)
@@ -273,9 +273,9 @@ func TestMenuSubmenuInheritsDataAndSectionConfiguration(t *testing.T) {
 }
 
 func TestMenuRuntimeHoverInspectionDoesNotClaimSubmenuState(t *testing.T) {
-	widget := New("runtime-menu", []Item{{
+	widget := New([]Item{{
 		Key: "more", Label: "More", Children: []Item{{Key: "copy", Label: "Copy"}},
-	}})
+	}}).Key("runtime-menu")
 	ctx := menuTestContext()
 
 	core.BeginFrame(ctx)
@@ -302,7 +302,7 @@ func TestMenuCloseReportsPointerAndKeyboardModality(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
 	modalities := make([]bool, 0, 2)
-	widget := New("actions", []Item{{Key: "copy", Label: "Copy"}}).withClose(func(visible bool) {
+	widget := New([]Item{{Key: "copy", Label: "Copy"}}).Key("actions").withClose(func(visible bool) {
 		modalities = append(modalities, visible)
 	})
 	start := time.Unix(1, 0)
@@ -327,9 +327,9 @@ func TestMenuCloseReportsPointerAndKeyboardModality(t *testing.T) {
 func TestPointerActivatedSubmenuItemDoesNotShowKeyboardFocusRing(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
-	widget := New("actions", []Item{{
+	widget := New([]Item{{
 		Key: "share", Label: "Share", Children: []Item{{Key: "copy-link", Label: "Copy link"}},
-	}})
+	}}).Key("actions")
 	start := time.Unix(1, 0)
 	layoutMenuFrame(ctx, router, widget, start)
 	state, _ := core.PeekState[menuState](ctx, "actions", stateSlotMenu)
@@ -345,9 +345,9 @@ func TestPointerActivatedSubmenuItemDoesNotShowKeyboardFocusRing(t *testing.T) {
 func TestPointerClickOnSubmenuItemDoesNotShowKeyboardFocusRing(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
-	widget := New("actions", []Item{{
+	widget := New([]Item{{
 		Key: "share", Label: "Share", Children: []Item{{Key: "copy-link", Label: "Copy link"}},
-	}})
+	}}).Key("actions")
 	start := time.Unix(1, 0)
 	layoutMenuFrame(ctx, router, widget, start)
 
@@ -370,9 +370,9 @@ func TestPointerClickOnSubmenuItemDoesNotShowKeyboardFocusRing(t *testing.T) {
 func TestPointerPressImmediatelyClearsSubmenuItemKeyboardFocusRing(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
-	widget := New("actions", []Item{{
+	widget := New([]Item{{
 		Key: "share", Label: "Share", Children: []Item{{Key: "copy-link", Label: "Copy link"}},
-	}})
+	}}).Key("actions")
 	start := time.Unix(1, 0)
 	layoutMenuFrame(ctx, router, widget, start)
 	state, _ := core.PeekState[menuState](ctx, "actions", stateSlotMenu)
@@ -421,7 +421,7 @@ func TestSubmenuItemFocusRingUsesRequestedOrigin(t *testing.T) {
 
 func TestMenuLayoutUsesStableWidth(t *testing.T) {
 	ctx := menuTestContext()
-	dims := New("actions", []Item{{Key: "copy", Label: "Copy"}, {Key: "paste", Label: "Paste"}}).
+	dims := New([]Item{{Key: "copy", Label: "Copy"}, {Key: "paste", Label: "Paste"}}).Key("actions").
 		Layout(ctx, menuTestLayoutContext(nil, time.Unix(1, 0)))
 	if dims.Size.X != 192 || dims.Size.Y != 80 {
 		t.Fatalf("menu size = %v, want viewport-clamped 192x80", dims.Size)
@@ -431,7 +431,7 @@ func TestMenuLayoutUsesStableWidth(t *testing.T) {
 func TestMenuStyleWidthConstraintsArePreserved(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	widget := New("styled-width", []Item{{Key: "copy", Label: "Copy"}})
+	widget := New([]Item{{Key: "copy", Label: "Copy"}}).Key("styled-width")
 	styled := (widget).Style(style.Style{}.Width(unit.Dp(300)))
 	dims := styled.Layout(ctx, gtx)
 	if dims.Size.X != 300 {
@@ -443,7 +443,7 @@ func TestMenuWidthConstraintsPreserveParentMinimum(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	gtx.Constraints = layout.Constraints{Min: image.Pt(300, 0), Max: image.Pt(500, 400)}
-	widget := New("constraint-conflict", []Item{{Key: "copy", Label: "Copy"}}).
+	widget := New([]Item{{Key: "copy", Label: "Copy"}}).Key("constraint-conflict").
 		AutoWidth().MaxWidth(120)
 	widget.applyConstraintsWithVisual(ctx, &gtx, nil, widget.visual(ctx))
 	if got := gtx.Constraints.Max.X; got != 300 || gtx.Constraints.Min.X != 300 {
@@ -454,7 +454,7 @@ func TestMenuWidthConstraintsPreserveParentMinimum(t *testing.T) {
 func TestMenuAutoWidthUsesItemPartTypography(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	widget := New("weighted", []Item{{Key: "copy", Label: "Copy"}}).
+	widget := New([]Item{{Key: "copy", Label: "Copy"}}).Key("weighted").
 		Style(style.Style{}.Part(style.PartItem, style.Style{}.FontWeight(int(font.Bold))))
 	visual := widget.visual(ctx)
 	part := widget.resolveItemMeasurementStyleWithVisual(ctx, widget.items[0], visual)
@@ -467,7 +467,7 @@ func TestMenuAutoWidthUsesItemPartTypography(t *testing.T) {
 func TestMenuAutoWidthUsesItemPartPadding(t *testing.T) {
 	ctx := menuTestContext()
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
-	base := New("padding", []Item{{Key: "copy", Label: "Copy"}})
+	base := New([]Item{{Key: "copy", Label: "Copy"}}).Key("padding")
 	wide := base.Style(style.Style{}.Part(style.PartItem, style.Style{}.Padding(40)))
 	baseVisual := base.visual(ctx)
 	wideVisual := wide.visual(ctx)
@@ -485,7 +485,7 @@ func TestLongMenuIsScrollableWithinMaximumHeight(t *testing.T) {
 	for index := range items {
 		items[index] = Item{Key: fmt.Sprintf("action-%d", index), Label: fmt.Sprintf("Action %d", index)}
 	}
-	menu := New("long-actions", items)
+	menu := New(items).Key("long-actions")
 	gtx := menuTestLayoutContext(nil, time.Unix(1, 0))
 	core.BeginFrame(ctx)
 	dims := menu.Layout(ctx, gtx)
@@ -505,7 +505,7 @@ func TestScrolledMenuAnchorsOnlyVisibleSubmenuItems(t *testing.T) {
 	for index := range items {
 		items[index] = Item{Key: fmt.Sprintf("action-%d", index), Label: fmt.Sprintf("Action %d", index), Kind: ItemSubmenu, Children: []Item{{Key: fmt.Sprintf("child-%d", index), Label: "Child"}}}
 	}
-	menu := New("scroll-anchors", items)
+	menu := New(items).Key("scroll-anchors")
 	start := time.Unix(1, 0)
 	core.BeginFrame(ctx)
 	menu.Layout(ctx, menuTestLayoutContext(nil, start))
@@ -529,10 +529,10 @@ func TestScrolledMenuAnchorsOnlyVisibleSubmenuItems(t *testing.T) {
 }
 
 func TestSectionsSupportExplicitSeparatorsAndHeroSpacing(t *testing.T) {
-	without := Sections("sections", []Section{
+	without := Sections([]Section{
 		{Title: "One", Items: []Item{{Key: "one", Label: "One"}}},
 		{Title: "Two", Items: []Item{{Key: "two", Label: "Two"}}},
-	}).AutoSeparateSections(false)
+	}).Key("sections").AutoSeparateSections(false)
 	with := without.Sections([]Section{
 		{Title: "One", Items: []Item{{Key: "one", Label: "One"}}},
 		{Title: "Two", SeparatorBefore: true, Items: []Item{{Key: "two", Label: "Two"}}},
@@ -550,7 +550,7 @@ func TestMenuSelectionCallbacks(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
 		selected := ""
 		selection := []string(nil)
-		widget := New("fruit", []Item{{Key: "apple", Label: "Apple"}}).
+		widget := New([]Item{{Key: "apple", Label: "Apple"}}).Key("fruit").
 			SelectionMode(SelectionSingle).
 			OnChange(func(key string) { selected = key }).
 			OnSelectionChange(func(keys []string) { selection = keys })
@@ -561,7 +561,7 @@ func TestMenuSelectionCallbacks(t *testing.T) {
 
 	t.Run("multiple", func(t *testing.T) {
 		selection := []string(nil)
-		widget := New("styles", []Item{{Key: "bold", Label: "Bold"}}).
+		widget := New([]Item{{Key: "bold", Label: "Bold"}}).Key("styles").
 			SelectionMode(SelectionMultiple).
 			SelectedKeys([]string{"italic"}).
 			OnSelectionChange(func(keys []string) { selection = keys })
@@ -573,11 +573,11 @@ func TestMenuSelectionCallbacks(t *testing.T) {
 
 	t.Run("section override", func(t *testing.T) {
 		selection := []string(nil)
-		widget := Sections("alignment", []Section{{
+		widget := Sections([]Section{{
 			Title: "Alignment", SelectionMode: SelectionSingle, SelectedKeys: []string{"left"},
 			OnSelectionChange: func(keys []string) { selection = keys },
 			Items:             []Item{{Key: "right", Label: "Right"}},
-		}})
+		}}).Key("alignment")
 		widget.activate(widget.actionableEntries()[0])
 		if len(selection) != 1 || selection[0] != "right" {
 			t.Fatalf("section selection = %v", selection)
@@ -594,11 +594,11 @@ func TestMenuActivatesActionCheckboxAndRadioItems(t *testing.T) {
 	radioGroup := ""
 	radioValue := ""
 	itemActions := map[string]int{}
-	widget := New("actions", []Item{
+	widget := New([]Item{
 		{Key: "copy", Label: "Copy", OnAction: func() { itemActions["copy"]++ }},
 		{Key: "favorite", Label: "Favorite", Kind: ItemCheckbox, Checked: false, KeepOpen: true, OnAction: func() { itemActions["favorite"]++ }},
 		{Key: "compact", Label: "Compact", Kind: ItemRadio, RadioGroup: "density", Value: "compact", KeepOpen: true, OnAction: func() { itemActions["compact"]++ }},
-	}).
+	}).Key("actions").
 		OnActionEvent(func(event ActionEvent) { action = event.Key }).
 		OnCheckedChange(func(key string, value bool) { checkedKey, checked = key, value }).
 		OnRadioChange(func(group, value string) { radioGroup, radioValue = group, value })
@@ -618,11 +618,11 @@ func TestMenuActivatesActionCheckboxAndRadioItems(t *testing.T) {
 func TestMenuKeyboardNavigationWrapsAndSkipsDisabled(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
-	widget := New("actions", []Item{
+	widget := New([]Item{
 		{Key: "copy", Label: "Copy"},
 		{Key: "paste", Label: "Paste", Disabled: true},
 		{Key: "delete", Label: "Delete"},
-	})
+	}).Key("actions")
 	start := time.Unix(1, 0)
 	layoutMenuFrame(ctx, router, widget, start)
 	state, _ := core.PeekState[menuState](ctx, "actions", stateSlotMenu)
@@ -644,11 +644,11 @@ func TestMenuTypeaheadAndDisabledActivation(t *testing.T) {
 	router := new(input.Router)
 	disabled, actions := false, 0
 	view := func() Widget {
-		return New("typeahead", []Item{
+		return New([]Item{
 			{Key: "copy", Label: "Copy"},
 			{Key: "delete", Label: "Delete", Disabled: true},
 			{Key: "duplicate", Label: "Duplicate"},
-		}).Disabled(disabled).OnActionEvent(func(ActionEvent) { actions++ })
+		}).Key("typeahead").Disabled(disabled).OnActionEvent(func(ActionEvent) { actions++ })
 	}
 	now := time.Unix(11, 0)
 	frame := func() {
@@ -690,13 +690,13 @@ func TestMenuRejectsDuplicateItemKeys(t *testing.T) {
 			t.Fatal("duplicate menu item keys did not panic")
 		}
 	}()
-	New("actions", []Item{{Key: "copy", Label: "Copy"}, {Key: "copy", Label: "Copy again"}}).
+	New([]Item{{Key: "copy", Label: "Copy"}, {Key: "copy", Label: "Copy again"}}).Key("actions").
 		Layout(menuTestContext(), menuTestLayoutContext(nil, time.Unix(1, 0)))
 }
 
 func TestEmptyMenuClearsStaleSubmenuActivity(t *testing.T) {
 	ctx := menuTestContext()
-	widget := New("empty", nil)
+	widget := New(nil).Key("empty")
 	state := widget.stateFor(ctx)
 	state.submenuActive = true
 	widget.layoutWithVisual(ctx, menuTestLayoutContext(nil, time.Unix(1, 0)), state, true, widget.visual(ctx))
@@ -709,10 +709,10 @@ func TestMenuRootNavigationHandsOffOnlyAtLeafBoundary(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
 	next := 0
-	widget := New("root-navigation", []Item{
+	widget := New([]Item{
 		{Key: "leaf", Label: "Leaf"},
 		{Key: "submenu", Label: "Submenu", Children: []Item{{Key: "child", Label: "Child"}}},
-	})
+	}).Key("root-navigation")
 	widget.onRootNext = func() { next++ }
 	start := time.Unix(9, 0)
 	layoutMenuFrame(ctx, router, widget, start)

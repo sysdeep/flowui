@@ -26,7 +26,7 @@ func ganttDate(day int) time.Time {
 
 func TestGanttTimeLabelsUseCatalog(t *testing.T) {
 	value := time.Date(2025, time.January, 2, 15, 4, 0, 0, time.UTC)
-	widget := New("project", nil)
+	widget := New(nil).Key("project")
 
 	english := core.NewWithCatalog(nil, nil, locale.LanguageEnglish, i18n.Catalog{})
 	if got := widget.timeLabelForContext(english, value, 24*time.Hour); got != "Jan 2 15:04" {
@@ -51,7 +51,7 @@ func TestGanttTimeLabelsUseCatalog(t *testing.T) {
 func TestGanttTimeLabelCacheInvalidatesAfterLanguageChange(t *testing.T) {
 	ctx := core.NewWithCatalog(nil, nil, locale.LanguageEnglish, i18n.Catalog{})
 	state := &chartState{}
-	widget := New("project", nil)
+	widget := New(nil).Key("project")
 	start := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
 
@@ -68,7 +68,7 @@ func TestGanttCopiesTasksAndResolvesGroups(t *testing.T) {
 		NewTask("plan", "Plan", ganttDate(1), ganttDate(4)).Group("planning").DependsOn("design"),
 		NewTask("design", "Design", ganttDate(4), ganttDate(8)).Group("planning").Progress(.5),
 	}
-	widget := New("project", tasks)
+	widget := New(tasks).Key("project")
 	tasks[0].label = "Changed"
 	tasks[0].dependsOn[0] = "changed"
 	if widget.tasks[0].label != "Plan" || widget.tasks[0].dependsOn[0] != "design" {
@@ -81,10 +81,10 @@ func TestGanttCopiesTasksAndResolvesGroups(t *testing.T) {
 }
 
 func TestGanttCachesResolvedAndVisibleTasks(t *testing.T) {
-	widget := New("project", []Task{
+	widget := New([]Task{
 		NewTask("root", "Root", ganttDate(1), ganttDate(4)).Group("keep"),
 		NewTask("child", "Child", ganttDate(2), ganttDate(3)).Parent("root"),
-	})
+	}).Key("project")
 	state := &chartState{}
 	visual := ganttVisual()
 	first := widget.resolveTasksCached(state, visual)
@@ -92,10 +92,10 @@ func TestGanttCachesResolvedAndVisibleTasks(t *testing.T) {
 	if len(first) != 2 || len(second) != 2 || &first[0] != &second[0] {
 		t.Fatal("resolved task cache was not reused")
 	}
-	rebuilt := New("project", []Task{
+	rebuilt := New([]Task{
 		NewTask("root", "Root", ganttDate(1), ganttDate(4)).Group("keep"),
 		NewTask("child", "Child", ganttDate(2), ganttDate(3)).Parent("root"),
-	})
+	}).Key("project")
 	rebuiltResolved := rebuilt.resolveTasksCached(state, visual)
 	if &rebuiltResolved[0] != &first[0] || state.resolvedTasksRevision != 1 {
 		t.Fatal("equivalent declarative task data restarted the resolved cache")
@@ -107,10 +107,10 @@ func TestGanttCachesResolvedAndVisibleTasks(t *testing.T) {
 	if len(visible) != 2 || len(collapsed) != 1 || collapsed[0].key != "root" {
 		t.Fatalf("visible task cache did not invalidate: visible=%#v collapsed=%#v", visible, collapsed)
 	}
-	updated := New("project", []Task{
+	updated := New([]Task{
 		NewTask("root", "Root", ganttDate(1), ganttDate(5)).Group("keep"),
 		NewTask("child", "Child", ganttDate(2), ganttDate(3)).Parent("root"),
-	})
+	}).Key("project")
 	resolvedUpdated := updated.resolveTasksCached(state, visual)
 	if &resolvedUpdated[0] == &first[0] || state.resolvedTasksRevision < 2 {
 		t.Fatal("resolved task cache did not invalidate for new task data")
@@ -122,7 +122,7 @@ func TestGanttCachesVisibleGeometryAfterAnimation(t *testing.T) {
 		NewTask("plan", "Plan", ganttDate(1), ganttDate(4)),
 		NewTask("ship", "Ship", ganttDate(4), ganttDate(8)),
 	}
-	widget := New("project", tasks)
+	widget := New(tasks).Key("project")
 	state := &chartState{}
 	resolved := widget.resolveTasksCached(state, ganttVisual())
 	plot := image.Rect(80, 10, 380, 210)
@@ -149,7 +149,7 @@ func TestGanttCachesVisibleGeometryAfterAnimation(t *testing.T) {
 
 func TestGanttEditPreviewDoesNotMutateCachedGeometry(t *testing.T) {
 	task := NewTask("plan", "Plan", ganttDate(1), ganttDate(4))
-	widget := New("project", []Task{task})
+	widget := New([]Task{task}).Key("project")
 	state := &chartState{}
 	resolved := widget.resolveTasksCached(state, ganttVisual())
 	geo := widget.resolveVisibleGeometryCached(state, resolved, image.Rect(80, 10, 380, 110), ganttDate(1), ganttDate(8), 18, 100, 0, 0, 1, 1)
@@ -178,8 +178,8 @@ func TestGanttMilestoneGeometryAndSelection(t *testing.T) {
 		NewTask("plan", "Plan", ganttDate(1), ganttDate(4)),
 		NewMilestone("review", "Review", ganttDate(5)).DependsOn("plan"),
 	}
-	resolved := New("project", tasks).resolveTasks(ganttVisual())
-	geometry := New("project", tasks).resolveGeometry(resolved, image.Rect(0, 0, 300, 100), ganttDate(1), ganttDate(8), 18)
+	resolved := New(tasks).Key("project").resolveTasks(ganttVisual())
+	geometry := New(tasks).Key("project").resolveGeometry(resolved, image.Rect(0, 0, 300, 100), ganttDate(1), ganttDate(8), 18)
 	milestone := geometry.tasks[1]
 	if !milestone.task.milestone || milestone.rect.Empty() || milestone.rect.Dx() != milestone.rect.Dy() {
 		t.Fatalf("milestone geometry = %#v", milestone)
@@ -192,7 +192,7 @@ func TestGanttMilestoneGeometryAndSelection(t *testing.T) {
 
 func TestGanttBaselineAndMarkerConfiguration(t *testing.T) {
 	task := NewTask("plan", "Plan", ganttDate(1), ganttDate(6)).Baseline(ganttDate(2), ganttDate(5))
-	widget := New("project", []Task{task}).Marker(NewTimeMarker(ganttDate(3)).Text("Status"))
+	widget := New([]Task{task}).Key("project").Marker(NewTimeMarker(ganttDate(3)).Text("Status"))
 	if !widget.tasks[0].hasBaseline || !widget.tasks[0].baselineStart.Equal(ganttDate(2)) || len(widget.markers) != 1 || widget.markers[0].label != "Status" {
 		t.Fatalf("baseline and marker configuration = %#v, %#v", widget.tasks[0], widget.markers)
 	}
@@ -211,28 +211,28 @@ func TestGanttRejectsInvalidConfiguration(t *testing.T) {
 	tests := []func(){
 		func() { NewTask("", "Task", ganttDate(1), ganttDate(2)) },
 		func() { NewTask("task", "Task", ganttDate(2), ganttDate(1)) },
-		func() { New("chart", nil).Height(0) },
-		func() { New("chart", nil).TimeRange(ganttDate(2), ganttDate(1)) },
-		func() { New("chart", nil).TimeTicks(1) },
-		func() { New("chart", nil).RowHeight(0) },
+		func() { New(nil).Key("chart").Height(0) },
+		func() { New(nil).Key("chart").TimeRange(ganttDate(2), ganttDate(1)) },
+		func() { New(nil).Key("chart").TimeTicks(1) },
+		func() { New(nil).Key("chart").RowHeight(0) },
 		func() { NewTask("task", "Task", ganttDate(1), ganttDate(2)).Progress(1.1) },
 		func() {
-			New("chart", []Task{NewTask("task", "Task", ganttDate(1), ganttDate(2)).DependsOn("missing")}).resolveTasks(ganttVisual())
+			New([]Task{NewTask("task", "Task", ganttDate(1), ganttDate(2)).DependsOn("missing")}).Key("chart").resolveTasks(ganttVisual())
 		},
 		func() {
-			New("chart", []Task{NewTask("task", "Task", ganttDate(1), ganttDate(2)).DependsOn("task")}).resolveTasks(ganttVisual())
+			New([]Task{NewTask("task", "Task", ganttDate(1), ganttDate(2)).DependsOn("task")}).Key("chart").resolveTasks(ganttVisual())
 		},
 		func() {
-			New("chart", []Task{
+			New([]Task{
 				NewTask("dependency", "Dependency", ganttDate(1), ganttDate(2)),
 				NewTask("task", "Task", ganttDate(2), ganttDate(3)).DependsOn("dependency", "dependency"),
-			}).resolveTasks(ganttVisual())
+			}).Key("chart").resolveTasks(ganttVisual())
 		},
 		func() {
-			New("chart", []Task{
+			New([]Task{
 				NewTask("a", "A", ganttDate(1), ganttDate(2)).DependsOn("b"),
 				NewTask("b", "B", ganttDate(2), ganttDate(3)).DependsOn("a"),
-			}).resolveTasks(ganttVisual())
+			}).Key("chart").resolveTasks(ganttVisual())
 		},
 	}
 	for _, run := range tests {
@@ -261,7 +261,7 @@ func TestGanttTimeWindowNormalizesAndMaps(t *testing.T) {
 
 func TestGanttTimeWindowKeepsGestureStateAcrossFrames(t *testing.T) {
 	fullStart, fullEnd := ganttDate(1), ganttDate(11)
-	widget := New("chart", nil).TimeWindow(ganttDate(3), ganttDate(7))
+	widget := New(nil).Key("chart").TimeWindow(ganttDate(3), ganttDate(7))
 	state := &chartState{}
 	initial := widget.effectiveTimeWindow(state, fullStart, fullEnd)
 	state.timeWindow = chart.NewDataWindow(.4, .8)
@@ -325,7 +325,7 @@ func TestGanttHiddenGroupsFilterVisibleTasks(t *testing.T) {
 		{Task: NewTask("a", "A", ganttDate(1), ganttDate(2)).Group("keep")},
 		{Task: NewTask("b", "B", ganttDate(2), ganttDate(3)).Group("hide")},
 	}
-	visible := New("chart", nil).HiddenGroups("hide").visibleTasks(&chartState{}, tasks)
+	visible := New(nil).Key("chart").HiddenGroups("hide").visibleTasks(&chartState{}, tasks)
 	if len(visible) != 1 || visible[0].key != "a" {
 		t.Fatalf("visible tasks = %#v", visible)
 	}
@@ -337,7 +337,7 @@ func TestGanttHierarchyResolvesDepthAndCollapse(t *testing.T) {
 		NewTask("child", "Child", ganttDate(2), ganttDate(5)).Parent("root"),
 		NewTask("grandchild", "Grandchild", ganttDate(3), ganttDate(4)).Parent("child"),
 	}
-	widget := New("chart", tasks)
+	widget := New(tasks).Key("chart")
 	resolved := widget.resolveTasks(ganttVisual())
 	if resolved[0].depth != 0 || resolved[1].depth != 1 || resolved[2].depth != 2 {
 		t.Fatalf("resolved depths = %d, %d, %d", resolved[0].depth, resolved[1].depth, resolved[2].depth)
@@ -354,16 +354,16 @@ func TestGanttHierarchyResolvesDepthAndCollapse(t *testing.T) {
 func TestGanttRejectsInvalidHierarchy(t *testing.T) {
 	tests := []func(){
 		func() {
-			New("chart", []Task{NewTask("child", "Child", ganttDate(1), ganttDate(2)).Parent("missing")}).resolveTasks(ganttVisual())
+			New([]Task{NewTask("child", "Child", ganttDate(1), ganttDate(2)).Parent("missing")}).Key("chart").resolveTasks(ganttVisual())
 		},
 		func() {
-			New("chart", []Task{NewTask("root", "Root", ganttDate(1), ganttDate(2)).Parent("root")}).resolveTasks(ganttVisual())
+			New([]Task{NewTask("root", "Root", ganttDate(1), ganttDate(2)).Parent("root")}).Key("chart").resolveTasks(ganttVisual())
 		},
 		func() {
-			New("chart", []Task{
+			New([]Task{
 				NewTask("a", "A", ganttDate(1), ganttDate(2)).Parent("b"),
 				NewTask("b", "B", ganttDate(2), ganttDate(3)).Parent("a"),
-			}).resolveTasks(ganttVisual())
+			}).Key("chart").resolveTasks(ganttVisual())
 		},
 	}
 	for _, run := range tests {
@@ -379,7 +379,7 @@ func TestGanttRejectsInvalidHierarchy(t *testing.T) {
 }
 
 func TestGanttTaskEditHitAndInterval(t *testing.T) {
-	widget := New("chart", []Task{NewTask("task", "Task", ganttDate(2), ganttDate(6))})
+	widget := New([]Task{NewTask("task", "Task", ganttDate(2), ganttDate(6))}).Key("chart")
 	geometry := widget.resolveGeometry(widget.resolveTasks(ganttVisual()), image.Rect(100, 0, 500, 40), ganttDate(1), ganttDate(9), 18, 1)
 	item, mode, ok := taskEditHit(f32.Pt(float32(geometry.tasks[0].rect.Min.X+2), float32(geometry.tasks[0].rect.Min.Y+2)), geometry, 7)
 	if !ok || item.task.key != "task" || mode != taskEditStart {
@@ -404,7 +404,7 @@ func TestGanttTaskEditHitAndInterval(t *testing.T) {
 }
 
 func TestGanttClippedTaskEdgeMovesWithoutResizing(t *testing.T) {
-	widget := New("chart", []Task{NewTask("task", "Task", ganttDate(1), ganttDate(6))})
+	widget := New([]Task{NewTask("task", "Task", ganttDate(1), ganttDate(6))}).Key("chart")
 	geometry := widget.resolveGeometry(widget.resolveTasks(ganttVisual()), image.Rect(100, 0, 500, 40), ganttDate(2), ganttDate(7), 18, 1)
 	task := geometry.tasks[0]
 	if task.unclippedRect.Min.X >= geometry.plot.Min.X || task.rect.Min.X != geometry.plot.Min.X {
@@ -429,7 +429,7 @@ func TestGanttClippedTaskEdgeMovesWithoutResizing(t *testing.T) {
 }
 
 func TestGanttTaskMoveStopsAtVisibleWindowEdges(t *testing.T) {
-	widget := New("chart", []Task{NewTask("task", "Task", ganttDate(3), ganttDate(5))})
+	widget := New([]Task{NewTask("task", "Task", ganttDate(3), ganttDate(5))}).Key("chart")
 	geometry := widget.resolveGeometry(widget.resolveTasks(ganttVisual()), image.Rect(100, 0, 500, 40), ganttDate(1), ganttDate(7), 18, 1)
 	originalStart, originalEnd := ganttDate(3), ganttDate(5)
 
@@ -444,9 +444,9 @@ func TestGanttTaskMoveStopsAtVisibleWindowEdges(t *testing.T) {
 }
 
 func TestGanttProgressUsesActualCompletionTimeWhenClipped(t *testing.T) {
-	widget := New("chart", []Task{
+	widget := New([]Task{
 		NewTask("task", "Task", ganttDate(1), ganttDate(9)).Progress(.5),
-	})
+	}).Key("chart")
 	geometry := widget.resolveGeometry(widget.resolveTasks(ganttVisual()), image.Rect(100, 0, 500, 40), ganttDate(3), ganttDate(7), 18, 1)
 	item := geometry.tasks[0]
 	if item.rect.Min.X != geometry.plot.Min.X || item.progressRect.Empty() {
@@ -472,7 +472,7 @@ func TestGanttDoubleClickResetsWindowWithoutTaskClickCallback(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	requested := false
-	widget := New("chart", []Task{NewTask("task", "Task", ganttDate(1), ganttDate(8))}).
+	widget := New([]Task{NewTask("task", "Task", ganttDate(1), ganttDate(8))}).Key("chart").
 		Animation(false).
 		TimeWindow(ganttDate(2), ganttDate(6)).
 		OnTimeWindowChange(func(start, end time.Time) {
@@ -496,7 +496,7 @@ func TestGanttVirtualizesRowsAndScrollsVisibleWindow(t *testing.T) {
 	}
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
-	widget := New("chart", tasks).Animation(false)
+	widget := New(tasks).Key("chart").Animation(false)
 	layoutGanttFrame(ctx, router, widget, time.Unix(3, 0))
 	state, ok := core.PeekState[chartState](ctx, "chart", "gantt-chart")
 	if !ok || state == nil {
@@ -544,7 +544,7 @@ func TestGanttTimeWindowWheelKeepsPriorityOverRowScroll(t *testing.T) {
 	windowChanges := 0
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
-	widget := New("chart", tasks).Animation(false).OnTimeWindowChange(func(time.Time, time.Time) { windowChanges++ })
+	widget := New(tasks).Key("chart").Animation(false).OnTimeWindowChange(func(time.Time, time.Time) { windowChanges++ })
 	layoutGanttFrame(ctx, router, widget, time.Unix(4, 0))
 	router.Queue(pointer.Event{Kind: pointer.Scroll, Source: pointer.Mouse, Position: f32.Pt(400, 150), Scroll: f32.Pt(0, -1)})
 	layoutGanttFrame(ctx, router, widget, time.Unix(4, 1))
@@ -575,21 +575,21 @@ func queueGanttClick(router *input.Router, id pointer.ID, position f32.Point) {
 func TestGanttLocalCollapseOverride(t *testing.T) {
 	task := NewTask("root", "Root", ganttDate(1), ganttDate(2))
 	state := &chartState{localCollapsed: map[string]bool{"root": true}}
-	if !New("chart", nil).taskCollapsed(state, resolvedTask{Task: task}) {
+	if !New(nil).Key("chart").taskCollapsed(state, resolvedTask{Task: task}) {
 		t.Fatal("local collapsed override was ignored")
 	}
 	state.localCollapsed["root"] = false
-	if New("chart", nil).taskCollapsed(state, resolvedTask{Task: task}) {
+	if New(nil).Key("chart").taskCollapsed(state, resolvedTask{Task: task}) {
 		t.Fatal("local expanded override was ignored")
 	}
 }
 
 func TestGanttToggleClickUsesLocalState(t *testing.T) {
-	tasks := New("chart", []Task{
+	tasks := New([]Task{
 		NewTask("root", "Root", ganttDate(1), ganttDate(4)),
 		NewTask("child", "Child", ganttDate(2), ganttDate(3)).Parent("root"),
-	}).resolveTasks(ganttVisual())
-	widget := New("chart", nil)
+	}).Key("chart").resolveTasks(ganttVisual())
+	widget := New(nil).Key("chart")
 	state := &chartState{}
 	state.beginToggleFrame()
 	state.toggleItem("root").Click()

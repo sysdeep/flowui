@@ -22,7 +22,7 @@ import (
 func TestPieChartInstanceStyleResolvesOutsideDefaultsCache(t *testing.T) {
 	active := new(theme.Light())
 	custom := color.NRGBA{R: 0x10, G: 0x20, B: 0x30, A: 0xff}
-	base := New("pie", []Data{Slice("one", "One", 1)})
+	base := New([]Data{Slice("one", "One", 1)}).Key("pie")
 	styled := base.Style(style.Style{}.Background(style.Solid(custom)))
 
 	baseDefaults := base.resolveDefaults(active)
@@ -70,16 +70,16 @@ func TestPieChartDataVersionCachesResolvedData(t *testing.T) {
 	activeTheme := theme.Light()
 	cache := new(chartDataCache)
 	visual := pieChartTestDefaults()
-	first := cache.resolve(New("chart", []Data{Slice("slice", "Slice", 1)}).DataVersion(1), &activeTheme, visual)
-	second := cache.resolve(New("chart", []Data{Slice("slice", "Slice", 99)}).DataVersion(1), &activeTheme, visual)
+	first := cache.resolve(New([]Data{Slice("slice", "Slice", 1)}).Key("chart").DataVersion(1), &activeTheme, visual)
+	second := cache.resolve(New([]Data{Slice("slice", "Slice", 99)}).Key("chart").DataVersion(1), &activeTheme, visual)
 	if first.generation == 0 || second.generation != first.generation || second.slices[0].value != 1 {
 		t.Fatalf("same-version PieChart data was not reused: first %#v second %#v", first, second)
 	}
-	third := cache.resolve(New("chart", []Data{Slice("slice", "Slice", 99)}).DataVersion(2), &activeTheme, visual)
+	third := cache.resolve(New([]Data{Slice("slice", "Slice", 99)}).Key("chart").DataVersion(2), &activeTheme, visual)
 	if third.generation == second.generation || third.slices[0].value != 99 {
 		t.Fatalf("new-version PieChart data was not resolved: %#v", third)
 	}
-	uncached := cache.resolve(New("chart", []Data{Slice("slice", "Slice", 7)}), &activeTheme, visual)
+	uncached := cache.resolve(New([]Data{Slice("slice", "Slice", 7)}).Key("chart"), &activeTheme, visual)
 	if uncached.generation != 0 || uncached.slices[0].value != 7 {
 		t.Fatalf("unversioned PieChart data was cached: %#v", uncached)
 	}
@@ -105,18 +105,18 @@ func TestPieChartPercentsUseEChartsLargestRemainder(t *testing.T) {
 
 func TestPieChartRoseTypesMatchEChartsLayout(t *testing.T) {
 	values := []Data{Slice("zero", "Zero", 0), Slice("half", "Half", 5), Slice("full", "Full", 10)}
-	radius := resolveChartData(New("rose-radius", values).RoseType(RoseRadius), pieChartTestDefaults())
+	radius := resolveChartData(New(values).Key("rose-radius").RoseType(RoseRadius), pieChartTestDefaults())
 	if radius.slices[0].radiusRatio != 0 || radius.slices[1].radiusRatio != .5 || radius.slices[2].radiusRatio != 1 {
 		t.Fatalf("radius rose radii = %#v", radius.slices)
 	}
 	assertAngle(t, radius.slices[1].rawAngle, float32(fullCircle/3))
 	assertAngle(t, radius.slices[2].rawAngle, float32(fullCircle*2/3))
 
-	area := resolveChartData(New("rose-area", values).RoseType(RoseArea), pieChartTestDefaults())
+	area := resolveChartData(New(values).Key("rose-area").RoseType(RoseArea), pieChartTestDefaults())
 	for _, slice := range area.slices {
 		assertAngle(t, slice.rawAngle, float32(fullCircle/3))
 	}
-	zeros := resolveChartData(New("rose-zero", []Data{Slice("a", "A", 0), Slice("b", "B", 0)}).
+	zeros := resolveChartData(New([]Data{Slice("a", "A", 0), Slice("b", "B", 0)}).Key("rose-zero").
 		RoseType(RoseArea).
 		StillShowZeroSum(false), pieChartTestDefaults())
 	if zeros.slices[0].radiusRatio != .5 || zeros.slices[1].radiusRatio != .5 || !hasVisibleSector(zeros.slices) {
@@ -135,11 +135,11 @@ func TestPieChartRoseAnimationInterpolatesRadius(t *testing.T) {
 
 func TestResolvePieChartDataFiltersNegativeAndHiddenValues(t *testing.T) {
 	custom := color.NRGBA{R: 0xff, A: 0xff}
-	data := resolveChartData(New("pie", []Data{
+	data := resolveChartData(New([]Data{
 		Slice("valid", "Valid", 2).Color(custom),
 		Slice("negative", "Negative", -1),
 		Slice("hidden", "Hidden", 4).Hidden(true),
-	}), pieChartTestDefaults())
+	}).Key("pie"), pieChartTestDefaults())
 	if len(data.slices) != 1 || len(data.legend) != 3 || data.total != 2 {
 		t.Fatalf("resolved PieChart data = %#v", data)
 	}
@@ -149,7 +149,7 @@ func TestResolvePieChartDataFiltersNegativeAndHiddenValues(t *testing.T) {
 	if !data.legend[2].hidden {
 		t.Fatalf("hidden PieChart legend item = %#v", data.legend[2])
 	}
-	selection := New("pie", nil).publicSelection(data.slices[0])
+	selection := New(nil).Key("pie").publicSelection(data.slices[0])
 	if selection.Index != 0 || selection.Items[0].Percent != 100 {
 		t.Fatalf("PieChart public selection = %#v", selection)
 	}
@@ -186,7 +186,7 @@ func TestPieChartLegendAndSemantics(t *testing.T) {
 	router := new(input.Router)
 	requestedKey := ""
 	requestedHidden := false
-	widget := New("pie", []Data{Slice("first", "First", 1), Slice("second", "Second", 2).Hidden(true)}).
+	widget := New([]Data{Slice("first", "First", 1), Slice("second", "Second", 2).Hidden(true)}).Key("pie").
 		Label("Traffic sources").
 		OnLegendChange(func(key string, hidden bool) {
 			requestedKey, requestedHidden = key, hidden
@@ -210,9 +210,9 @@ func TestPieChartLegendAndSemantics(t *testing.T) {
 
 func TestPieChartRejectsInvalidConfiguration(t *testing.T) {
 	for _, widget := range []Widget{
-		New("pie", []Data{Slice("same", "First", 1), Slice("same", "Second", 2)}),
-		New("pie", []Data{Slice("", "Empty", 1)}),
-		New("pie", nil).InnerRadius(.8).OuterRadius(.5),
+		New([]Data{Slice("same", "First", 1), Slice("same", "Second", 2)}).Key("pie"),
+		New([]Data{Slice("", "Empty", 1)}).Key("pie"),
+		New(nil).Key("pie").InnerRadius(.8).OuterRadius(.5),
 	} {
 		func() {
 			defer func() {
@@ -229,7 +229,7 @@ func TestPieChartRejectsInvalidConfiguration(t *testing.T) {
 				t.Fatal("invalid PieChart rose type did not panic")
 			}
 		}()
-		_ = New("pie", nil).RoseType(RoseType(99))
+		_ = New(nil).Key("pie").RoseType(RoseType(99))
 	}()
 }
 

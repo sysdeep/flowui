@@ -16,7 +16,7 @@ import (
 func BenchmarkTooltipLayout(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
-	value := New("benchmark", fixedWidget{size: image.Pt(96, 28)}, "Benchmark tooltip").Delay(0)
+	value := New(fixedWidget{size: image.Pt(96, 28)}, "Benchmark tooltip").Key("benchmark").Delay(0)
 	gtx := layout.Context{
 		Constraints: layout.Exact(image.Pt(640, 360)),
 		Source:      router.Source(),

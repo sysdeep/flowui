@@ -10,11 +10,11 @@ import (
 	"gioui.org/op"
 	"gioui.org/widget"
 	"github.com/qianniancn/flowui/animation"
-	"github.com/qianniancn/flowui/widget/internal/binding"
 	"github.com/qianniancn/flowui/internal/core"
-	"github.com/qianniancn/flowui/widget/internal/navigation"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/widget/base"
+	"github.com/qianniancn/flowui/widget/internal/binding"
+	"github.com/qianniancn/flowui/widget/internal/navigation"
 )
 
 const (

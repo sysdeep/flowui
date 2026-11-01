@@ -37,10 +37,9 @@ func newDropdownBenchmarkFrame(count int) *dropdownBenchmarkFrame {
 	frame.values = make([]Widget, count)
 	for index := range frame.values {
 		frame.values[index] = New(
-			"benchmark-dropdown-"+strconv.Itoa(index),
 			fixedWidget{size: image.Pt(160, 36)},
 			[]Item{{Key: "open", Label: "Open"}},
-		)
+		).Key("benchmark-dropdown-" + strconv.Itoa(index))
 	}
 	return frame
 }

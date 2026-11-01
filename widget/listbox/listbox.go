@@ -82,9 +82,9 @@ func (l Widget) Key(key string) Widget {
 	return l
 }
 
-func Sections(key, selectedKey string, sections []Section) Widget {
+func Sections(selectedKey string, sections []Section) Widget {
 	return Widget{
-		key:            key,
+		key:            core.AutoKey("listbox-sections"),
 		selectedKey:    selectedKey,
 		hasSelectedKey: true,
 		sections:       sections,
@@ -92,9 +92,9 @@ func Sections(key, selectedKey string, sections []Section) Widget {
 	}
 }
 
-func MultipleSections(key string, selectedKeys []string, sections []Section) Widget {
+func MultipleSections(selectedKeys []string, sections []Section) Widget {
 	return Widget{
-		key:             key,
+		key:             core.AutoKey("listbox-multiple-sections"),
 		selectedKeys:    selectedKeys,
 		hasSelectedKeys: true,
 		sections:        sections,

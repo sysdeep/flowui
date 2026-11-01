@@ -9,6 +9,7 @@ import (
 
 // LabelWidget identifies and describes a form field.
 type LabelWidget struct {
+	key         string
 	style       style.Style
 	text        string
 	forKey      string
@@ -20,7 +21,13 @@ type LabelWidget struct {
 
 // New creates a form label.
 func NewLabel(text string) LabelWidget {
-	return LabelWidget{text: text, visualCache: &labelVisualCache{}}
+	return LabelWidget{key: core.AutoKey("label"), text: text, visualCache: &labelVisualCache{}}
+}
+
+// Key sets the stable identity used by standalone style transitions.
+func (l LabelWidget) Key(key string) LabelWidget {
+	l.key = key
+	return l
 }
 
 // For associates the label with a keyed form control.
@@ -60,7 +67,8 @@ func (l LabelWidget) resolveLayoutStyle(
 	if len(resolved.root.Transitions) == 0 {
 		return resolved
 	}
-	resolved.root = computed.ApplyTransitions(ctx, gtx, core.ClaimKey(ctx, core.KindStyle, "label"), resolved.root)
+	key := core.ClaimDerivedKey(ctx, core.KindStyle, l.key, "style")
+	resolved.root = computed.ApplyTransitions(ctx, gtx, key, resolved.root)
 	return resolved
 }
 

@@ -16,7 +16,7 @@ import (
 
 func BenchmarkCloseButtonLayoutSteadyState(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
-	value := NewCloseButton("close")
+	value := NewCloseButton().Key("close")
 	gtx := layout.Context{Ops: new(op.Ops), Constraints: layout.Constraints{Max: image.Pt(64, 64)}}
 	gtx.Now = time.Unix(0, int64(time.Millisecond))
 	core.BeginFrame(ctx)
@@ -37,7 +37,7 @@ func BenchmarkCloseButtonLayoutSteadyState(b *testing.B) {
 
 func BenchmarkCloseButtonVisualCacheHit(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
-	value := NewCloseButton("close")
+	value := NewCloseButton().Key("close")
 	value.styles(ctx)
 	baseline := value.styleCache.Stats()
 	b.ReportAllocs()
@@ -61,7 +61,7 @@ func BenchmarkCloseButtonVisualCacheInvalidation(b *testing.B) {
 	second := theme.Light()
 	firstContext := core.New(nil, &first, locale.LanguageEnglish)
 	secondContext := core.New(nil, &second, locale.LanguageEnglish)
-	value := NewCloseButton("close")
+	value := NewCloseButton().Key("close")
 	value.styles(firstContext)
 	baseline := value.styleCache.Stats()
 
@@ -82,7 +82,7 @@ func BenchmarkCloseButtonComponentTreeSteadyState(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	values := make([]CloseButtonWidget, 128)
 	for index := range values {
-		values[index] = NewCloseButton("close-" + strconv.Itoa(index))
+		values[index] = NewCloseButton().Key("close-" + strconv.Itoa(index))
 	}
 	root := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		children := make([]layout.FlexChild, 0, len(values))

@@ -53,7 +53,7 @@ func demoVirtualTable(m demoState, send ui.Send[Msg]) ui.Widget {
 	gridColumns[2].Width = 120
 	return layout.Column(
 		muted(m.text("10,000 行 · 点击编号列排序，点击行选择。")),
-		table.NewVirtual("virtual-table", columns, virtualRowCount, func(index int) table.Row {
+		table.NewVirtual(columns, virtualRowCount, func(index int) table.Row {
 			if m.virtualSort.Column == "id" && m.virtualSort.Direction == table.SortDescending {
 				index = virtualRowCount - index - 1
 			}
@@ -61,14 +61,14 @@ func demoVirtualTable(m demoState, send ui.Send[Msg]) ui.Widget {
 			return table.Row{Key: id, Cells: []table.Cell{
 				{Text: fmt.Sprintf("%05d", index+1)}, {Text: m.text("项目 ") + id}, {Text: m.text("已同步")},
 			}}
-		}).MaxHeight(320).Border(true).Striped(true).
+		}).Key("virtual-table").MaxHeight(320).Border(true).Striped(true).
 			SortDescriptor(m.virtualSort).OnSortChange(func(value table.SortDescriptor) {
 			send(demoMsg(func(m *demoState) { m.virtualSort = value }))
 		}).SelectionMode(table.SelectionSingle).SelectedKey(m.virtualSelected).
 			OnChange(setString(send, func(m *demoState) *string { return &m.virtualSelected })),
 		text.New(m.text("选中记录：")+m.virtualSelected),
 		muted(m.text("虚拟多选表格 · 表格线、禁用行与自定义单元格")),
-		table.NewVirtual("virtual-table-grid", gridColumns, virtualRowCount, func(index int) table.Row {
+		table.NewVirtual(gridColumns, virtualRowCount, func(index int) table.Row {
 			id := fmt.Sprintf("grid-%05d", index+1)
 			return table.Row{Key: id, Disabled: index%10 == 9, Cells: []table.Cell{
 				{Text: fmt.Sprintf("%05d", index+1)},
@@ -77,7 +77,7 @@ func demoVirtualTable(m demoState, send ui.Send[Msg]) ui.Widget {
 					Content: button.New(m.text("查看")).Key("inspect-" + id).Variant(button.Ghost).
 						OnClick(report(send, m.text("查看记录：")+id))},
 			}}
-		}).MaxHeight(260).Border(true).GridLines(true).Striped(true).
+		}).Key("virtual-table-grid").MaxHeight(260).Border(true).GridLines(true).Striped(true).
 			SelectionMode(table.SelectionMultiple).ShowSelectionIndicator().
 			SelectedKeys(m.virtualTableSelected).OnSelectionChange(func(keys []string) {
 			send(demoMsg(func(m *demoState) { m.virtualTableSelected = keys }))
@@ -104,7 +104,7 @@ func demoAdvancedTree(m demoState, send ui.Send[Msg]) ui.Widget {
 			items[index].Label = m.text("按需加载")
 		}
 	}
-	files := tree.New("advanced-tree", m.treeSelected, tree.ItemsFromSimple(items)).
+	files := tree.New(m.treeSelected, tree.ItemsFromSimple(items)).Key("advanced-tree").
 		DataVersion(m.treeVersion).Filter(m.treeFilter).Guides(true).Checkable(true).
 		CheckedKeys(m.treeChecked).HalfCheckedKeys(m.treeHalfChecked).ExpandedKeys(m.treeExpanded).
 		OnChange(setString(send, func(m *demoState) *string { return &m.treeSelected })).
@@ -133,7 +133,7 @@ func demoAdvancedTree(m demoState, send ui.Send[Msg]) ui.Widget {
 		fixedHeight(280, files),
 		text.New(m.text("已勾选：")+strings.Join(m.treeChecked, ", ")),
 		muted(m.text("加载失败与重试 · 本地模拟，无需等待网络")),
-		fixedHeight(120, tree.New("tree-retry", "", []tree.Item{retry}).
+		fixedHeight(120, tree.New("", []tree.Item{retry}).Key("tree-retry").
 			ExpandedKeys([]string{"retry"}).OnLoadChildrenEvent(func(event tree.LoadEvent) {
 			send(demoMsg(func(m *demoState) { m.treeRetryReady = true }))
 		})),

@@ -63,7 +63,7 @@ func BenchmarkTreeCheckboxCompositeLayout(b *testing.B) {
 		}
 		items = append(items, root)
 	}
-	value := New("checkbox-tree", "", items).
+	value := New("", items).Key("checkbox-tree").
 		Checkable(true).
 		ExpandedKeys(expanded).
 		CheckedKeys(checked).
@@ -102,7 +102,7 @@ func treeBenchmarkValue() Widget {
 		}
 		items = append(items, root)
 	}
-	return New("tree-benchmark", "", items).
+	return New("", items).Key("tree-benchmark").
 		Checkable(true).
 		ExpandedKeys(expanded).
 		CheckedKeys(checked).

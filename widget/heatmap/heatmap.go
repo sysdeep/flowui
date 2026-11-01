@@ -50,10 +50,7 @@ type CalendarValue struct {
 }
 
 // New constructs an ECharts-style calendar heatmap from date/value pairs.
-func New(key string, start, end time.Time, values []CalendarValue) Widget {
-	if key == "" {
-		panic("flowui: empty heatmap key")
-	}
+func New(start, end time.Time, values []CalendarValue) Widget {
 	if start.IsZero() || end.IsZero() {
 		panic("flowui: heatmap calendar end must not be before start")
 	}
@@ -95,7 +92,7 @@ func New(key string, start, end time.Time, values []CalendarValue) Widget {
 		}
 	}
 	return Widget{
-		key:           key,
+		key:           core.AutoKey("heatmap"),
 		xLabels:       make([]string, weeks),
 		yLabels:       make([]string, 7),
 		calendarStart: start,
@@ -106,6 +103,12 @@ func New(key string, start, end time.Time, values []CalendarValue) Widget {
 		showTooltip:   true,
 		visualCache:   &heatmapVisualCache{},
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 func calendarDate(value time.Time) time.Time {

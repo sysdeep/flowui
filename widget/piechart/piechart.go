@@ -84,9 +84,9 @@ type Widget struct {
 	disabled                bool
 }
 
-func New(key string, data []Data) Widget {
+func New(data []Data) Widget {
 	return Widget{
-		key:                     key,
+		key:                     core.AutoKey("pie-chart"),
 		data:                    append([]Data(nil), data...),
 		outerRadius:             .5,
 		clockwise:               true,
@@ -101,6 +101,12 @@ func New(key string, data []Data) Widget {
 		updateAnimationEasing:   animation.EaseCubicInOut,
 		visualCache:             &pieChartVisualCache{},
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 // DataVersion enables resolved-data reuse. Increase version whenever the data

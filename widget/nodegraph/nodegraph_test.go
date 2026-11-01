@@ -29,7 +29,7 @@ func TestViewportRoundTrip(t *testing.T) {
 }
 
 func TestNewUsesFlowUISurfaceDefaults(t *testing.T) {
-	widget := New("graph", Graph{})
+	widget := New(Graph{}).Key("graph")
 	if !widget.showGrid {
 		t.Fatal("node graph grid is disabled by default")
 	}
@@ -49,7 +49,7 @@ func TestGraphGridStepRemainsVisibleAtLowZoom(t *testing.T) {
 
 func TestGridAppearanceUsesInstanceStyle(t *testing.T) {
 	declaration := style.Style{}.BorderWidth(2)
-	styled := (New("graph", Graph{})).Style(declaration)
+	styled := (New(Graph{}).Key("graph")).Style(declaration)
 	if styled.style.Hash64() != declaration.Hash64() {
 		t.Fatal("instance style was not retained on the node graph")
 	}
@@ -256,7 +256,7 @@ func TestResolvedGraphFindsBezierEdge(t *testing.T) {
 		},
 		Edges: []Edge{NewEdge("edge", NewEndpoint("source", "out"), NewEndpoint("target", "in"))},
 	})
-	widget := New("graph", Graph{})
+	widget := New(Graph{}).Key("graph")
 	if got := widget.edgeAt(graph, f32.Pt(275, 124), Viewport{Zoom: 1}, 1); got != "edge" {
 		t.Fatalf("edge at center = %q, want edge", got)
 	}
@@ -276,7 +276,7 @@ func TestEdgeGeometryTypesUseMatchingHitPaths(t *testing.T) {
 		},
 		Edges: []Edge{NewEdge("step", NewEndpoint("source", "out"), NewEndpoint("target", "in")).Type(EdgeStep)},
 	})
-	widget := New("graph", Graph{})
+	widget := New(Graph{}).Key("graph")
 	if got := widget.edgeAt(graph, f32.Pt(245, 150), Viewport{Zoom: 1}, 1); got != "step" {
 		t.Fatalf("step edge hit = %q, want step", got)
 	}
@@ -318,7 +318,7 @@ func TestNextFocusedNodeMovesInRequestedDirection(t *testing.T) {
 }
 
 func TestGraphControlsAdjustViewport(t *testing.T) {
-	widget := New("graph", Graph{Nodes: []Node{NewNode("node", "Node", Point{X: 100, Y: 80})}}).Controls(true)
+	widget := New(Graph{Nodes: []Node{NewNode("node", "Node", Point{X: 100, Y: 80})}}).Key("graph").Controls(true)
 	viewport := Viewport{Zoom: 1}
 	next, changed := widget.applyControl(controlZoomIn, resolveGraph(widget.graph), viewport, image.Pt(400, 240), 1)
 	if !changed || next.Zoom <= viewport.Zoom {
@@ -452,7 +452,7 @@ func TestNodeGraphBehaviorHitSlopsRespectScreenPixels(t *testing.T) {
 	edge := NewEdge("edge", NewEndpoint("source", "out"), NewEndpoint("target", "in")).Type(EdgeStraight)
 	edgeGraph := resolvedGraph{edges: []resolvedEdge{{edge: edge, source: Point{X: 0, Y: 0}, target: Point{X: 100, Y: 0}}}}
 	edgeGraph.buildSpatialIndex()
-	widget := New("graph", Graph{})
+	widget := New(Graph{}).Key("graph")
 	if got := widget.edgeAt(edgeGraph, f32.Pt(50, defaultNodeGraphBehavior.edgeHitRadiusPx-.1), Viewport{Zoom: 1}, 1); got != "edge" {
 		t.Fatalf("edge hit inside tolerance = %q, want edge", got)
 	}
@@ -464,7 +464,7 @@ func TestNodeGraphBehaviorHitSlopsRespectScreenPixels(t *testing.T) {
 func TestNodeGraphResizeHitSlopIsIndependentOfThemeMetrics(t *testing.T) {
 	node := NewNode("node", "Node", Point{}).WithSize(100, 80).Resizable(true)
 	graph := resolvedGraph{nodes: []resolvedNode{{node: node, position: Point{}, size: Size{Width: 100, Height: 80}}}}
-	widget := New("graph", Graph{}).NodesResizable(true)
+	widget := New(Graph{}).Key("graph").NodesResizable(true)
 	metrics := nodeGraphMetrics{NodeHeaderHeight: 26, NodeVerticalPadding: 8, NodePortRowHeight: 20}
 	selected := map[string]bool{"node": true}
 	anchor := f32.Pt(100, 80)
@@ -767,7 +767,7 @@ func TestGraphPanelPosition(t *testing.T) {
 }
 
 func TestViewportInputOptionsPreserveDefaultsAndAllowOverrides(t *testing.T) {
-	widget := New("graph", Graph{})
+	widget := New(Graph{}).Key("graph")
 	if !widget.zoomOnScroll || !widget.panOnPrimary || !widget.panOnMiddle || widget.panOnScroll {
 		t.Fatalf("viewport defaults = %#v", widget)
 	}
@@ -778,7 +778,7 @@ func TestViewportInputOptionsPreserveDefaultsAndAllowOverrides(t *testing.T) {
 }
 
 func TestNodeGraphCursorMatchesInteractionState(t *testing.T) {
-	widget := New("graph", Graph{})
+	widget := New(Graph{}).Key("graph")
 	graph := resolveGraph(Graph{Nodes: []Node{NewNode("node", "Node", Point{})}})
 	tests := []struct {
 		name  string
@@ -812,7 +812,7 @@ func TestNodeGraphPointerCallbacksDispatchTargets(t *testing.T) {
 		Edges: []Edge{NewEdge("edge", NewEndpoint("source", "out"), NewEndpoint("target", "in"))},
 	})
 	var canvasClicks, nodeClicks, nodeDoubles, edgeClicks, nodeEnters, nodeLeaves, nodeMenus int
-	widget := New("graph", Graph{}).
+	widget := New(Graph{}).Key("graph").
 		OnCanvasClick(func(CanvasEvent) { canvasClicks++ }).
 		OnNodeClick(func(NodeEvent) { nodeClicks++ }).
 		OnNodeDoubleClick(func(NodeEvent) { nodeDoubles++ }).
@@ -860,7 +860,7 @@ func TestNodeGraphPointerCallbacksDispatchTargets(t *testing.T) {
 }
 
 func TestNodeGraphDropTypesAreValidatedAndUnique(t *testing.T) {
-	widget := New("graph", Graph{}).DropTypes(" application/x-flowui-node ", "text/plain", "text/plain")
+	widget := New(Graph{}).Key("graph").DropTypes(" application/x-flowui-node ", "text/plain", "text/plain")
 	if len(widget.dropTypes) != 2 || widget.dropTypes[0] != "application/x-flowui-node" || widget.dropTypes[1] != "text/plain" {
 		t.Fatalf("drop types = %#v", widget.dropTypes)
 	}
@@ -891,7 +891,7 @@ func TestResizeHandlesAdjustAnchoredNodeBounds(t *testing.T) {
 }
 
 func TestConnectionValidation(t *testing.T) {
-	widget := New("graph", Graph{}).IsValidConnection(func(connection Connection) bool {
+	widget := New(Graph{}).Key("graph").IsValidConnection(func(connection Connection) bool {
 		return connection.Source.NodeID != connection.Target.NodeID
 	})
 	if widget.validConnection(Connection{Source: Endpoint{NodeID: "node"}, Target: Endpoint{NodeID: "node"}}) {

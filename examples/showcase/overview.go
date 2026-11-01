@@ -148,10 +148,10 @@ func overviewActivity(m demoState, send ui.Send[Msg]) ui.Widget {
 	for index := range labels {
 		labels[index] = m.text(labels[index])
 	}
-	chart := linechart.New("overview-activity", []linechart.Series{
+	chart := linechart.New([]linechart.Series{
 		linechart.Values("completed", m.text("已完成"), completed).Smooth(true).Area(true),
 		linechart.Values("planned", m.text("计划"), planned).Smooth(true),
-	}).Categories(labels).Height(220).Legend(true).Animation(false).OnDataClick(chartSelection(m, send))
+	}).Key("overview-activity").Categories(labels).Height(220).Legend(true).Animation(false).OnDataClick(chartSelection(m, send))
 	period := toggle.NewSegmented([]toggle.SegmentedItem{
 		{Key: "week", Label: m.text("本周")}, {Key: "month", Label: m.text("本月")},
 	}).Key("overview-period").SelectedKey(m.overview.period).OnChange(func(value string) {
@@ -246,13 +246,13 @@ func overviewTable(m demoState, send ui.Send[Msg]) ui.Widget {
 			visibleSelection = append(visibleSelection, row.Key)
 		}
 	}
-	projects := table.New("overview-table", []table.Column{
+	projects := table.New([]table.Column{
 		{Key: "project", Label: m.text("项目"), Weight: 2, MinWidth: 160, Sortable: true},
 		{Key: "owner", Label: m.text("负责人"), Width: 120},
 		{Key: "status", Label: m.text("状态"), Width: 140},
 		{Key: "progress", Label: m.text("进度"), Weight: 1, MinWidth: 140},
 		{Key: "updated", Label: m.text("更新日期"), Width: 120},
-	}, rows).SelectionMode(table.SelectionMultiple).SelectedKeys(visibleSelection).
+	}, rows).Key("overview-table").SelectionMode(table.SelectionMultiple).SelectedKeys(visibleSelection).
 		ShowSelectionIndicator().Border(true).GridLines(true).RowHeight(36).HeaderHeight(36).
 		MinWidth(760).SortDescriptor(m.overview.sort).OnSortChange(func(value table.SortDescriptor) {
 		send(demoMsg(func(m *demoState) { m.overview.sort, m.overview.page = value, 1 }))
@@ -273,7 +273,7 @@ func overviewTable(m demoState, send ui.Send[Msg]) ui.Widget {
 				OnClick(func() { send(selectMsg("table")) }),
 		).Gap(16).LineGap(8),
 		fixedHeight(248, projects),
-		navwidget.NewPagination("overview-pages", m.overview.page, pages).OnChange(func(page int) {
+		navwidget.NewPagination(m.overview.page, pages).Key("overview-pages").OnChange(func(page int) {
 			send(demoMsg(func(m *demoState) { m.overview.page = page }))
 		}),
 	).Gap(12))

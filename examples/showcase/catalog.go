@@ -27,7 +27,7 @@ var catalog = []entry{
 		code: `toggle.NewToggleButton("加粗").Key("bold").Selected(m.Bold).OnChange(setBold)`},
 	{key: "closebutton", title: "CloseButton · 关闭按钮", group: "操作", packages: "closebutton", source: "demo_actions.go",
 		summary: "紧凑的关闭操作，带键盘焦点和无障碍标签。", demo: demoClose,
-		code: `button.NewCloseButton("dismiss").OnClick(dismiss)`},
+		code: `button.NewCloseButton().Key("dismiss").OnClick(dismiss)`},
 	{key: "command", title: "Command · 命令与快捷键", group: "操作", packages: "command", source: "demo_actions.go",
 		summary: "让按钮、菜单和快捷键共享同一个操作。点击演示区域后可按 Ctrl+S。", demo: demoCommand,
 		code: `save := command.New("save", "保存").
@@ -123,7 +123,7 @@ chip.New("Small").Size(chip.SizeSmall).StartContent(icon.New(lucide.Check).Size(
 		code: `surface.NewCard(text.New("FlowUI"), text.New("桌面组件库"), saveButton)`},
 	{key: "code", title: "Code · 代码块", group: "内容", packages: "code", source: "demo_content.go",
 		summary: "只读代码块：语法高亮、拖拽选择与复制。", demo: demoCode,
-		code: `code.New("snippet", "go", source).Size(13)`},
+		code: `code.New("go", source).Key("snippet").Size(13)`},
 	{key: "surface", title: "Surface · 表面", group: "内容", packages: "surface", source: "demo_content.go",
 		summary: "容器表面与前景色随默认主题一起切换。", demo: demoSurface,
 		code: `surface.New(content).Variant(surface.Secondary)`},
@@ -131,19 +131,19 @@ chip.New("Small").Size(chip.SizeSmall).StartContent(icon.New(lucide.Check).Size(
 		summary: "单选、多选、分组、描述、操作列表、取消选择与空状态。", demo: demoList,
 		code: `listbox.New(items).Key("projects").SelectedKey(m.Project).OnChange(setProject)
 listbox.New(items).Key("languages").SelectedKeys(m.Languages).OnSelectionChange(setLanguages)
-listbox.Sections("grouped", m.Project, sections).FillWidth().OnChange(setProject)
+listbox.Sections(m.Project, sections).Key("grouped").FillWidth().OnChange(setProject)
 listbox.New(items).Key("optional").SelectedKey(m.Language).AllowEmptySelection().OnChange(setLanguage)
 listbox.New(actions).Key("actions").SelectionMode(listbox.SelectionNone).OnAction(handleAction)`},
 	{key: "table", title: "Table · 表格", group: "数据与导航", packages: "table", source: "demo_navigation.go",
 		summary: "选择、排序、调整列宽、行菜单、自定义单元格、空状态、Footer 与加载更多。", demo: demoTable,
-		code: `table.New("projects", columns, rows).Border(true).RowHeight(36).
+		code: `table.New(columns, rows).Key("projects").Border(true).RowHeight(36).
     SelectionMode(table.SelectionSingle).SelectedKey(m.Project).
     SortDescriptor(m.Sort).OnSortChange(setSort).OnColumnResize(setWidth)
-table.New("projects-grid", columns, rows).Border(true).GridLines(true).Striped(true).
+table.New(columns, rows).Key("projects-grid").Border(true).GridLines(true).Striped(true).
     SelectionMode(table.SelectionMultiple).ShowSelectionIndicator().
     SelectedKeys(m.Projects).OnSelectionChange(setProjects)
-table.New("empty", columns, nil).EmptyText("没有项目").Footer(footer)
-table.New("compact", columns, rows).RowHeight(28).HeaderHeight(28).Border(true)`},
+table.New(columns, nil).Key("empty").EmptyText("没有项目").Footer(footer)
+table.New(columns, rows).Key("compact").RowHeight(28).HeaderHeight(28).Border(true)`},
 	{key: "virtual-list", title: "VirtualList · 虚拟列表", group: "数据与导航", source: "demo_advanced.go",
 		summary: "一万条虚拟记录，以及追加日志时自动跟随末尾的独立滚动区域。", demo: demoVirtualList,
 		code: `layout.Box(layout.List(10000, func(index int) ui.Widget {
@@ -152,50 +152,50 @@ table.New("compact", columns, rows).RowHeight(28).HeaderHeight(28).Border(true)`
 layout.List(len(m.Logs), logRow).Key("logs").FollowEnd()`},
 	{key: "virtual-table", title: "VirtualTable · 虚拟表格", group: "数据与导航", packages: "table", source: "demo_advanced.go",
 		summary: "一万行虚拟数据，支持排序、单选、多选、表格线、禁用行与交互单元格。", demo: demoVirtualTable,
-		code: `table.NewVirtual("records", columns, 10000, rowAt).MaxHeight(320).
+		code: `table.NewVirtual(columns, 10000, rowAt).Key("records").MaxHeight(320).
     SortDescriptor(m.Sort).OnSortChange(setSort).
     SelectionMode(table.SelectionSingle).SelectedKey(m.Selected).OnChange(setSelected)
-table.NewVirtual("grid", columns, 10000, rowAt).MaxHeight(260).GridLines(true).
+table.NewVirtual(columns, 10000, rowAt).Key("grid").MaxHeight(260).GridLines(true).
     SelectionMode(table.SelectionMultiple).ShowSelectionIndicator().
     SelectedKeys(m.Keys).OnSelectionChange(setKeys)`},
 	{key: "tree", title: "Tree · 树", group: "数据与导航", packages: "tree", source: "demo_navigation.go",
 		summary: "分层资源浏览、多选、右键菜单、独立勾选、辅助线与空状态。", demo: demoTree,
-		code: `tree.New("files", m.File, items).ExpandedKeys(m.Expanded).
+		code: `tree.New(m.File, items).Key("files").ExpandedKeys(m.Expanded).
     OnExpandedChange(setExpanded).OnChange(setFile)
-tree.New("multiple", "", items).SelectionMode(tree.SelectionMultiple).
+tree.New("", items).Key("multiple").SelectionMode(tree.SelectionMultiple).
     SelectedKeys(m.Keys).OnSelectionChange(setKeys)
-tree.New("checks", "", items).Checkable(true).CheckStrictly(true).
+tree.New("", items).Key("checks").Checkable(true).CheckStrictly(true).
     CheckedKeys(m.Checked).OnCheckedChange(setChecked).Size(tree.SizeSmall)`},
 	{key: "tree-advanced", title: "Tree · 高级操作", group: "数据与导航", packages: "tree", source: "demo_advanced.go",
 		summary: "按需加载与失败重试、过滤、级联勾选、F2 重命名和文件拖入目录。", demo: demoAdvancedTree,
-		code: `tree.New("files", m.Selected, tree.ItemsFromSimple(m.Items)).
+		code: `tree.New(m.Selected, tree.ItemsFromSimple(m.Items)).Key("files").
     DataVersion(m.Version).Filter(m.Query).Checkable(true).
     CheckedKeys(m.Checked).OnCheckedChange(setChecked).
     OnLoadChildrenEvent(loadChildren).OnRename(rename).CanDrop(canDrop).OnDrop(move)
 // ChildrenError + LoadError display an error; OnLoadChildrenEvent receives retry requests.`},
 	{key: "breadcrumb", title: "Breadcrumb · 面包屑", group: "数据与导航", packages: "breadcrumb", source: "demo_controls.go",
 		summary: "点击祖先层级导航，最后一项表示当前位置，窄窗口下自动换行。", demo: demoBreadcrumb,
-		code: `navigation.NewBreadcrumb("path", []navigation.BreadcrumbItem{
+		code: `navigation.NewBreadcrumb([]navigation.BreadcrumbItem{
     {Key: "home", Label: "首页"}, {Key: "docs", Label: "文档"},
-}).Separator("›").OnChange(navigate)`},
+}).Key("path").Separator("›").OnChange(navigate)`},
 	{key: "tabs", title: "Tabs · 标签页", group: "数据与导航", packages: "tabs", source: "demo_navigation.go",
 		summary: "外观、尺寸与方向，标签增删改名、溢出菜单和键盘手动激活。", demo: demoTabs,
-		code: `tabs.New("tabs", m.Tab, items).OnChange(setTab)
-tabs.New("vertical", m.Tab, items).Vertical().OnChange(setTab)
-tabs.New("documents", m.Document, documents).OnChange(setDocument).
+		code: `tabs.New(m.Tab, items).Key("tabs").OnChange(setTab)
+tabs.New(m.Tab, items).Key("vertical").Vertical().OnChange(setTab)
+tabs.New(m.Document, documents).Key("documents").OnChange(setDocument).
     OnAdd(addDocument).OnClose(closeDocument).OnEdit(renameDocument)
-tabs.New("overflow", m.Tab, items).Overflow(tabs.OverflowMenu).OnChange(setTab)
-tabs.New("manual", m.Tab, items).Activation(tabs.ActivationManual).OnChange(setTab)`},
+tabs.New(m.Tab, items).Key("overflow").Overflow(tabs.OverflowMenu).OnChange(setTab)
+tabs.New(m.Tab, items).Key("manual").Activation(tabs.ActivationManual).OnChange(setTab)`},
 	{key: "pagination", title: "Pagination · 分页", group: "数据与导航", packages: "pagination", source: "demo_navigation.go",
 		summary: "页码导航、首尾跳转、大量页码省略、汇总、尺寸与禁用状态。", demo: demoPagination,
-		code: `navigation.NewPagination("pages", m.Page, 12).OnChange(setPage)
-navigation.NewPagination("many", m.Page, 100).Siblings(1).Boundaries(1).
+		code: `navigation.NewPagination(m.Page, 12).Key("pages").OnChange(setPage)
+navigation.NewPagination(m.Page, 100).Key("many").Siblings(1).Boundaries(1).
     Summary(summary).OnChange(setPage)
-navigation.NewPagination("small", m.Page, 100).
+navigation.NewPagination(m.Page, 100).Key("small").
     Size(navigation.PaginationSizeSmall).ShowControls(false).OnChange(setPage)`},
 	{key: "sidebar", title: "Sidebar · 侧栏", group: "数据与导航", packages: "sidebar", source: "demo_navigation.go",
 		summary: "多级分组导航、折叠图标、悬停子菜单、页头页脚与空状态。", demo: demoSidebar,
-		code: `sidebar.NewSections("nav", m.Page, sections).OnChange(setPage).
+		code: `sidebar.NewSections(m.Page, sections).Key("nav").OnChange(setPage).
     OpenKeys(m.OpenKeys).OnOpenChange(setOpenKeys).
     Collapsed(m.Collapsed).Width(240).CollapsedWidth(56)
 // Use Item.Children for nested destinations and Leading for collapsed icons.`},
@@ -213,15 +213,15 @@ collapsible.Group("multiple", m.OpenKeys, items).AllowMultipleExpanded(true).OnE
 collapsible.New("详情", content).Key("default-open").DefaultExpanded(true)`},
 	{key: "menu", title: "Menu · 菜单", group: "菜单与浮层", packages: "menu", source: "demo_overlays.go",
 		summary: "常驻菜单与右键上下文菜单，选项具有实际动作反馈。", demo: demoMenu,
-		code: `menu.New("actions", items)
-menu.ContextMenu("context", trigger, menu.New("context-actions", items))`},
+		code: `menu.New(items).Key("actions")
+menu.ContextMenu("context", trigger, menu.New(items).Key("context-actions"))`},
 	{key: "dropdown", title: "Dropdown · 下拉菜单", group: "菜单与浮层", packages: "dropdown", source: "demo_overlays.go",
 		summary: "触发器菜单以及带独立主操作的组合按钮。", demo: demoDropdown,
-		code: `dropdown.New("more", button.New("更多"), items).Menu(menu.New("more:menu", items).OnActionEvent(onAction))
+		code: `dropdown.New(button.New("更多"), items).Key("more").Menu(menu.New(items).Key("more:menu").OnActionEvent(onAction))
 dropdown.Button("publish", button.New("发布"), items).OnClick(publish)`},
 	{key: "menubar", title: "MenuBar · 菜单栏", group: "菜单与浮层", packages: "menubar", source: "demo_overlays.go",
 		summary: "桌面应用中的文件、编辑等菜单入口。", demo: demoMenubar,
-		code: `menubar.New("menu", []menubar.Item{menubar.NewMenu("file", "文件", items)})`},
+		code: `menubar.New([]menubar.Item{menubar.NewMenu("file", "文件", items)}).Key("menu")`},
 	{key: "modal", title: "Modal · 对话框", group: "菜单与浮层", packages: "modal", source: "demo_overlays.go",
 		summary: "编辑、长内容滚动和必须明确关闭的对话框。", demo: demoModal,
 		code: `modal.New("编辑项目", body).Key("edit").Open(m.Open).OnOpenChange(setOpen)
@@ -231,7 +231,7 @@ modal.New("必须明确关闭", body).Key("explicit").Open(m.ExplicitOpen).
     Dismissable(false).KeyboardDismissDisabled(true).CloseButton(false).Footer(actions)`},
 	{key: "commandpalette", title: "CommandPalette · 命令面板", group: "菜单与浮层", packages: "commandpalette", source: "demo_controls.go",
 		summary: "搜索与键盘执行应用命令，复用 command.Command，与按钮、菜单和快捷键共享操作。", demo: demoCommandPalette,
-		code: `commandpalette.New("commands", m.Open, commands).OnOpenChange(setOpen)`},
+		code: `commandpalette.New(m.Open, commands).Key("commands").OnOpenChange(setOpen)`},
 	{key: "alertdialog", title: "AlertDialog · 确认框", group: "菜单与浮层", packages: "alertdialog", source: "demo_overlays.go",
 		summary: "危险操作要求明确确认。本演示只更新反馈，不删除文件。", demo: demoAlertDialog,
 		code: `alertdialog.New("删除项目？", "请确认此操作").Key("delete").Open(m.Open).
@@ -243,10 +243,10 @@ popover.New(trigger, content).Key("info").Open(m.Open).
     Placement(popover.Bottom).Arrow(true).OnOpenChange(setOpen)`},
 	{key: "tooltip", title: "Tooltip · 提示", group: "菜单与浮层", packages: "tooltip", source: "demo_overlays.go",
 		summary: "悬停或键盘聚焦按钮，查看补充说明。", demo: demoTooltip,
-		code: `tooltip.New("save-tip", saveButton, "保存当前文档")`},
+		code: `tooltip.New(saveButton, "保存当前文档").Key("save-tip")`},
 	{key: "portal", title: "Portal · 根浮层", group: "菜单与浮层", packages: "portal", source: "demo_overlays.go",
 		summary: "把自定义内容挂到窗口根浮层，按触发器位置定位，避免被容器裁剪。", demo: demoPortal,
-		code: `portal.New("hint", m.Visible, trigger, content).Passive(true)`},
+		code: `portal.New(m.Visible, trigger, content).Key("hint").Passive(true)`},
 	{key: "alert", title: "Alert · 提醒", group: "反馈", packages: "alert", source: "demo_overlays.go",
 		summary: "语义状态、关闭恢复与操作按钮。", demo: demoAlert,
 		code: `alert.New("已保存", "所有更改已同步").Status(alert.Success)
@@ -254,12 +254,12 @@ alert.New("项目提示", description).Key("notice").Closable(true).OnClose(hide
 alert.New("发现可用更新", description).Action(updateButton)`},
 	{key: "toast", title: "Toast · 消息", group: "反馈", packages: "toast", source: "demo_overlays.go",
 		summary: "普通、成功、警告和错误消息，支持超时、关闭与撤销。", demo: demoToast,
-		code: `toast.New("messages", m.Messages).OnClose(removeMessage).OnAction(handleAction)`},
+		code: `toast.New(m.Messages).Key("messages").OnClose(removeMessage).OnAction(handleAction)`},
 	{key: "progress", title: "Progress · 进度与计量", group: "反馈", packages: "progress", source: "demo_overlays.go",
 		summary: "条形、环形、计量、颜色、尺寸、自定义范围与不确定进度。", demo: demoProgress,
 		code: `progress.Bar(m.Progress).Key("upload").ShowValue()
 progress.Circle(m.Progress).Key("circle")
-progress.Meter("storage", m.Usage).Label("存储").ShowValue()
+progress.Meter(m.Usage).Key("storage").Label("存储").ShowValue()
 progress.Bar(100).Key("done").Color(progress.BarSuccess).Size(progress.BarSmall)
 progress.Bar(0).Key("pending").Indeterminate()`},
 	{key: "spinner", title: "Spinner · 加载", group: "反馈", packages: "spinner", source: "demo_overlays.go",
@@ -272,32 +272,32 @@ skeleton.New().Circle().Height(48)
 skeleton.New().Height(100).Animated(false)`},
 	{key: "linechart", title: "LineChart · 折线图", group: "图表", packages: "linechart", source: "demo_charts.go",
 		summary: "平滑面积图、阶梯线、虚线、缺失数据和空状态。", demo: demoLine,
-		code: `linechart.New("visits", series).Categories(days).Height(280).OnDataClick(onSelect)`},
+		code: `linechart.New(series).Key("visits").Categories(days).Height(280).OnDataClick(onSelect)`},
 	{key: "barchart", title: "BarChart · 柱状图", group: "图表", packages: "barchart", source: "demo_charts.go",
 		summary: "分组柱、横向堆叠和数据标签。", demo: demoBar,
-		code: `barchart.New("tasks", series).Categories(weeks).Height(280)
+		code: `barchart.New(series).Key("tasks").Categories(weeks).Height(280)
 stacked := []barchart.Series{
     barchart.Values("desktop", "桌面", desktop).Stack("platform").ShowLabels(true),
     barchart.Values("web", "Web", web).Stack("platform").ShowLabels(true),
 }
-barchart.New("stacked", stacked).Categories(weeks).Orientation(barchart.Horizontal)`},
+barchart.New(stacked).Key("stacked").Categories(weeks).Orientation(barchart.Horizontal)`},
 	{key: "piechart", title: "PieChart · 环形图", group: "图表", packages: "piechart", source: "demo_charts.go",
 		summary: "圆环、实心饼图和玫瑰图，支持图例和数据选择。", demo: demoPie,
-		code: `piechart.New("platforms", data).InnerRadius(0.3).Height(300)
-piechart.New("solid", data).PadAngle(3).Labels(true)
-piechart.New("rose", data).RoseType(piechart.RoseArea)`},
+		code: `piechart.New(data).Key("platforms").InnerRadius(0.3).Height(300)
+piechart.New(data).Key("solid").PadAngle(3).Labels(true)
+piechart.New(data).Key("rose").RoseType(piechart.RoseArea)`},
 	{key: "candlestick", title: "Candlestick · K 线", group: "图表", packages: "candlestick", source: "demo_charts.go",
 		summary: "开盘、收盘、最低、最高值的行情展示。", demo: demoCandle,
-		code: `candlestick.New("price", []candlestick.Candle{candlestick.OHLC(20, 24, 18, 26)}).Height(280)`},
+		code: `candlestick.New([]candlestick.Candle{candlestick.OHLC(20, 24, 18, 26)}).Key("price").Height(280)`},
 	{key: "heatmap", title: "Heatmap · 热力图", group: "图表", packages: "heatmap", source: "demo_charts.go",
 		summary: "以日历形式展示一段时间内的活动强度。", demo: demoHeatmap,
-		code: `heatmap.New("activity", start, end, values).Height(240)`},
+		code: `heatmap.New(start, end, values).Key("activity").Height(240)`},
 	{key: "gantt", title: "Gantt · 甘特图", group: "图表", packages: "gantt", source: "demo_charts.go",
 		summary: "按时间轴展示项目任务，点击任务查看选择。", demo: demoGantt,
-		code: `gantt.New("schedule", tasks).Height(320).Legend(true)`},
+		code: `gantt.New(tasks).Key("schedule").Height(320).Legend(true)`},
 	{key: "nodegraph", title: "NodeGraph · 节点图", group: "图表", packages: "nodegraph", source: "demo_charts.go",
 		summary: "拖动节点、平移和缩放画布。节点和连线变更写回应用模型。", demo: demoGraph,
-		code: `nodegraph.New("pipeline", m.Graph).Height(360).
+		code: `nodegraph.New(m.Graph).Key("pipeline").Height(360).
     OnNodesChange(applyNodeChanges).OnEdgesChange(applyEdgeChanges)`},
 	{key: "toolbar", title: "Toolbar · 工具栏", group: "应用布局", packages: "toolbar", source: "demo_workspace.go",
 		summary: "组合操作、命令溢出菜单、垂直布局和禁用状态。", demo: demoToolbar,
@@ -309,7 +309,7 @@ toolbar.New(saveButton, copyButton).Orientation(toolbar.Vertical)`},
 		code: `statusbar.New(text.New("已同步"), text.New("UTF-8 · Go"))`},
 	{key: "titlebar", title: "TitleBar · 标题栏", group: "应用布局", packages: "titlebar", source: "demo_workspace.go",
 		summary: "自定义窗口标题和菜单。此处关闭窗口操作已隐藏，方便安全试用。", demo: demoTitlebar,
-		code: `titlebar.New("title", "FlowUI Studio", menuBar).
+		code: `titlebar.New("FlowUI Studio", menuBar).Key("title").
     ShowMinimize(false).ShowMaximize(false).ShowClose(false)`},
 	{key: "panel", title: "Panel · 内容面板", group: "应用布局", packages: "panel", source: "demo_workspace.go",
 		summary: "按 key 切换内容，保留非活动面板的内部状态。", demo: demoPanel,
@@ -321,7 +321,7 @@ toolbar.New(saveButton, copyButton).Orientation(toolbar.Vertical)`},
 	{key: "workbench", title: "Workbench · 工作台", group: "应用布局", packages: "workbench", source: "demo_workspace.go",
 		summary: "将标签、面板和命令绑定到同一份工作台状态；支持切换、关闭和重新打开文档。", demo: demoWorkbench,
 		code: `controller := workbench.NewController(m.Workbench)
-controller.BindTabs("editor", tabs.New("documents", "", tabItems))
+controller.BindTabs("editor", tabs.New("", tabItems).Key("documents"))
 controller.BindPanel("editor", surface.NewPanel("documents-body", "", panels))`},
 	{key: "layout", title: "Layout · 布局构件", group: "应用布局", packages: "", source: "demo_workspace.go",
 		summary: "行列、自动换行、网格、叠放、滚动和可拖动分割布局。", demo: demoLayout,

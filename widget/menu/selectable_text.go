@@ -26,7 +26,7 @@ func wrapSelectableText(ctx *core.Context, gtx layout.Context, key string, field
 
 func selectableEditContent(ctx *core.Context, selectable *widget.Selectable, queue func(selectablemenu.Action)) Widget {
 	copyLabel, selectAllLabel := ctx.Text(i18n.ActionCopy), ctx.Text(i18n.ActionSelectAll)
-	return New("selectable-edit", []Item{
+	return New([]Item{
 		{
 			Key:      "copy",
 			Label:    copyLabel,
@@ -41,7 +41,7 @@ func selectableEditContent(ctx *core.Context, selectable *widget.Selectable, que
 			Disabled: selectable.Text() == "",
 			OnAction: func() { queue(selectablemenu.SelectAll) },
 		},
-	})
+	}).Key("selectable-edit")
 }
 
 // selectableShortcutLabel renders the platform primary modifier for

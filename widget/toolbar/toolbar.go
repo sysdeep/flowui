@@ -44,7 +44,13 @@ type Widget struct {
 }
 
 func New(children ...core.Widget) Widget {
-	return Widget{children: children, loopFocus: true, visualCache: &toolbarVisualCache{}}
+	return Widget{key: core.AutoKey("toolbar"), children: children, loopFocus: true, visualCache: &toolbarVisualCache{}}
+}
+
+// Key sets the stable identity used by style transitions and child separators.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 // Commands creates a horizontal command toolbar. Commands that do not fit
@@ -133,7 +139,7 @@ func (w Widget) layoutChildren(ctx *core.Context, gtx layout.Context, visual too
 	for index, child := range children {
 		if separator, ok := child.(SeparatorWidget); ok {
 			separator.orientation = w.orientation
-			separator.key = "toolbar-separator:" + strconv.Itoa(index)
+			separator.key = core.DerivedKey(ctx, core.FullKey(ctx, w.key), "separator:"+strconv.Itoa(index))
 			separator.visual = &visual
 			children[index] = separator
 			continue
@@ -176,8 +182,8 @@ func (w Widget) layoutCommands(ctx *core.Context, gtx layout.Context, visual too
 		for _, item := range w.commands[visible:] {
 			items = append(items, command.MenuItemFor(ctx, item))
 		}
-		popup := menu.New(core.DerivedKey(ctx, w.key, "overflow:menu"), items).AutoWidth()
-		children = append(children, dropdown.New(core.DerivedKey(ctx, w.key, "overflow"), more, nil).Menu(popup))
+		popup := menu.New(items).Key(core.DerivedKey(ctx, w.key, "overflow:menu")).AutoWidth()
+		children = append(children, dropdown.New(more, nil).Key(core.DerivedKey(ctx, w.key, "overflow")).Menu(popup))
 	}
 	return layoutui.TrackedFlex(ctx, gtx, layout.Horizontal, visual.Metrics.Gap, layout.Middle, children...)
 }
@@ -238,7 +244,7 @@ type SeparatorWidget struct {
 }
 
 func Separator() SeparatorWidget {
-	return SeparatorWidget{}
+	return SeparatorWidget{key: core.AutoKey("toolbar-separator")}
 }
 
 func (s SeparatorWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensions {
@@ -253,11 +259,7 @@ func (s SeparatorWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Di
 	}
 	resolved := computed.ResolveStatic(ctx, style.State{}, declaration, style.Style{}, style.Style{}, s.style)
 	if len(resolved.Transitions) != 0 {
-		key := s.key
-		if key == "" {
-			key = "toolbar-separator"
-		}
-		key = core.ClaimKey(ctx, core.KindStyle, key)
+		key := core.ClaimDerivedKey(ctx, core.KindStyle, s.key, "style")
 		resolved = computed.ApplyTransitions(ctx, gtx, key, resolved)
 	}
 	return layoutui.Resolved(ctx, gtx, resolved, nil)
@@ -275,7 +277,7 @@ func (w Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual toolb
 	if len(resolved.Transitions) == 0 {
 		return resolved
 	}
-	key := core.ClaimKey(ctx, core.KindStyle, "toolbar")
+	key := core.ClaimDerivedKey(ctx, core.KindStyle, w.key, "style")
 	return computed.ApplyTransitions(ctx, gtx, key, resolved)
 }
 

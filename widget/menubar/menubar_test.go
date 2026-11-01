@@ -33,11 +33,11 @@ func menubarTestContext() *core.Context {
 
 func menubarTestWidget() Widget {
 	trigger := fixedMenubarWidget{size: image.Pt(36, 16)}
-	return New("application-menu", []Item{
+	return New([]Item{
 		NewMenu("file", "File", []menu.Item{{Key: "new", Label: "New"}}).Trigger(trigger).Width(80),
 		NewMenu("edit", "Edit", []menu.Item{{Key: "copy", Label: "Copy"}}).Trigger(trigger).Width(80),
 		NewMenu("view", "View", []menu.Item{{Key: "zoom", Label: "Zoom"}}).Trigger(trigger).Width(80),
-	})
+	}).Key("application-menu")
 }
 
 func TestMenubarAccessKeyIsValueSemantic(t *testing.T) {
@@ -82,7 +82,7 @@ func TestMenubarRejectsInvalidItems(t *testing.T) {
 					t.Fatal("invalid Menubar items did not panic")
 				}
 			}()
-			layoutMenubarFrame(menubarTestContext(), new(input.Router), New("invalid", test.items), time.Unix(1, 0))
+			layoutMenubarFrame(menubarTestContext(), new(input.Router), New(test.items).Key("invalid"), time.Unix(1, 0))
 		})
 	}
 }
@@ -230,11 +230,11 @@ func TestMenubarStationaryHoverDoesNotUndoMenuKeyboardSwitch(t *testing.T) {
 
 func TestMenubarLoopFocusFalseAndDisabledItem(t *testing.T) {
 	trigger := fixedMenubarWidget{size: image.Pt(36, 16)}
-	widget := New("bounded-menu", []Item{
+	widget := New([]Item{
 		NewMenu("file", "File", nil).Trigger(trigger),
 		NewMenu("edit", "Edit", nil).Trigger(trigger).Disabled(true),
 		NewMenu("view", "View", nil).Trigger(trigger),
-	}).LoopFocus(false)
+	}).Key("bounded-menu").LoopFocus(false)
 	ctx := menubarTestContext()
 	router := new(input.Router)
 	now := time.Unix(3, 0)
@@ -337,11 +337,11 @@ func TestMenubarPreservesConfiguredMenuDisabledState(t *testing.T) {
 	ctx := menubarTestContext()
 	router := new(input.Router)
 	action := ""
-	content := menu.New("disabled-content", []menu.Item{{Key: "action", Label: "Action"}}).
+	content := menu.New([]menu.Item{{Key: "action", Label: "Action"}}).Key("disabled-content").
 		OnActionEvent(func(event menu.ActionEvent) { action = event.Key }).
 		Disabled(true).
 		Width(80)
-	widget := New("disabled-content-bar", []Item{
+	widget := New([]Item{
 		NewMenuContent("file", "File", content).Trigger(fixedMenubarWidget{size: image.Pt(36, 16)}),
 	})
 	now := time.Unix(10, 0)

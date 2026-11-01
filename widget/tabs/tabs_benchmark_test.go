@@ -16,10 +16,10 @@ import (
 
 func BenchmarkTabsLayoutSteadyState(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
-	value := New("benchmark-tabs", "tab-0", []TabItem{
+	value := New("tab-0", []TabItem{
 		{Key: "tab-0", Label: "Overview"}, {Key: "tab-1", Label: "Activity"},
 		{Key: "tab-2", Label: "Settings"},
-	}).Fit().Separators(true)
+	}).Key("benchmark-tabs").Fit().Separators(true)
 	gtx := layout.Context{Ops: new(op.Ops), Constraints: layout.Constraints{Max: image.Pt(480, 160)}}
 	var router input.Router
 	value.Layout(ctx, gtx)
@@ -54,7 +54,7 @@ func reportTabsDefaultsCacheStats(b *testing.B, after, before computed.VisualCac
 
 func BenchmarkTabsDefaultsCacheHit(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
-	value := New("benchmark-tabs", "tab-0", []TabItem{{Key: "tab-0", Label: "Overview"}})
+	value := New("tab-0", []TabItem{{Key: "tab-0", Label: "Overview"}}).Key("benchmark-tabs")
 	value.defaultsWithCache(ctx)
 	baseline := value.visualCache.Stats()
 	b.ReportAllocs()
@@ -71,7 +71,7 @@ func BenchmarkTabsDefaultsCacheInvalidation(b *testing.B) {
 	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
-	value := New("benchmark-tabs", "tab-0", []TabItem{{Key: "tab-0", Label: "Overview"}})
+	value := New("tab-0", []TabItem{{Key: "tab-0", Label: "Overview"}}).Key("benchmark-tabs")
 	value.defaultsWithCache(firstContext)
 
 	b.ReportAllocs()

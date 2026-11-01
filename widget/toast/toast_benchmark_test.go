@@ -16,7 +16,7 @@ import (
 func BenchmarkToastComponentTree(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
-	host := New("bench", []Item{
+	host := New([]Item{
 		NewItem("one", "Saved").Description("A persisted notification").Timeout(0),
 		NewItem("two", "Uploading").Loading(true).Timeout(0),
 		NewItem("three", "Warning").Variant(Warning).Timeout(0),
@@ -35,7 +35,7 @@ func BenchmarkToastComponentTree(b *testing.B) {
 
 func BenchmarkToastVisualCacheHit(b *testing.B) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
-	host := New("bench", nil)
+	host := New(nil).Key("bench")
 	host.visualWithCache(ctx, Success, button.Ghost)
 	baseline := host.visualCache.stats()
 	b.ReportAllocs()
@@ -59,7 +59,7 @@ func BenchmarkToastVisualCacheInvalidation(b *testing.B) {
 	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
-	host := New("bench", nil)
+	host := New(nil).Key("bench")
 	host.visualWithCache(firstContext, Success, button.Ghost)
 	baseline := host.visualCache.stats()
 

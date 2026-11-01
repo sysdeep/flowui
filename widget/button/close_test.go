@@ -23,7 +23,7 @@ import (
 func TestCloseButtonLayoutUsesStyleGeometry(t *testing.T) {
 	activeTheme := theme.Light()
 	probe := new(closeButtonProbe)
-	dims := NewCloseButton("close").Icon(probe).
+	dims := NewCloseButton().Key("close").Icon(probe).
 		Style(style.New().Width(30).Height(30).Padding(5).
 			Part(style.PartIcon, style.New().Width(22).Height(22))).
 		Layout(newCloseButtonContext(&activeTheme, locale.LanguageEnglish), closeButtonTestContext())
@@ -54,7 +54,7 @@ func TestCloseButtonHandlesClickAndDisabledBlocksIt(t *testing.T) {
 			clickable := new(widget.Clickable)
 			clickable.Click()
 			core.UseStateWith(ctx, "close", "clickable", func() *widget.Clickable { return clickable })
-			NewCloseButton("close").Disabled(test.disabled).OnClick(func() { clicked = true }).Layout(ctx, closeButtonTestContext())
+			NewCloseButton().Key("close").Disabled(test.disabled).OnClick(func() { clicked = true }).Layout(ctx, closeButtonTestContext())
 			if clicked != test.want {
 				t.Fatalf("clicked = %v, want %v", clicked, test.want)
 			}
@@ -67,7 +67,7 @@ func TestCloseButtonPointerClickAndDisabledBlocking(t *testing.T) {
 		ctx := newCloseButtonContext(nil, locale.LanguageEnglish)
 		router := new(input.Router)
 		clicked := false
-		button := NewCloseButton("close").Disabled(disabled).OnClick(func() { clicked = true })
+		button := NewCloseButton().Key("close").Disabled(disabled).OnClick(func() { clicked = true })
 		layoutCloseButtonFrame(ctx, router, button, time.Unix(1, 0))
 		router.Queue(
 			pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: f32.Pt(12, 12)},
@@ -85,7 +85,7 @@ func TestDisabledCloseButtonDoesNotBlockUnderlyingPointerTarget(t *testing.T) {
 	router := new(input.Router)
 	background := new(widget.Clickable)
 	clicked := false
-	button := NewCloseButton("close").Disabled(true)
+	button := NewCloseButton().Key("close").Disabled(true)
 	start := time.Unix(1, 0)
 	layoutDisabledCloseOverBackground(ctx, router, background, button, &clicked, start)
 	router.Queue(
@@ -103,7 +103,7 @@ func TestCloseButtonPointerAndKeyboardFocusVisibility(t *testing.T) {
 	{
 		ctx := newCloseButtonContext(nil, locale.LanguageEnglish)
 		router := new(input.Router)
-		button := NewCloseButton("close")
+		button := NewCloseButton().Key("close")
 		layoutCloseButtonFrame(ctx, router, button, start)
 		clickable, ok := core.PeekState[widget.Clickable](ctx, "close", "clickable")
 		if !ok {
@@ -128,7 +128,7 @@ func TestCloseButtonPointerAndKeyboardFocusVisibility(t *testing.T) {
 	{
 		ctx := newCloseButtonContext(nil, locale.LanguageEnglish)
 		router := new(input.Router)
-		button := NewCloseButton("close")
+		button := NewCloseButton().Key("close")
 		layoutCloseButtonFrame(ctx, router, button, start)
 		clickable, ok := core.PeekState[widget.Clickable](ctx, "close", "clickable")
 		if !ok {
@@ -143,7 +143,7 @@ func TestCloseButtonPointerAndKeyboardFocusVisibility(t *testing.T) {
 }
 
 func TestCloseButtonDefaultLabelUsesContextLanguage(t *testing.T) {
-	button := NewCloseButton("close")
+	button := NewCloseButton().Key("close")
 	if got := button.semanticLabel(newCloseButtonContext(nil, locale.LanguageEnglish)); got != "Close" {
 		t.Fatalf("English label = %q, want Close", got)
 	}
@@ -163,8 +163,8 @@ func TestCloseButtonSemanticsIncludeLabelAndDisabledState(t *testing.T) {
 		label    string
 		disabled bool
 	}{
-		{name: "localized", button: NewCloseButton("close"), language: locale.LanguageChinese, label: "关闭"},
-		{name: "custom disabled", button: NewCloseButton("dismiss").Label("Dismiss").Disabled(true), language: locale.LanguageEnglish, label: "Dismiss", disabled: true},
+		{name: "localized", button: NewCloseButton().Key("close"), language: locale.LanguageChinese, label: "关闭"},
+		{name: "custom disabled", button: NewCloseButton().Key("dismiss").Label("Dismiss").Disabled(true), language: locale.LanguageEnglish, label: "Dismiss", disabled: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := newCloseButtonContext(nil, test.language)
@@ -194,7 +194,7 @@ func TestCloseButtonStyledOverrideAppliesVisualGeometry(t *testing.T) {
 		Height(36).
 		Radius(3).
 		Part(style.PartIcon, style.Style{}.Width(12).Height(10))
-	value := (NewCloseButton("styled").Icon(probe)).Style(declaration)
+	value := (NewCloseButton().Key("styled").Icon(probe)).Style(declaration)
 	dimensions := value.Layout(ctx, closeButtonTestContext())
 
 	if dimensions.Size != image.Pt(40, 36) {
@@ -219,7 +219,7 @@ func TestCloseButtonStyledOverridePreservesBehaviorAndSemantics(t *testing.T) {
 			ctx := newCloseButtonContext(nil, locale.LanguageEnglish)
 			router := new(input.Router)
 			clicked := false
-			button := (NewCloseButton("styled-behavior").
+			button := (NewCloseButton().Key("styled-behavior").
 				Label(test.wantLabel).
 				Disabled(test.disabled).
 				OnClick(func() { clicked = true })).Style(style.Style{}.Width(40).Height(36))

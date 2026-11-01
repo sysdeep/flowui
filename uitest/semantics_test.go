@@ -143,10 +143,10 @@ func TestTouchAndMouseKeepDistinctPointerIdentity(t *testing.T) {
 
 func TestRelationsExposeTabPanelLinks(t *testing.T) {
 	harness := uitest.New(image.Pt(320, 200), theme.Light())
-	root := tabs.New("tabs", "a", []tabs.TabItem{
+	root := tabs.New("a", []tabs.TabItem{
 		{Key: "a", Label: "A", Panel: text.New("Panel A")},
 		{Key: "b", Label: "B", Panel: text.New("Panel B")},
-	})
+	}).Key("tabs")
 	harness.Frame(root)
 
 	relations := harness.Relations()

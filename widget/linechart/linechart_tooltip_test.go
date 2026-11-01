@@ -26,9 +26,9 @@ import (
 func TestLineChartTooltipKeepsScrollItemStable(t *testing.T) {
 	activeTheme := theme.Light()
 	h := uitest.NewWithConfig(uitest.Config{Size: image.Pt(640, 420), Theme: &activeTheme})
-	chart := New("chart", []Series{
+	chart := New([]Series{
 		Values("visits", "Visits", []float64{28, 42, 36, 58, 64, 52, 78}),
-	}).Categories([]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}).Height(300)
+	}).Key("chart").Categories([]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}).Height(300)
 
 	var size image.Point
 	measured := core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {

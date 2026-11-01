@@ -64,6 +64,37 @@ func popoverTestVisual(ctx *core.Context, value Widget) popoverVisual {
 	return value.visualWithCache(ctx, nil)
 }
 
+func TestPopoverStyleTransitionsAreIsolatedAcrossInstances(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		t.Run(map[bool]string{false: "automatic", true: "explicit"}[explicit], func(t *testing.T) {
+			ctx := newContext(nil)
+			start := time.Unix(1, 0)
+			for frame := range 3 {
+				core.BeginFrame(ctx)
+				gtx := testLayoutContext()
+				gtx.Now = start.Add(time.Duration(frame) * time.Second)
+				for index, opacity := range []float32{.2, .8} {
+					if frame > 0 && index == 0 {
+						opacity = 1
+					}
+					value := New(nil, nil).Style(style.New().Opacity(opacity).Transition(style.PropOpacity, time.Second))
+					if explicit {
+						value = value.Key([]string{"first", "second"}[index])
+					}
+					resolved := value.resolvePanelStyle(ctx, gtx, style.State{}, popoverTestVisual(ctx, value))
+					if frame == 1 && index == 0 {
+						opacity = .2
+					}
+					if resolved.Paint == nil || resolved.Paint.Opacity == nil || *resolved.Paint.Opacity != opacity {
+						t.Fatalf("frame %d instance %d opacity = %v, want %v", frame, index, resolved.Paint, opacity)
+					}
+				}
+				core.EndFrame(ctx)
+			}
+		})
+	}
+}
+
 func TestPopoverClosedLaysOutTriggerAndDoesNotClaimState(t *testing.T) {
 	ctx := newContext(nil)
 	dims := New(Spacer(24, 12), text.New("Body")).Key("help").Layout(ctx, testLayoutContext())

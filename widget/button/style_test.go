@@ -120,7 +120,7 @@ func resolvedStyleEmpty(value style.ResolvedStyle) bool {
 func TestCloseButtonVisualUsesDefaultIconSize(t *testing.T) {
 	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	defaults := NewCloseButton("close").styles(ctx)
+	defaults := NewCloseButton().Key("close").styles(ctx)
 	resolved := style.CascadePart(style.State{}, style.PartIcon, defaults.icon)
 	if resolved.Box == nil || resolved.Box.Width == nil || *resolved.Box.Width != 16 {
 		t.Fatal("close button icon does not use default size")
@@ -132,7 +132,7 @@ func TestCloseButtonVisualCacheTracksTheme(t *testing.T) {
 	second := new(theme.Light())
 	firstContext := core.New(nil, first, locale.LanguageEnglish)
 	secondContext := core.New(nil, second, locale.LanguageEnglish)
-	value := NewCloseButton("close")
+	value := NewCloseButton().Key("close")
 
 	value.styles(firstContext)
 	value.styles(firstContext)

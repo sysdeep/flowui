@@ -95,7 +95,7 @@ func TestContextMenuFocusTargetKeepsItsOwnFocusEvents(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
 	trigger := &focusTrackingWidget{size: image.Pt(160, 100)}
-	widget := ContextMenu("probe-menu", trigger, New("actions", []Item{{Key: "copy", Label: "Copy"}})).
+	widget := ContextMenu("probe-menu", trigger, New([]Item{{Key: "copy", Label: "Copy"}}).Key("actions")).
 		FocusTarget(&trigger.tag)
 	start := time.Unix(1, 0)
 	layoutContextMenuFrame(ctx, router, widget, start)
@@ -117,7 +117,7 @@ func contextMenuTestWidget(items []Item) ContextMenuWidget {
 	return ContextMenu(
 		"row-menu",
 		contextMenuFixedWidget{size: image.Pt(160, 100)},
-		New("actions", items),
+		New(items).Key("actions"),
 	)
 }
 
@@ -157,7 +157,7 @@ func TestContextMenuUsesMenuRootBackground(t *testing.T) {
 	ctx := menuTestContext()
 	router := new(input.Router)
 	got := core.ActiveTheme(ctx).Colors.Background
-	content := New("actions", []Item{{Key: "copy", Label: "Copy"}}).
+	content := New([]Item{{Key: "copy", Label: "Copy"}}).Key("actions").
 		BeforeContent(core.WidgetFunc(func(ctx *core.Context, _ layout.Context) layout.Dimensions {
 			got = ctx.BackgroundColor()
 			return layout.Dimensions{}
@@ -183,7 +183,7 @@ func TestContextMenuDoesNotClipTriggerVisual(t *testing.T) {
 	want := color.NRGBA{R: 0x24, G: 0x68, B: 0xf2, A: 0xff}
 	core.BeginFrameWithViewport(ctx, image.Pt(14, 14))
 	offset := op.Offset(image.Pt(2, 2)).Push(&ops)
-	ContextMenu("overflow", contextMenuOverflowWidget{color: want}, New("actions", nil)).Layout(ctx, layout.Context{
+	ContextMenu("overflow", contextMenuOverflowWidget{color: want}, New(nil).Key("actions")).Layout(ctx, layout.Context{
 		Constraints: layout.Exact(image.Pt(10, 10)), Source: router.Source(), Ops: &ops,
 	})
 	offset.Pop()
@@ -214,7 +214,7 @@ func TestMenuItemContentIsVerticallyCentered(t *testing.T) {
 	want := color.NRGBA{R: 0xff, A: 0xff}
 	core.BeginFrameWithViewport(ctx, image.Pt(80, 30))
 	item := Item{Key: "probe", Label: "Copy", Leading: menuAlignmentWidget{color: want}}
-	menu := New("alignment", []Item{item})
+	menu := New([]Item{item}).Key("alignment")
 	visual := menu.visual(ctx)
 	visual.defaults.Metrics.Width = 80
 	visual.defaults.Metrics.Padding = 0
@@ -276,7 +276,7 @@ func TestContextMenuShiftF10UsesAdditionalFocusTarget(t *testing.T) {
 	widget := ContextMenu(
 		"child-focus-menu",
 		contextMenuFocusWidget{size: image.Pt(160, 100), target: target},
-		New("actions", []Item{{Key: "copy", Label: "Copy"}}),
+		New([]Item{{Key: "copy", Label: "Copy"}}).Key("actions"),
 	).FocusTargets(target)
 	start := time.Unix(1, 0)
 	layoutContextMenuFrame(ctx, router, widget, start)
@@ -414,7 +414,7 @@ func TestContextMenuActionClosesAndRestoresTriggerFocus(t *testing.T) {
 	widget := ContextMenu(
 		"row-menu",
 		contextMenuFixedWidget{size: image.Pt(160, 100)},
-		New("actions", []Item{{Key: "copy", Label: "Copy"}}).OnActionEvent(func(event ActionEvent) { action = event.Key }),
+		New([]Item{{Key: "copy", Label: "Copy"}}).Key("actions").OnActionEvent(func(event ActionEvent) { action = event.Key }),
 	)
 	start := openContextMenuForTest(ctx, router, widget)
 	contextState, _ := core.PeekState[contextMenuState](ctx, "row-menu", stateSlotContextMenu)
@@ -467,10 +467,10 @@ func TestContextMenuSubmenuActionClosesRoot(t *testing.T) {
 	widget := ContextMenu(
 		"row-menu",
 		contextMenuFixedWidget{size: image.Pt(160, 100)},
-		New("actions", []Item{{
+		New([]Item{{
 			Key: "share", Label: "Share", Kind: ItemSubmenu,
 			Children: []Item{{Key: "copy-link", Label: "Copy link"}},
-		}}).OnActionEvent(func(event ActionEvent) { action = event.Key }),
+		}}).Key("actions").OnActionEvent(func(event ActionEvent) { action = event.Key }),
 	)
 	start := openContextMenuForTest(ctx, router, widget)
 	contextState, _ := core.PeekState[contextMenuState](ctx, "row-menu", stateSlotContextMenu)
@@ -493,10 +493,10 @@ func TestSubmenuExitKeepsParentMenuHoverInteractive(t *testing.T) {
 	widget := ContextMenu(
 		"row-menu",
 		contextMenuFixedWidget{size: image.Pt(160, 100)},
-		New("actions", []Item{
+		New([]Item{
 			{Key: "share", Label: "Share", Children: []Item{{Key: "copy-link", Label: "Copy link"}}},
 			{Key: "rename", Label: "Rename"},
-		}),
+		}).Key("actions"),
 	)
 	start := openContextMenuForTest(ctx, router, widget)
 	contextState, _ := core.PeekState[contextMenuState](ctx, "row-menu", stateSlotContextMenu)

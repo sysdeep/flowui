@@ -73,6 +73,6 @@ func Button(keyValue string, command Command) core.Widget {
 	return core.WidgetFunc(func(ctx *core.Context, gtx layout.Context) layout.Dimensions {
 		owner := core.FullKey(ctx, keyValue)
 		key := core.DerivedKey(ctx, owner, "tooltip")
-		return tooltip.New(key, trigger, command.label).Delay(0).Layout(ctx, gtx)
+		return tooltip.New(trigger, command.label).Key(key).Delay(0).Layout(ctx, gtx)
 	})
 }

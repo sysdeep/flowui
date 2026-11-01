@@ -22,11 +22,11 @@ func TestPortalResolvesAnchorAndRootContent(t *testing.T) {
 	ctx, gtx := portalTestContext(image.Pt(200, 120))
 	var gotAnchor image.Rectangle
 	var gotInteractive bool
-	portal := New("inspector", true, portalFixedWidget(image.Pt(20, 10)), func(anchor image.Rectangle, interactive bool) core.Widget {
+	portal := New(true, portalFixedWidget(image.Pt(20, 10)), func(anchor image.Rectangle, interactive bool) core.Widget {
 		gotAnchor = anchor
 		gotInteractive = interactive
 		return portalFixedWidget(image.Pt(40, 30))
-	})
+	}).Key("inspector")
 
 	_, placement := core.TrackOverlayPlacement(ctx, func() layout.Dimensions {
 		return portal.Layout(ctx, gtx)
@@ -45,10 +45,10 @@ func TestPortalResolvesAnchorAndRootContent(t *testing.T) {
 func TestPassivePortalDoesNotOwnRootInput(t *testing.T) {
 	ctx, gtx := portalTestContext(image.Pt(100, 80))
 	interactive := true
-	New("decoration", true, nil, func(_ image.Rectangle, boolValue bool) core.Widget {
+	New(true, nil, func(_ image.Rectangle, boolValue bool) core.Widget {
 		interactive = boolValue
 		return portalFixedWidget(image.Pt(10, 10))
-	}).Passive(true).Layout(ctx, gtx)
+	}).Key("decoration").Passive(true).Layout(ctx, gtx)
 	core.LayoutOverlays(ctx, gtx)
 	if interactive || core.HasTopOverlay(ctx) {
 		t.Fatalf("passive portal = interactive %v top %v", interactive, core.HasTopOverlay(ctx))
@@ -70,12 +70,12 @@ func TestPortalDisablesRootContent(t *testing.T) {
 				gtx = gtx.Disabled()
 			}
 			enabled := true
-			New("disabled", true, nil, func(image.Rectangle, bool) core.Widget {
+			New(true, nil, func(image.Rectangle, bool) core.Widget {
 				return core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 					enabled = gtx.Enabled()
 					return layout.Dimensions{}
 				})
-			}).Disabled(test.explicit).Layout(ctx, gtx)
+			}).Key("disabled").Disabled(test.explicit).Layout(ctx, gtx)
 			core.LayoutOverlays(ctx, gtx)
 			if enabled {
 				t.Fatal("portal content remained enabled")

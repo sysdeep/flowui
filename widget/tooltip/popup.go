@@ -19,6 +19,7 @@ import (
 // Popup is the controlled presentation layer shared by triggered and
 // data-driven tooltips.
 type Popup struct {
+	key                string
 	content            core.Widget
 	placement          core.PopoverPlacement
 	offset             unit.Dp
@@ -40,11 +41,18 @@ type Popup struct {
 
 func NewPopup(content core.Widget) Popup {
 	return Popup{
+		key:         core.AutoKey("tooltip-popup"),
 		content:     content,
 		placement:   core.PopoverTop,
 		progress:    1,
 		visualCache: &tooltipDefaultsCache{},
 	}
+}
+
+// Key sets the stable identity used by inline style transitions.
+func (p Popup) Key(key string) Popup {
+	p.key = key
+	return p
 }
 
 func (p Popup) Placement(placement core.PopoverPlacement) Popup {

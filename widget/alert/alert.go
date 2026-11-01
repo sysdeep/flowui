@@ -22,11 +22,15 @@ type Widget struct {
 }
 
 func New(title, description string) Widget {
-	return Widget{title: title, description: description, visualCache: &alertVisualCache{}}
+	return Widget{
+		key:         core.AutoKey("alert"),
+		title:       title,
+		description: description,
+		visualCache: &alertVisualCache{},
+	}
 }
 
-// Key sets the close button's identity. Alerts with the same text otherwise
-// derive the same key, so set Key when two identical alerts can coexist.
+// Key sets the stable identity used by the close button and style transitions.
 func (a Widget) Key(key string) Widget {
 	a.key = key
 	return a

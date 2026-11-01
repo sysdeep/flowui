@@ -15,6 +15,7 @@ import (
 )
 
 type Widget struct {
+	key         string
 	style       style.Style
 	color       Color
 	size        Size
@@ -23,7 +24,13 @@ type Widget struct {
 }
 
 func New() Widget {
-	return Widget{visualCache: &spinnerVisualCache{}}
+	return Widget{key: core.AutoKey("spinner"), visualCache: &spinnerVisualCache{}}
+}
+
+// Key sets the stable identity used by style transitions.
+func (s Widget) Key(key string) Widget {
+	s.key = key
+	return s
 }
 
 func (s Widget) Color(color Color) Widget {

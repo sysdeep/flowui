@@ -13,7 +13,7 @@ Text controls accept strings directly:
 ```go
 button.New("Save").Key("save").OnClick(save)
 toggle.NewToggleButton("Bold").Key("bold").Selected(selected).OnChange(setBold)
-tooltip.New("save-tip", saveButton, "Save changes")
+tooltip.New(saveButton, "Save changes").Key("save-tip")
 input.GroupAction("clear", "Clear").OnClick(clear)
 ```
 
@@ -24,6 +24,10 @@ siblings built by a shared helper need `.Key(businessID)` or a stable
 `layout.Key(businessID, child)` scope; ordinary layout containers do not create
 key scopes. See [Keys](../docs/en/guide/02-core-concepts.md#keys).
 
+Presentation components such as cards, avatars, labels, and status bars also
+use automatic keys for style transitions. Their `.Key(...)` method keeps those
+animations attached to the same item when dynamic content moves.
+
 Use `Content` for icons, styled text, or composite widgets. For buttons, toggle
 buttons, and input actions, the constructor text remains the accessible label;
 `Label` overrides that label without changing visible content.
@@ -31,7 +35,7 @@ buttons, and input actions, the constructor text remains the accessible label;
 ```go
 button.New("Save").Key("save").Content(icon.New(lucide.Save)).IconOnly()
 button.New("Save").Key("save-large").Content(text.New("Save").Size(20))
-tooltip.New("details", trigger, "").Content(details)
+tooltip.New(trigger, "").Key("details").Content(details)
 ```
 
 Containers such as cards, toolbars, and modal bodies accept widgets so callers

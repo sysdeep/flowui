@@ -20,6 +20,23 @@ func TestKeysClaimScopesKey(t *testing.T) {
 	}
 }
 
+func TestKeysPushResolvesAutoKeyAcrossFrames(t *testing.T) {
+	var keys Keys
+	keys.BeginFrame()
+	pop := keys.Push(anonymousTestToken())
+	first := keys.FullKey("child")
+	pop()
+
+	keys.BeginFrame()
+	pop = keys.Push(anonymousTestToken())
+	second := keys.FullKey("child")
+	pop()
+
+	if second != first {
+		t.Fatalf("scoped child key changed after reconstruction: %q, want %q", second, first)
+	}
+}
+
 func TestKeysFullKeyPreservesRootKey(t *testing.T) {
 	var keys Keys
 	const key = "root-key"

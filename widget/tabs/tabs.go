@@ -156,11 +156,11 @@ type Widget struct {
 // New creates a tabs widget. When selectedKey is non-empty, it starts in
 // controlled mode with that tab selected. When selectedKey is empty, it starts
 // in uncontrolled mode (use DefaultSelectedKey to set initial selection).
-func New(key, selectedKey string, items []TabItem) Widget {
+func New(selectedKey string, items []TabItem) Widget {
 	if selectedKey != "" {
 		// non-empty selectedKey → controlled mode
 		return Widget{
-			key:            key,
+			key:            core.AutoKey("tabs"),
 			selectedKey:    selectedKey,
 			hasSelectedKey: true,
 			items:          items,
@@ -169,10 +169,16 @@ func New(key, selectedKey string, items []TabItem) Widget {
 	}
 	// empty selectedKey → uncontrolled mode
 	return Widget{
-		key:         key,
+		key:         core.AutoKey("tabs"),
 		items:       items,
 		visualCache: &tabsDefaultsCache{},
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (t Widget) Key(key string) Widget {
+	t.key = key
+	return t
 }
 
 // Uncontrolled uses the current selection only as the initial internal value.

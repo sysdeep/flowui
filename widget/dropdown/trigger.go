@@ -33,7 +33,7 @@ func Button(key string, action button.Widget, items []Item) ButtonWidget {
 		key:            key,
 		action:         action,
 		trigger:        trigger,
-		dropdown:       New(key+":dropdown", trigger, items),
+		dropdown:       New(trigger, items).Key(key + ":dropdown"),
 		defaultTrigger: true,
 	}
 }

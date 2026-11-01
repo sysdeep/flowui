@@ -71,8 +71,14 @@ type Widget struct {
 // New creates a code block for source. lang selects a Chroma lexer; an empty or
 // unknown language renders the source without coloring. A multi-line block
 // shows line numbers by default; use LineNumbers to override that.
-func New(key, lang, source string) Widget {
-	return Widget{key: key, lang: lang, source: expandTabs(normalizeNewlines(source)), size: 14}
+func New(lang, source string) Widget {
+	return Widget{key: core.AutoKey("code"), lang: lang, source: expandTabs(normalizeNewlines(source)), size: 14}
+}
+
+// Key assigns the stable identity used by selection and copy state.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 func normalizeNewlines(source string) string {
@@ -187,7 +193,7 @@ func (w Widget) header(ctx *core.Context, gtx layout.Context, s *blockState, act
 			return text.New(w.lang).Size(11).Color(active.Semantic().MutedForeground).Layout(ctx, gtx)
 		}),
 		flowlayout.Expanded(flowlayout.Box(nil)),
-		button.New(label).Key(w.key + "-copy").
+		button.New(label).Key(core.DerivedKey(ctx, core.FullKey(ctx, w.key), "copy")).
 			Content(core.WidgetFunc(func(_ *core.Context, gtx layout.Context) layout.Dimensions {
 				return drawIcon(gtx, ink, copied)
 			})).

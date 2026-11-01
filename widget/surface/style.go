@@ -26,7 +26,8 @@ func (s Widget) layoutWithStyle(ctx *core.Context, gtx layout.Context) layout.Di
 		s.style,
 	)
 	if len(resolved.Transitions) != 0 {
-		resolved = computed.ApplyTransitions(ctx, gtx, core.ClaimKey(ctx, core.KindStyle, "surface"), resolved)
+		key := core.ClaimDerivedKey(ctx, core.KindStyle, s.key, "style")
+		resolved = computed.ApplyTransitions(ctx, gtx, key, resolved)
 	}
 	return layoutui.Resolved(ctx, gtx, resolved, s.child)
 }

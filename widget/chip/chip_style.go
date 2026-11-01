@@ -44,7 +44,7 @@ func (c Widget) resolveStyle(ctx *core.Context, gtx layout.Context, visual chipV
 	if !computed.HasTransitions(resolved.root, resolved.label, resolved.icon) {
 		return resolved
 	}
-	key := core.ClaimKey(ctx, core.KindStyle, "chip")
+	key := core.ClaimDerivedKey(ctx, core.KindStyle, c.key, "style")
 	resolved.root = computed.ApplyTransitions(ctx, gtx, key, resolved.root)
 	resolved.label = computed.ApplyPartTransitions(ctx, gtx, key, style.PartLabel, resolved.label)
 	resolved.icon = computed.ApplyPartTransitions(ctx, gtx, key, style.PartIcon, resolved.icon)

@@ -36,7 +36,7 @@ func newMenuBenchmarkFrame() *menuBenchmarkFrame {
 		{Key: "archive", Label: "Archive", Variant: ItemDanger},
 		{Key: "delete", Label: "Delete", Variant: ItemDanger, Disabled: true},
 	}
-	menuValue := New("benchmark-menu", items).
+	menuValue := New(items).Key("benchmark-menu").
 		BeforeContent(fixedMenuWidget{size: image.Pt(12, 8)}).
 		AfterContent(fixedMenuWidget{size: image.Pt(12, 8)}).
 		DataVersion(1)

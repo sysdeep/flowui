@@ -816,12 +816,9 @@ type Widget struct {
 }
 
 // New creates a node graph widget for graph.
-func New(key string, graph Graph) Widget {
-	if key == "" {
-		panic("flowui: empty node graph key")
-	}
+func New(graph Graph) Widget {
 	return Widget{
-		key:                key,
+		key:                core.AutoKey("node-graph"),
 		graph:              graph,
 		showGrid:           true,
 		cullingEnabled:     true,
@@ -845,6 +842,12 @@ func New(key string, graph Graph) Widget {
 		dragThreshold:      defaultDragThreshold,
 		snapGrid:           Point{X: defaultGridSize, Y: defaultGridSize},
 	}
+}
+
+// Key overrides the automatically generated root identity.
+func (w Widget) Key(key string) Widget {
+	w.key = key
+	return w
 }
 
 // Viewport makes the viewport controlled. Its Origin is the graph coordinate

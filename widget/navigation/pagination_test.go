@@ -41,7 +41,7 @@ func TestPaginationControlledPageClick(t *testing.T) {
 	ctx := core.New(nil, activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)
 	changed := 0
-	widget := NewPagination("pages", 1, 5).Size(PaginationSizeSmall).OnChange(func(page int) { changed = page })
+	widget := NewPagination(1, 5).Key("pages").Size(PaginationSizeSmall).OnChange(func(page int) { changed = page })
 	gtx := paginationTestContext(router, image.Pt(480, 80), time.Unix(1, 0))
 
 	core.BeginFrame(ctx)
@@ -70,7 +70,7 @@ func TestPaginationControlledPageClick(t *testing.T) {
 func TestPaginationDefaultLabelsUseWindowLanguage(t *testing.T) {
 	activeTheme := new(theme.Light())
 	ctx := core.New(nil, activeTheme, locale.LanguageChinese)
-	pagination := NewPagination("pages", 1, 3)
+	pagination := NewPagination(1, 3).Key("pages")
 	if got := pagination.previousText(ctx); got != "上一页" {
 		t.Fatalf("Chinese previous label = %q", got)
 	}
@@ -96,7 +96,7 @@ func TestPaginationKeyboardAndDisabledActivation(t *testing.T) {
 	frame := func() {
 		gtx := paginationTestContext(router, image.Pt(480, 80), start)
 		core.BeginFrame(ctx)
-		NewPagination("pages", 1, 5).Disabled(disabled).
+		NewPagination(1, 5).Key("pages").Disabled(disabled).
 			OnChange(func(page int) { changed = page }).Layout(ctx, gtx)
 		core.EndFrame(ctx)
 		router.Frame(gtx.Ops)

@@ -128,7 +128,7 @@ func (k *Keys) Push(key string) func() {
 	if key == "" {
 		panic("flowui: empty key")
 	}
-	k.path = append(k.path, key)
+	k.path = append(k.path, k.resolveAutoKey(key))
 	return func() {
 		k.path = k.path[:len(k.path)-1]
 	}

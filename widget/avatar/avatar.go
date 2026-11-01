@@ -10,6 +10,7 @@ import (
 
 // Widget displays a profile image or fallback content.
 type Widget struct {
+	key          string
 	style        style.Style
 	fallbackText string
 	// Keep the text widget alongside the Avatar so its visual cache survives
@@ -26,12 +27,18 @@ type Widget struct {
 
 // New creates an Avatar with optional text fallback content.
 func New(fallbackText string) Widget {
-	value := Widget{fallbackText: fallbackText, visualCache: &avatarVisualCache{}}
+	value := Widget{key: core.AutoKey("avatar"), fallbackText: fallbackText, visualCache: &avatarVisualCache{}}
 	if fallbackText != "" {
 		fallback := textui.New(fallbackText)
 		value.fallbackWidget = &fallback
 	}
 	return value
+}
+
+// Key sets the stable identity used by style transitions.
+func (a Widget) Key(key string) Widget {
+	a.key = key
+	return a
 }
 
 // Image sets a reusable Gio image operation. An empty image shows the fallback.

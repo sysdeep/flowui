@@ -66,8 +66,14 @@ input.New(item.Name).Key(item.ID)
 ```
 
 Use `layout.Key(item.ID, child)` to give an entire repeated subtree a stable
-scope. A normal `Row` or `Column` does not introduce a key scope. Widgets whose
-constructors take a key, such as `table.New`, use the key passed by the caller.
+scope. A normal `Row` or `Column` does not introduce a key scope. Containers
+such as `table.New` generate automatic root keys; row and item keys still
+identify business data.
+Composite and lifecycle-host components such as `menu.ContextMenu`,
+`dropdown.Button`, `toolbar.Commands`, and `surface.NewPanel` keep explicit
+keys because they own child scopes or retained host state. Root hosts such as
+`menubar.New`, `toast.New`, and `titlebar.New` generate automatic identities;
+use `.Key(...)` when their identity must remain stable across construction sites.
 
 Low-level primitives without a constructor token can fall back to an identity
 based on state kind and position within the scope when passed an empty key.

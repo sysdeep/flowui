@@ -12,6 +12,7 @@ import (
 // CardWidget groups related content on a raised semantic surface. The look comes
 // from the active theme tokens.
 type CardWidget struct {
+	key         string
 	children    []core.Widget
 	variant     CardVariant
 	style       style.Style
@@ -21,7 +22,13 @@ type CardWidget struct {
 }
 
 func NewCard(children ...core.Widget) CardWidget {
-	return CardWidget{children: children, visualCache: &cardVisualCache{}}
+	return CardWidget{key: core.AutoKey("card"), children: children, visualCache: &cardVisualCache{}}
+}
+
+// Key sets the stable identity used by style transitions.
+func (c CardWidget) Key(key string) CardWidget {
+	c.key = key
+	return c
 }
 
 func (c CardWidget) Variant(variant CardVariant) CardWidget {
@@ -44,7 +51,8 @@ func (c CardWidget) Layout(ctx *core.Context, gtx layout.Context) layout.Dimensi
 		c.style,
 	)
 	if len(resolved.Transitions) != 0 {
-		resolved = computed.ApplyTransitions(ctx, gtx, core.ClaimKey(ctx, core.KindStyle, "card"), resolved)
+		key := core.ClaimDerivedKey(ctx, core.KindStyle, c.key, "style")
+		resolved = computed.ApplyTransitions(ctx, gtx, key, resolved)
 	}
 	return layoutui.Resolved(ctx, gtx, resolved, content)
 }

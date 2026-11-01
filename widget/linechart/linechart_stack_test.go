@@ -165,10 +165,10 @@ func TestLineChartStackAreaUsesPreviousCumulativeBaseline(t *testing.T) {
 }
 
 func TestLineChartStackAnimationAndSelectionPreserveRawValues(t *testing.T) {
-	widget := New("chart", []Series{
+	widget := New([]Series{
 		Values("first", "First", []float64{10}).Stack("total"),
 		Values("second", "Second", []float64{5}).Stack("total"),
-	}).Categories([]string{"A"})
+	}).Key("chart").Categories([]string{"A"})
 	activeTheme := theme.Light()
 	target := resolveChartDataWithDefaults(widget, lineChartTestDefaults(&activeTheme), testDp)
 	from := lineBaselineData(target, 0)
@@ -199,7 +199,7 @@ func TestLineChartStackAdditionAvoidsDecimalDrift(t *testing.T) {
 }
 
 func resolveStackedLineData(series []Series, categories bool) chartData {
-	widget := New("chart", series)
+	widget := New(series).Key("chart")
 	if categories {
 		widget = widget.Categories([]string{"A", "B", "C"})
 	}

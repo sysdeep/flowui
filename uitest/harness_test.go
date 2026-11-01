@@ -13,12 +13,31 @@ import (
 	"gioui.org/layout"
 	giowidget "gioui.org/widget"
 	"github.com/qianniancn/flowui/animation"
+	"github.com/qianniancn/flowui/internal/core"
 	flowlayout "github.com/qianniancn/flowui/layout"
+	"github.com/qianniancn/flowui/style"
 	"github.com/qianniancn/flowui/theme"
 	"github.com/qianniancn/flowui/ui"
 	"github.com/qianniancn/flowui/uitest"
+	"github.com/qianniancn/flowui/widget/alert"
+	"github.com/qianniancn/flowui/widget/avatar"
+	"github.com/qianniancn/flowui/widget/badge"
 	"github.com/qianniancn/flowui/widget/button"
+	"github.com/qianniancn/flowui/widget/chip"
+	"github.com/qianniancn/flowui/widget/code"
+	"github.com/qianniancn/flowui/widget/collapsible"
+	"github.com/qianniancn/flowui/widget/combobox"
+	"github.com/qianniancn/flowui/widget/input"
+	"github.com/qianniancn/flowui/widget/menu"
+	"github.com/qianniancn/flowui/widget/menubar"
 	"github.com/qianniancn/flowui/widget/portal"
+	"github.com/qianniancn/flowui/widget/spinner"
+	"github.com/qianniancn/flowui/widget/statusbar"
+	"github.com/qianniancn/flowui/widget/surface"
+	"github.com/qianniancn/flowui/widget/text"
+	"github.com/qianniancn/flowui/widget/titlebar"
+	"github.com/qianniancn/flowui/widget/toast"
+	"github.com/qianniancn/flowui/widget/toolbar"
 	"github.com/qianniancn/flowui/window"
 )
 
@@ -38,6 +57,139 @@ func TestAnonymousWidgetsKeepPointerStateAcrossFramesAndWindows(t *testing.T) {
 	h.Frame(root)
 	if clicks != 1 {
 		t.Fatalf("rebuilt anonymous button clicks=%d, want 1", clicks)
+	}
+}
+
+func TestAnonymousContainerKeepsChildStateAcrossFrames(t *testing.T) {
+	h := uitest.New(image.Pt(320, 160), theme.Light())
+	var count int
+	child := ui.WidgetFunc(func(ctx *ui.Context, gtx layout.Context) layout.Dimensions {
+		state := ui.UseState[int](ctx, "child")
+		*state++
+		count = *state
+		return layout.Dimensions{Size: image.Pt(80, 20)}
+	})
+	for want := 1; want <= 3; want++ {
+		h.Frame(collapsible.New("Details", child).Expanded(true))
+		if count != want {
+			t.Fatalf("child state = %d, want %d", count, want)
+		}
+	}
+}
+
+func TestAnonymousRootsKeepChildStateAcrossFrames(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		build func(ui.Widget) ui.Widget
+	}{
+		{name: "menubar", build: func(child ui.Widget) ui.Widget {
+			return menubar.New([]menubar.Item{
+				menubar.NewMenu("file", "File", []menu.Item{{Key: "open", Label: "Open"}}).Trigger(child),
+			})
+		}},
+		{name: "toast", build: func(child ui.Widget) ui.Widget {
+			return toast.New([]toast.Item{toast.NewItem("saved", "Saved").Timeout(0).Indicator(child)})
+		}},
+		{name: "titlebar", build: func(child ui.Widget) ui.Widget {
+			return titlebar.New("App", nil).Leading(child)
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := uitest.New(image.Pt(640, 480), theme.Light())
+			var first *int
+			layouts := 0
+			child := ui.WidgetFunc(func(ctx *ui.Context, gtx layout.Context) layout.Dimensions {
+				state := ui.UseState[int](ctx, "child")
+				if first == nil {
+					first = state
+				}
+				if state != first {
+					t.Fatal("rebuilt root replaced its child state")
+				}
+				*state++
+				layouts++
+				return layout.Dimensions{Size: image.Pt(24, 16)}
+			})
+			for frame := range 3 {
+				before := layouts
+				h.Frame(test.build(child))
+				if layouts <= before {
+					t.Fatalf("frame %d did not lay out child", frame)
+				}
+				h.Advance(time.Second)
+			}
+		})
+	}
+}
+
+func TestPresentationTransitionsKeepSeparateInstanceState(t *testing.T) {
+	declaration := style.New().Opacity(.5).Transition(style.PropOpacity, time.Second)
+	for _, test := range []struct {
+		name  string
+		build func() ui.Widget
+	}{
+		{name: "card", build: func() ui.Widget { return surface.NewCard(text.New("Card")).Style(declaration) }},
+		{name: "surface", build: func() ui.Widget { return surface.New(text.New("Surface")).Style(declaration) }},
+		{name: "alert", build: func() ui.Widget { return alert.New("Alert", "").Style(declaration) }},
+		{name: "avatar", build: func() ui.Widget { return avatar.New("AB").Style(declaration) }},
+		{name: "badge", build: func() ui.Widget { return badge.New(text.New("Anchor"), "2").Style(declaration) }},
+		{name: "chip", build: func() ui.Widget { return chip.New("Chip").Style(declaration) }},
+		{name: "text", build: func() ui.Widget { return text.New("Text").Style(declaration) }},
+		{name: "label", build: func() ui.Widget { return text.NewLabel("Label").Style(declaration) }},
+		{name: "description", build: func() ui.Widget { return text.NewDescription("Description").Style(declaration) }},
+		{name: "spinner", build: func() ui.Widget { return spinner.New().Style(declaration) }},
+		{name: "statusbar", build: func() ui.Widget { return statusbar.New(text.New("Ready"), nil).Style(declaration) }},
+		{name: "toolbar", build: func() ui.Widget { return toolbar.New(text.New("Tools")).Style(declaration) }},
+		{name: "toolbar separators", build: func() ui.Widget {
+			return toolbar.New(toolbar.Separator().Style(declaration))
+		}},
+		{name: "standalone separator", build: func() ui.Widget { return toolbar.Separator().Style(declaration) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			h := uitest.New(image.Pt(640, 480), theme.Light())
+			root := ui.WidgetFunc(func(ctx *ui.Context, gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min = image.Point{}
+				return flowlayout.Column(test.build(), test.build()).Layout(ctx, gtx)
+			})
+			h.Frame(root)
+			states := core.StateLen(h.Context())
+			if states < 2 {
+				t.Fatalf("transition states = %d, want at least 2", states)
+			}
+			h.Advance(100 * time.Millisecond)
+			h.Frame(root)
+			if got := core.StateLen(h.Context()); got != states {
+				t.Fatalf("rebuilt transition states = %d, want %d", got, states)
+			}
+		})
+	}
+}
+
+func TestInternalControlKeysDoNotCollideWithApplicationKeys(t *testing.T) {
+	h := uitest.New(image.Pt(640, 480), theme.Light())
+	clicks := 0
+	root := ui.WidgetFunc(func(ctx *ui.Context, gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min = image.Point{}
+		return flowlayout.Column(
+			alert.New("Notice", "").Key("notice").Closable(true),
+			button.New("Close sibling").Key("alert-close-notice"),
+			code.New("go", "var x = 1").Key("sample"),
+			button.New("Copy sibling").Key("sample-copy").OnClick(func() { clicks++ }),
+			combobox.New(nil).Key("search"),
+			input.New("").Key("search-input"),
+			button.New("Open sibling").Key("search-open"),
+		).Layout(ctx, gtx)
+	})
+	h.Frame(root)
+	node, ok := uitest.SemanticByLabel(h.Semantics(), "Copy sibling")
+	if !ok {
+		t.Fatal("missing sibling button")
+	}
+	bounds := node.Desc.Bounds
+	h.Click(f32.Pt(float32(bounds.Min.X+bounds.Max.X)/2, float32(bounds.Min.Y+bounds.Max.Y)/2))
+	h.Frame(root)
+	if clicks != 1 {
+		t.Fatalf("sibling clicks = %d, want 1", clicks)
 	}
 }
 
@@ -76,7 +228,7 @@ func TestHarnessAdvancesTweenAndLaysOutPortal(t *testing.T) {
 			Duration(time.Second).
 			Easing(animation.EaseLinear).
 			Value(ctx, gtx)
-		return portal.New("probe", true, flowlayout.Spacer(20, 10), func(image.Rectangle, bool) ui.Widget {
+		return portal.New(true, flowlayout.Spacer(20, 10), func(image.Rectangle, bool) ui.Widget {
 			return ui.WidgetFunc(func(*ui.Context, layout.Context) layout.Dimensions {
 				portalLayouts++
 				return layout.Dimensions{}

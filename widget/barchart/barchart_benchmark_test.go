@@ -31,10 +31,10 @@ func newBarChartBenchmarkFrame(count int) *barChartBenchmarkFrame {
 	}
 	frame.values = make([]Widget, count)
 	for index := range frame.values {
-		frame.values[index] = New("bar-"+strconv.Itoa(index), []Series{
+		frame.values[index] = New([]Series{
 			Values("primary", "Primary", values),
 			Values("secondary", "Secondary", values).Stack("stack"),
-		})
+		}).Key("bar-" + strconv.Itoa(index))
 	}
 	return frame
 }

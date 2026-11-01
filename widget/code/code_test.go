@@ -114,7 +114,7 @@ func TestXAtTracksGlyphEdges(t *testing.T) {
 func TestCodeBlockRenders(t *testing.T) {
 	h := uitest.New(image.Pt(600, 400), theme.Light())
 	source := "func main() {\n\t// 你好\n\tfmt.Println(\"hi\")\n}\n"
-	dims := h.Frame(layout.Scroll(New("sample", "go", source)).Vertical())
+	dims := h.Frame(layout.Scroll(New("go", source).Key("sample")).Vertical())
 	if dims.Size.X != 600 || dims.Size.Y <= 0 {
 		t.Fatalf("code block dimensions = %v", dims.Size)
 	}
@@ -122,7 +122,7 @@ func TestCodeBlockRenders(t *testing.T) {
 
 func TestCodeBlockWithoutLanguageFallsBackToPlain(t *testing.T) {
 	h := uitest.New(image.Pt(600, 400), theme.Light())
-	dims := h.Frame(New("plain", "", "SELECT 1;"))
+	dims := h.Frame(New("", "SELECT 1;").Key("plain"))
 	if dims.Size.Y <= 0 {
 		t.Fatalf("plain block dimensions = %v", dims.Size)
 	}
@@ -142,7 +142,7 @@ func TestCopyButtonReportsResult(t *testing.T) {
 			h := uitest.NewWithConfig(uitest.Config{
 				Size: image.Pt(420, 240), Theme: &active, Language: test.language,
 			})
-			root := layout.Box(New("copy", "go", "func main() {}")).
+			root := layout.Box(New("go", "func main() {}").Key("copy")).
 				Style(style.New().FillWidth().Padding(8))
 			h.Frame(root)
 			h.Frame(root)
@@ -164,7 +164,7 @@ func TestCopyButtonReportsResult(t *testing.T) {
 
 func TestDragSelectsSourceRange(t *testing.T) {
 	h := uitest.New(image.Pt(420, 240), theme.Light())
-	root := layout.Box(New("drag", "", "abc\ndef")).
+	root := layout.Box(New("", "abc\ndef").Key("drag")).
 		Style(style.New().FillWidth().Padding(8))
 	h.Frame(root)
 	h.Frame(root)
@@ -199,7 +199,7 @@ func TestDragSelectsSourceRange(t *testing.T) {
 
 func TestDragAcrossLinesSelectsBoth(t *testing.T) {
 	h := uitest.New(image.Pt(420, 240), theme.Light())
-	root := layout.Box(New("drag-lines", "", "abc\ndef")).
+	root := layout.Box(New("", "abc\ndef").Key("drag-lines")).
 		Style(style.New().FillWidth().Padding(8))
 	h.Frame(root)
 	h.Frame(root)
@@ -234,7 +234,7 @@ func TestDragAcrossLinesSelectsBoth(t *testing.T) {
 func TestLongLinesWrapIntoVisualRows(t *testing.T) {
 	h := uitest.New(image.Pt(120, 300), theme.Light())
 	long := "abcdefghijklmnopqrstuvwxyz0123456789"
-	root := layout.Box(New("wrap", "", long)).Style(style.New().FillWidth().Padding(8))
+	root := layout.Box(New("", long).Key("wrap")).Style(style.New().FillWidth().Padding(8))
 	dims := h.Frame(root)
 	if dims.Size.Y <= 2*20 {
 		t.Fatalf("block height = %d, want several wrapped rows", dims.Size.Y)
@@ -244,7 +244,7 @@ func TestLongLinesWrapIntoVisualRows(t *testing.T) {
 func TestWrappedSelectionReachesTheEnd(t *testing.T) {
 	h := uitest.New(image.Pt(120, 300), theme.Light())
 	long := "abcdefghijklmnopqrstuvwxyz0123456789"
-	root := layout.Box(New("wrap-drag", "", long)).Style(style.New().FillWidth().Padding(8))
+	root := layout.Box(New("", long).Key("wrap-drag")).Style(style.New().FillWidth().Padding(8))
 	h.Frame(root)
 	h.Frame(root)
 
@@ -293,10 +293,10 @@ func TestLineNumbersDefaultToMultiLine(t *testing.T) {
 		key  string
 		want bool
 	}{
-		{"multi default", New("numbers-multi", "go", "func main() {\n}"), "numbers-multi", true},
-		{"single default", New("numbers-single", "go", "func main() {}"), "numbers-single", false},
-		{"multi off", New("numbers-off", "go", "func main() {\n}").LineNumbers(false), "numbers-off", false},
-		{"single on", New("numbers-on", "go", "func main() {}").LineNumbers(true), "numbers-on", true},
+		{"multi default", New("go", "func main() {\n}").Key("numbers-multi"), "numbers-multi", true},
+		{"single default", New("go", "func main() {}").Key("numbers-single"), "numbers-single", false},
+		{"multi off", New("go", "func main() {\n}").Key("numbers-off").LineNumbers(false), "numbers-off", false},
+		{"single on", New("go", "func main() {}").Key("numbers-on").LineNumbers(true), "numbers-on", true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -316,7 +316,7 @@ func TestLineNumbersDefaultToMultiLine(t *testing.T) {
 func TestWrappedRowsKeepOneLineNumber(t *testing.T) {
 	h := uitest.New(image.Pt(180, 500), theme.Light())
 	source := strings.Repeat("word ", 60)
-	root := layout.Box(New("wrapped-numbers", "", source).LineNumbers(true)).
+	root := layout.Box(New("", source).Key("wrapped-numbers").LineNumbers(true)).
 		Style(style.New().FillWidth().Padding(8))
 	h.Frame(root)
 	state, ok := core.PeekState[blockState](h.Context(), core.FullKey(h.Context(), "wrapped-numbers"), stateSlot)
@@ -349,7 +349,7 @@ func (h *countingHighlighter) Tokenize(_, source string) []highlight.Token {
 func TestTokenizationIsCachedAcrossFrames(t *testing.T) {
 	h := uitest.New(image.Pt(300, 300), theme.Light())
 	counter := &countingHighlighter{}
-	root := New("cached-tokens", "", "one\ntwo\nthree")
+	root := New("", "one\ntwo\nthree").Key("cached-tokens")
 	root.highlighter = counter
 	h.Frame(root)
 	h.Frame(root)
@@ -360,7 +360,7 @@ func TestTokenizationIsCachedAcrossFrames(t *testing.T) {
 }
 
 func TestNewNormalizesNewlines(t *testing.T) {
-	got := New("crlf", "", "one\r\ntwo\rthree").source
+	got := New("", "one\r\ntwo\rthree").Key("crlf").source
 	if got != "one\ntwo\nthree" {
 		t.Fatalf("source = %q, want normalized newlines", got)
 	}

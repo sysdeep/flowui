@@ -156,7 +156,7 @@ func TestMultipleConstructor(t *testing.T) {
 
 func TestSectionsConstructor(t *testing.T) {
 	sections := listBoxTestSections()
-	box := Sections("files", "go", sections)
+	box := Sections("go", sections).Key("files")
 
 	if box.key != "files" || box.selectedKey != "go" || len(box.sections) != 2 {
 		t.Fatal("section listbox constructor did not set fields")
@@ -168,7 +168,7 @@ func TestSectionsConstructor(t *testing.T) {
 
 func TestMultipleSectionsConstructor(t *testing.T) {
 	sections := listBoxTestSections()
-	box := MultipleSections("files", []string{"go"}, sections)
+	box := MultipleSections([]string{"go"}, sections).Key("files")
 
 	if box.key != "files" || box.selectionMode != SelectionMultiple || len(box.selectedKeys) != 1 || len(box.sections) != 2 {
 		t.Fatal("multi section listbox constructor did not set fields")
@@ -547,7 +547,7 @@ func TestListBoxLayoutKeepsState(t *testing.T) {
 
 func TestSectionsLayout(t *testing.T) {
 	ctx := newContext(nil)
-	dims := Sections("languages", "go", listBoxTestSections()).Layout(ctx, testLayoutContext())
+	dims := Sections("go", listBoxTestSections()).Key("languages").Layout(ctx, testLayoutContext())
 
 	if testComponentState[listBoxState](ctx, "languages", stateSlotListBox) == nil {
 		t.Fatal("missing section listbox state")
@@ -558,7 +558,7 @@ func TestSectionsLayout(t *testing.T) {
 }
 
 func TestListBoxDataVersionCachesEntries(t *testing.T) {
-	widget := Sections("cached", "one", []Section{{Title: "Group", Items: []Item{{Key: "one", Label: "One"}}}}).DataVersion(1)
+	widget := Sections("one", []Section{{Title: "Group", Items: []Item{{Key: "one", Label: "One"}}}}).Key("cached").DataVersion(1)
 	state := new(listBoxState)
 	entries, items := state.resolveEntries(widget)
 	cachedEntries, cachedItems := state.resolveEntries(widget)

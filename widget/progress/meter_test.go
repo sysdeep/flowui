@@ -11,21 +11,21 @@ import (
 )
 
 func TestMeterKeepsValueTextOverFormatter(t *testing.T) {
-	meter := Meter("storage", 42).
+	meter := Meter(42).Key("storage").
 		ValueFormatter(func(float64) string { return "formatted" }).
 		ValueText("42 GB")
 	bar := meter
 	if !bar.hasValueText || bar.valueText != "42 GB" {
 		t.Fatal("explicit meter value text was not retained")
 	}
-	if got := Meter("storage", 42).ValueFormatter(func(float64) string { return "formatted" }).resolved().valueText; got != "formatted" {
+	if got := Meter(42).ValueFormatter(func(float64) string { return "formatted" }).resolved().valueText; got != "formatted" {
 		t.Fatalf("formatted value = %q", got)
 	}
 }
 
 func TestMeterFillUsesConcreteColor(t *testing.T) {
 	want := color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}
-	bar := Meter("storage", 42).Fill(want)
+	bar := Meter(42).Key("storage").Fill(want)
 	fill := style.CascadePart(style.State{}, style.PartFill, bar.style)
 	solid, ok := fill.Paint.Background.(style.SolidColor)
 	if !ok || solid.Color != want {
@@ -34,7 +34,7 @@ func TestMeterFillUsesConcreteColor(t *testing.T) {
 }
 
 func TestMeterKeepsDefaultSemanticLabel(t *testing.T) {
-	bar := Meter("storage", 42)
+	bar := Meter(42).Key("storage")
 	if bar.semanticLabel != "" || bar.semanticKey != i18n.MeterDefault {
 		t.Fatalf("default semantic label = %q key = %q", bar.semanticLabel, bar.semanticKey)
 	}
@@ -45,7 +45,7 @@ func TestMeterKeepsDefaultSemanticLabel(t *testing.T) {
 	if got := bar.semanticDescriptionFor(chinese); got != "仪表 42%" {
 		t.Fatalf("Chinese semantic description = %q", got)
 	}
-	if got := Meter("storage", 42).Alt("Storage usage").semanticDescription(); got != "Storage usage 42%" {
+	if got := Meter(42).Alt("Storage usage").semanticDescription(); got != "Storage usage 42%" {
 		t.Fatalf("semantic description = %q", got)
 	}
 }

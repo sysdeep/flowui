@@ -9,6 +9,7 @@ import (
 // Widget provides a semantic content surface around a child. Its visual
 // declaration uses the active theme tokens.
 type Widget struct {
+	key         string
 	style       style.Style
 	child       core.Widget
 	variant     Variant
@@ -16,7 +17,13 @@ type Widget struct {
 }
 
 func New(child core.Widget) Widget {
-	return Widget{child: child, visualCache: &surfaceVisualCache{}}
+	return Widget{key: core.AutoKey("surface"), child: child, visualCache: &surfaceVisualCache{}}
+}
+
+// Key sets the stable identity used by style transitions.
+func (s Widget) Key(key string) Widget {
+	s.key = key
+	return s
 }
 
 func (s Widget) Variant(variant Variant) Widget {

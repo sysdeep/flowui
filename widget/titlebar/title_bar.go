@@ -61,7 +61,11 @@ type Widget struct {
 	visualCache       *titleBarVisualCache
 }
 
-func New(key, title string, menu core.Widget) Widget {
+func New(title string, menu core.Widget) Widget {
+	return newWidget(core.AutoKey("titlebar"), title, menu)
+}
+
+func newWidget(key, title string, menu core.Widget) Widget {
 	titleWidget := text.New(title).MaxLines(1)
 	return Widget{
 		key:               key,
@@ -78,9 +82,14 @@ func New(key, title string, menu core.Widget) Widget {
 
 // NewPlatform creates client-side decorations on Windows and a content header
 // without window controls on platforms that use native decorations.
-func NewPlatform(key, title string, menu core.Widget) Widget {
-	w := New(key, title, menu)
+func NewPlatform(title string, menu core.Widget) Widget {
+	w := newWidget(core.AutoKey("titlebar"), title, menu)
 	w.clientDecorations = Supported()
+	return w
+}
+
+func (w Widget) Key(key string) Widget {
+	w.key = key
 	return w
 }
 

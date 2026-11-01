@@ -49,7 +49,7 @@ nodes gain a subtle shadow;
 dots:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	Grid(true).
 	GridPattern(nodegraph.GridDots)
 ```
@@ -72,7 +72,7 @@ exactly where a user interacts. Node and edge callbacks carry the target ID;
 hover callbacks fire when the pointer enters or leaves a target:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	OnCanvasDoubleClick(func(event nodegraph.CanvasEvent) {
 		addNode(event.Position)
 	}).
@@ -92,7 +92,7 @@ For data from an external Gio drag source, declare each accepted MIME type and
 handle the copied payload in `OnDrop`:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	DropTypes("application/x-flowui-node").
 	OnDrop(func(event nodegraph.DropEvent) {
 		addNodeFromPayload(event.Position, event.Data)
@@ -108,7 +108,7 @@ payload to 1 MiB, and reports the graph-coordinate drop position.
 Keep the viewport in the model and apply change requests through messages:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	Height(520).
 	Viewport(model.Viewport).
 	OnViewportChange(func(next nodegraph.Viewport) {
@@ -134,7 +134,7 @@ controlled viewport receives that calculated value through
 `0.1`. To request another fit, toggle `FitView` from `false` to `true`:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	Viewport(model.Viewport).
 	FitView(model.RequestFit).
 	FitViewPadding(.1).
@@ -149,7 +149,7 @@ Minimap centers the viewport there, and dragging its viewport frame pans
 continuously:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	Viewport(model.Viewport).
 	Minimap(true).
 	Controls(true).
@@ -166,7 +166,7 @@ in graph coordinates, equivalent to ViewportPortal, and follows pan and zoom.
 Both scope state by the NodeGraph key and their own key:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	Panel("actions", nodegraph.PanelTopRight,
 		button.New("Fit")).
 	ViewportOverlay("annotation", nodegraph.Point{X: 240, Y: 128},
@@ -187,7 +187,7 @@ Selection and position requests are returned through `OnNodesChange`.
 `ApplyNodeGraphChanges` is a pure helper for the common Model update:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	SelectionMode(nodegraph.SelectionMultiple).
 	SnapToGrid(true).
 	SnapGrid(16, 16).
@@ -223,7 +223,7 @@ the left or top reports both a position and a size request, which
 `ApplyNodeGraphChanges` applies directly:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	NodesResizable(true).
 	ResizeHandles(nodegraph.ResizeHandleAll)
 ```
@@ -269,7 +269,7 @@ release:
 ```go
 history := nodegraph.NewHistory(model.Graph).Limit(100)
 
-nodegraph.New("workflow", model.Graph).
+nodegraph.New(model.Graph).Key("workflow").
 	OnPaste(func(fragment nodegraph.Fragment, offset nodegraph.Point) {
 		next := nodegraph.PasteFragment(model.Graph, fragment,
 			func(node nodegraph.Node) string { return newNodeID(node) },
@@ -304,7 +304,7 @@ edge selection independently; otherwise `Edge.Selected` is the source.
 `ApplyNodeGraphEdgeChanges` can write them back to the model:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	OnEdgesChange(func(changes []nodegraph.EdgeChange) {
 		send(EdgesChanged{Edges: nodegraph.ApplyEdgeChanges(model.Edges, changes)})
 	})
@@ -327,7 +327,7 @@ Dragging from an output port to an input port shows a connection preview.
 on a valid input delivers `OnConnect`:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	IsValidConnection(func(connection nodegraph.Connection) bool {
 		return connection.Source.NodeID != connection.Target.NodeID
 	}).
@@ -358,7 +358,7 @@ old edge and complete replacement connection. `ReconnectNodeGraphEdge` is a
 pure helper that writes the change back while retaining the edge ID:
 
 ```go
-nodegraph.New("workflow", graph).
+nodegraph.New(graph).Key("workflow").
 	OnReconnect(func(oldEdge nodegraph.Edge, connection nodegraph.Connection) {
 		send(EdgeReconnected{
 			Edges: nodegraph.ReconnectEdge(oldEdge, connection, model.Edges),
