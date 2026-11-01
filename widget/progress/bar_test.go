@@ -35,52 +35,52 @@ func testLayoutContext() layout.Context {
 }
 
 func TestBarRatio(t *testing.T) {
-	if got := Bar("upload", 50).ratio(); got != 0.5 {
+	if got := Bar(50).Key("upload").ratio(); got != 0.5 {
 		t.Fatalf("ratio = %v, want 0.5", got)
 	}
-	if got := Bar("upload", -10).ratio(); got != 0 {
+	if got := Bar(-10).Key("upload").ratio(); got != 0 {
 		t.Fatalf("low ratio = %v, want 0", got)
 	}
-	if got := Bar("upload", 140).ratio(); got != 1 {
+	if got := Bar(140).Key("upload").ratio(); got != 1 {
 		t.Fatalf("high ratio = %v, want 1", got)
 	}
-	if got := Bar("upload", 75).Range(50, 100).ratio(); got != 0.5 {
+	if got := Bar(75).Key("upload").Range(50, 100).ratio(); got != 0.5 {
 		t.Fatalf("range ratio = %v, want 0.5", got)
 	}
-	if got := Bar("upload", 75).Range(10, 10).ratio(); got != 0 {
+	if got := Bar(75).Key("upload").Range(10, 10).ratio(); got != 0 {
 		t.Fatalf("invalid range ratio = %v, want 0", got)
 	}
-	if got := Bar("upload", math.NaN()).ratio(); got != 0 {
+	if got := Bar(math.NaN()).Key("upload").ratio(); got != 0 {
 		t.Fatalf("nan ratio = %v, want 0", got)
 	}
-	if got := Bar("upload", math.Inf(1)).ratio(); got != 0 {
+	if got := Bar(math.Inf(1)).Key("upload").ratio(); got != 0 {
 		t.Fatalf("inf ratio = %v, want 0", got)
 	}
 }
 
 func TestBarOutputText(t *testing.T) {
-	if got := Bar("upload", 42).outputText(); got != "" {
+	if got := Bar(42).Key("upload").outputText(); got != "" {
 		t.Fatalf("default output = %q, want empty", got)
 	}
-	if got := Bar("upload", 42).ShowValue().outputText(); got != "42%" {
+	if got := Bar(42).Key("upload").ShowValue().outputText(); got != "42%" {
 		t.Fatalf("percent output = %q, want 42%%", got)
 	}
-	if got := Bar("upload", 42).ValueText("42 files").outputText(); got != "42 files" {
+	if got := Bar(42).Key("upload").ValueText("42 files").outputText(); got != "42 files" {
 		t.Fatalf("custom output = %q, want 42 files", got)
 	}
-	if got := Bar("upload", 42).ShowValue().Indeterminate().outputText(); got != "" {
+	if got := Bar(42).Key("upload").ShowValue().Indeterminate().outputText(); got != "" {
 		t.Fatalf("indeterminate output = %q, want empty", got)
 	}
 }
 
 func TestBarSemanticDescription(t *testing.T) {
-	if got := Bar("upload", 42).Label("Upload").semanticDescription(); got != "Upload 42%" {
+	if got := Bar(42).Label("Upload").Key("upload").semanticDescription(); got != "Upload 42%" {
 		t.Fatalf("semantic description = %q, want Upload 42%%", got)
 	}
-	if got := Bar("upload", 42).ValueText("42 files").semanticDescription(); got != "Progress 42 files" {
+	if got := Bar(42).ValueText("42 files").Key("upload").semanticDescription(); got != "Progress 42 files" {
 		t.Fatalf("custom semantic description = %q, want Progress 42 files", got)
 	}
-	if got := Bar("upload", 0).Label("Sync").Indeterminate().semanticDescription(); got != "Sync in progress" {
+	if got := Bar(0).Label("Sync").Key("upload").Indeterminate().semanticDescription(); got != "Sync in progress" {
 		t.Fatalf("indeterminate semantic description = %q, want Sync in progress", got)
 	}
 }
@@ -90,8 +90,8 @@ func TestBarSemanticDescription(t *testing.T) {
 func TestBarSizeStyle(t *testing.T) {
 	activeTheme := DefaultTheme()
 	ctx := core.New(nil, &activeTheme, locale.LanguageAuto)
-	small := Bar("upload", 50).Size(BarSmall).resolveStyle(ctx, testLayoutContext(), "upload", &progressBarStyleCache{}).track
-	large := Bar("upload", 50).Size(BarLarge).resolveStyle(ctx, testLayoutContext(), "upload", &progressBarStyleCache{}).track
+	small := Bar(50).Size(BarSmall).Key("upload").resolveStyle(ctx, testLayoutContext(), "upload", &progressBarStyleCache{}).track
+	large := Bar(50).Size(BarLarge).Key("upload").resolveStyle(ctx, testLayoutContext(), "upload", &progressBarStyleCache{}).track
 	if got := small.Box.Height; got == nil || *got != 4 {
 		t.Fatalf("small height = %v, want 4", got)
 	}
@@ -110,7 +110,7 @@ func TestBarSeparatesRootTrackAndIndicatorStyles(t *testing.T) {
 		Part(style.PartTrack, style.Style{}.Height(4).Background(style.SolidColor{Color: trackColor})).
 		Part(style.PartFill, style.Style{}.Background(style.SolidColor{Color: fillColor}))
 
-	resolved := Bar("upload", 50).Style(custom).resolveStyle(newContext(nil), testLayoutContext(), "upload", &progressBarStyleCache{})
+	resolved := Bar(50).Style(custom).Key("upload").resolveStyle(newContext(nil), testLayoutContext(), "upload", &progressBarStyleCache{})
 	if resolved.root.Box == nil || resolved.root.Box.Height == nil || *resolved.root.Box.Height != 60 {
 		t.Fatalf("root height = %#v", resolved.root.Box)
 	}
@@ -133,10 +133,10 @@ func TestBarInstanceStyleStaysOutsideDefaultsCache(t *testing.T) {
 	gtx := testLayoutContext()
 	cache := &progressBarStyleCache{}
 
-	first := Bar("upload", 50).
+	first := Bar(50).Key("upload").
 		Style(style.Style{}.Part(style.PartTrack, style.Style{}.Height(3))).
 		resolveStyle(ctx, gtx, "upload", cache)
-	second := Bar("upload", 50).
+	second := Bar(50).Key("upload").
 		Style(style.Style{}.Part(style.PartTrack, style.Style{}.Height(9))).
 		resolveStyle(ctx, gtx, "upload", cache)
 
@@ -194,7 +194,7 @@ func TestBarIndeterminateOffset(t *testing.T) {
 
 func testProgressBarDefaults(t *testing.T) progressBarDefaults {
 	t.Helper()
-	return Bar("upload", 0).defaultStyles(new(theme.Light()))
+	return Bar(0).Key("upload").defaultStyles(new(theme.Light()))
 }
 
 func TestIndeterminateBarRespectsMotionTheme(t *testing.T) {
@@ -204,7 +204,7 @@ func TestIndeterminateBarRespectsMotionTheme(t *testing.T) {
 		ctx := core.New(nil, &themeValue, locale.LanguageAuto)
 		var router input.Router
 		var ops op.Ops
-		Bar("sync", 0).Indeterminate().Layout(ctx, layout.Context{
+		Bar(0).Indeterminate().Key("sync").Layout(ctx, layout.Context{
 			Constraints: layout.Constraints{Max: image.Pt(200, 100)},
 			Source:      router.Source(),
 			Ops:         &ops,
@@ -223,14 +223,14 @@ func TestIndeterminateBarRespectsMotionTheme(t *testing.T) {
 }
 
 func TestBarLayoutTrackOnly(t *testing.T) {
-	dims := Bar("upload", 50).Layout(newContext(nil), progressBarTestContext())
+	dims := Bar(50).Key("upload").Layout(newContext(nil), progressBarTestContext())
 	if dims.Size != image.Pt(300, 8) {
 		t.Fatalf("track-only size = %v, want (300,8)", dims.Size)
 	}
 }
 
 func TestBarLayoutWithHeader(t *testing.T) {
-	dims := Bar("upload", 50).
+	dims := Bar(50).Key("upload").
 		Label("Upload").
 		ShowValue().
 		Layout(newContext(nil), progressBarTestContext())
@@ -243,18 +243,18 @@ func TestBarLayoutWithHeader(t *testing.T) {
 }
 
 func TestBarLabelPartUsesCommonBoxRenderer(t *testing.T) {
-	base := Bar("upload", 50).
+	base := Bar(50).Key("upload").
 		Label("Upload").
 		Layout(newContext(nil), progressBarTestContext())
-	styled := (Bar("upload", 50).Label("Upload")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7))).Layout(newContext(nil), progressBarTestContext())
+	styled := (Bar(50).Label("Upload").Key("upload")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7))).Layout(newContext(nil), progressBarTestContext())
 	if styled.Size.Y != base.Size.Y+14 {
 		t.Fatalf("styled label height = %d, want %d", styled.Size.Y, base.Size.Y+14)
 	}
 }
 
 func TestBarTrackPartUsesCommonBoxRenderer(t *testing.T) {
-	base := Bar("upload", 50).Layout(newContext(nil), progressBarTestContext())
-	styled := (Bar("upload", 50)).Style(style.Style{}.Part(style.PartTrack, style.Style{}.MarginY(7))).Layout(newContext(nil), progressBarTestContext())
+	base := Bar(50).Key("upload").Layout(newContext(nil), progressBarTestContext())
+	styled := (Bar(50)).Key("upload").Style(style.Style{}.Part(style.PartTrack, style.Style{}.MarginY(7))).Layout(newContext(nil), progressBarTestContext())
 	if styled.Size.Y != base.Size.Y+14 {
 		t.Fatalf("styled track height = %d, want %d", styled.Size.Y, base.Size.Y+14)
 	}

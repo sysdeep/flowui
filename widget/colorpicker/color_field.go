@@ -41,8 +41,13 @@ type colorFieldState struct {
 	defaultsCache colorFieldDefaultsCache
 }
 
-func ColorField(key string, value color.NRGBA) ColorFieldWidget {
-	return ColorFieldWidget{key: key, value: value}
+func ColorField(value color.NRGBA) ColorFieldWidget {
+	return ColorFieldWidget{key: core.AutoKey("color-field"), value: value}
+}
+
+func (field ColorFieldWidget) Key(key string) ColorFieldWidget {
+	field.key = key
+	return field
 }
 
 func (field ColorFieldWidget) Label(label string) ColorFieldWidget {

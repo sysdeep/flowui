@@ -35,8 +35,13 @@ type CircleWidget struct {
 
 const stateSlotProgressCircle = "progress-circle"
 
-func Circle(key string, value float64) CircleWidget {
-	return CircleWidget{key: key, value: value, maxValue: 100}
+func Circle(value float64) CircleWidget {
+	return CircleWidget{key: core.AutoKey("progress-circle"), value: value, maxValue: 100}
+}
+
+func (p CircleWidget) Key(key string) CircleWidget {
+	p.key = key
+	return p
 }
 
 func (p CircleWidget) Label(label string) CircleWidget {

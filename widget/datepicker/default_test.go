@@ -77,7 +77,7 @@ func TestDatePickerResolvedSelectedCellUsesOnFill(t *testing.T) {
 		style.Style{}.Part(PartCalendarCell, dateCellDeclaration(&active, dateCellState{Selected: true})),
 		PartCalendarCell,
 	)
-	resolved := New("date", testDate(2026, 7, 1)).resolvePartWithDefaults(
+	resolved := New(testDate(2026, 7, 1)).Key("date").resolvePartWithDefaults(
 		ctx, gtx, PartCalendarCell, style.State{Selected: true}, cellDefaults,
 	)
 	foreground, ok := resolve.Color(resolved.Text.Color)
@@ -102,7 +102,7 @@ func TestDatePickerSelectedCellBeatsInheritedForeground(t *testing.T) {
 		PartCalendarCell,
 	)
 
-	resolved := New("date", testDate(2026, 7, 1)).resolvePartWithDefaults(
+	resolved := New(testDate(2026, 7, 1)).Key("date").resolvePartWithDefaults(
 		ctx, gtx, PartCalendarCell, style.State{Selected: true}, cellDefaults,
 	)
 	foreground, ok := resolve.Color(resolved.Text.Color)

@@ -29,9 +29,9 @@ func TestDatePickerDefaultsCacheTracksVariantAndTheme(t *testing.T) {
 func TestDatePickerInstanceStyleIsNotPartOfDefaults(t *testing.T) {
 	declaration := style.Style{}.TextColor(style.RGB(0x102030))
 	for name, got := range map[string]style.Style{
-		"picker": New("date", testDate(2026, 7, 1)).Style(declaration).style,
-		"field":  DateField("date-field", testDate(2026, 7, 1)).Style(declaration).style,
-		"range":  DateRangePicker("date-range", DateRange{}).Style(declaration).style,
+		"picker": New(testDate(2026, 7, 1)).Key("date").Style(declaration).style,
+		"field":  DateField(testDate(2026, 7, 1)).Key("date-field").Style(declaration).style,
+		"range":  DateRangePicker(DateRange{}).Key("date-range").Style(declaration).style,
 	} {
 		if got.Hash64() != declaration.Hash64() {
 			t.Fatalf("%s instance style = %#x, want %#x", name, got.Hash64(), declaration.Hash64())
@@ -55,7 +55,7 @@ func TestDatePickerInstanceStyleIsLastCascadeLayer(t *testing.T) {
 	want := color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}
 	declaration := style.Style{}.Part(PartCalendarCell, style.Style{}.TextColor(style.RGB(0x123456)))
 	defaults := buildDatePickerDefaults(core.ActiveTheme(ctx), Primary)
-	picker := New("styled", testDate(2026, 7, 1)).Style(declaration)
+	picker := New(testDate(2026, 7, 1)).Key("styled").Style(declaration)
 
 	resolved := picker.resolvePart(ctx, gtx, PartCalendarCell, style.State{}, &defaults.calendar)
 	got, ok := resolve.Color(resolved.Text.Color)

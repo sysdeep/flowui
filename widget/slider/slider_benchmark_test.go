@@ -45,7 +45,7 @@ func (f *sliderBenchmarkFrame) layout(value sliderLayoutWidget) layout.Dimension
 
 func BenchmarkSliderLayoutSteadyState(b *testing.B) {
 	frame := newSliderBenchmarkFrame(image.Pt(320, 80))
-	value := New("volume", 50).ShowValue()
+	value := New(50).Key("volume").ShowValue()
 	frame.layout(value)
 
 	b.ReportAllocs()
@@ -59,7 +59,7 @@ func BenchmarkSliderComponentTreeSteadyState(b *testing.B) {
 	frame := newSliderBenchmarkFrame(image.Pt(640, 900))
 	values := make([]Widget, 128)
 	for index := range values {
-		values[index] = New(fmt.Sprintf("slider-%d", index), float64(index%100))
+		values[index] = New(float64(index % 100)).Key(fmt.Sprintf("slider-%d", index))
 		if index%2 == 0 {
 			values[index] = values[index].ShowValue()
 		}

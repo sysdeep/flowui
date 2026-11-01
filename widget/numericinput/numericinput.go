@@ -28,9 +28,14 @@ type Widget struct {
 }
 
 // New creates a number field with step 1 and no range restriction.
-func New(key string, value float64) Widget {
+func New(value float64) Widget {
 	requireFinite(value)
-	return Widget{key: key, value: value, min: -math.MaxFloat64, max: math.MaxFloat64, step: 1, precision: -1}
+	return Widget{key: core.AutoKey("numeric-input"), value: value, min: -math.MaxFloat64, max: math.MaxFloat64, step: 1, precision: -1}
+}
+
+func (n Widget) Key(key string) Widget {
+	n.key = key
+	return n
 }
 
 func (n Widget) Range(minimum, maximum float64) Widget {

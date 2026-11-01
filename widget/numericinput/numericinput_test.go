@@ -22,7 +22,7 @@ func TestEditingAndCommit(t *testing.T) {
 	disabled := false
 	root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
 		return layout.Column(
-			New("amount", value).Range(-10, 10).Step(0.25).Precision(2).Label("Amount").Disabled(disabled).
+			New(value).Key("amount").Range(-10, 10).Step(0.25).Precision(2).Label("Amount").Disabled(disabled).
 				OnChange(func(next float64) { value = next; changes++ }),
 			button.New("Other"),
 		).Gap(12).Layout(ctx, gtx)
@@ -92,7 +92,7 @@ func TestEditingAndCommit(t *testing.T) {
 }
 
 func TestRangeAndValueClamp(t *testing.T) {
-	value := New("amount", 50).Range(10, 20).Value(99)
+	value := New(50).Key("amount").Range(10, 20).Value(99)
 	if value.value != 20 {
 		t.Fatalf("value = %v, want 20", value.value)
 	}

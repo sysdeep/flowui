@@ -26,7 +26,7 @@ func TestDefaultControlAlignment(t *testing.T) {
 		for _, control := range []ui.Widget{
 			button.New("Save"), input.New("FlowUI"),
 			selector.New(nil).Key("select"), combobox.New(nil).Key("combo"),
-			datepicker.New("date", time.Time{}),
+			datepicker.New(time.Time{}).Key("date"),
 		} {
 			harness.Frame(ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
 				gtx.Constraints.Min = image.Point{}
@@ -47,7 +47,7 @@ func TestDefaultSliderPointerAndKeyboard(t *testing.T) {
 			value := 0.0
 			root := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
 				gtx.Constraints.Min = image.Point{}
-				control := slider.New("slider", value).Step(5).
+				control := slider.New(value).Key("slider").Step(5).
 					OnChange(func(next float64) { value = next })
 				if vertical {
 					control = control.Vertical()

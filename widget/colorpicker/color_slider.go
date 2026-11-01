@@ -39,14 +39,19 @@ type colorSliderState struct {
 	defaultsCache colorSliderDefaultsCache
 }
 
-func ColorSlider(key string, value color.NRGBA, channel ColorChannel) ColorSliderWidget {
+func ColorSlider(value color.NRGBA, channel ColorChannel) ColorSliderWidget {
 	return ColorSliderWidget{
-		key:        key,
+		key:        core.AutoKey("color-slider"),
 		value:      value,
 		channel:    channel,
 		showLabel:  true,
 		showOutput: true,
 	}
+}
+
+func (slider ColorSliderWidget) Key(key string) ColorSliderWidget {
+	slider.key = key
+	return slider
 }
 
 func (slider ColorSliderWidget) Label(label string) ColorSliderWidget {

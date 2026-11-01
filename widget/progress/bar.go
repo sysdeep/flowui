@@ -34,12 +34,17 @@ type BarWidget struct {
 	disabled       bool
 }
 
-func Bar(key string, value float64) BarWidget {
+func Bar(value float64) BarWidget {
 	return BarWidget{
-		key:      key,
+		key:      core.AutoKey("progress-bar"),
 		value:    value,
 		maxValue: 100,
 	}
+}
+
+func (p BarWidget) Key(key string) BarWidget {
+	p.key = key
+	return p
 }
 
 func (p BarWidget) Label(label string) BarWidget {

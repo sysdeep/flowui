@@ -21,7 +21,7 @@ func TestColorWheelUsesConfiguredAndConstrainedSize(t *testing.T) {
 	router := new(input.Router)
 	now := time.Unix(1, 0)
 
-	dimensions := layoutColorWidgetFrame(ctx, router, ColorWheel("configured", color.NRGBA{A: 255}).Size(164), now)
+	dimensions := layoutColorWidgetFrame(ctx, router, ColorWheel(color.NRGBA{A: 255}).Size(164).Key("configured"), now)
 	if dimensions.Size != image.Pt(164, 164) {
 		t.Fatalf("configured ColorWheel size = %v, want 164x164", dimensions.Size)
 	}
@@ -71,7 +71,7 @@ func TestDisabledColorWheelDoesNotDispatchPointerChanges(t *testing.T) {
 	router := new(input.Router)
 	initial := color.NRGBA{R: 4, G: 133, B: 247, A: 93}
 	changes := 0
-	wheel := ColorWheel("disabled", initial).Size(100).Disabled(true).OnChange(func(color.NRGBA) {
+	wheel := ColorWheel(initial).Size(100).Key("disabled").Disabled(true).OnChange(func(color.NRGBA) {
 		changes++
 	})
 	start := time.Unix(1, 0)
@@ -95,7 +95,7 @@ func TestColorWheelPointerDispatchesChange(t *testing.T) {
 	router := new(input.Router)
 	initial := color.NRGBA{R: 4, G: 133, B: 247, A: 93}
 	var changed color.NRGBA
-	wheel := ColorWheel("pointer", initial).Size(100).OnChange(func(value color.NRGBA) {
+	wheel := ColorWheel(initial).Size(100).Key("pointer").OnChange(func(value color.NRGBA) {
 		changed = value
 	})
 	start := time.Unix(1, 0)
@@ -122,7 +122,7 @@ func TestColorWheelKeyboardChangePreservesAlpha(t *testing.T) {
 	router := new(input.Router)
 	initial := color.NRGBA{R: 4, G: 133, B: 247, A: 93}
 	var changed color.NRGBA
-	wheel := ColorWheel("keyboard", initial).Size(100).OnChange(func(value color.NRGBA) {
+	wheel := ColorWheel(initial).Size(100).Key("keyboard").OnChange(func(value color.NRGBA) {
 		changed = value
 	})
 	start := time.Unix(1, 0)

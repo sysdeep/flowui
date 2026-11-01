@@ -34,18 +34,23 @@ type Widget struct {
 	onRangeChange   func(float64, float64)
 }
 
-func New(key string, value float64) Widget {
+func New(value float64) Widget {
 	return Widget{
-		key:      key,
+		key:      core.AutoKey("slider"),
 		value:    value,
 		maxValue: 100,
 		step:     1,
 	}
 }
 
-func RangeSlider(key string, lowerValue, upperValue float64) Widget {
+func (s Widget) Key(key string) Widget {
+	s.key = key
+	return s
+}
+
+func RangeSlider(lowerValue, upperValue float64) Widget {
 	return Widget{
-		key:        key,
+		key:        core.AutoKey("range-slider"),
 		value:      lowerValue,
 		upperValue: upperValue,
 		maxValue:   100,

@@ -20,7 +20,7 @@ func TestDatePickerTypingUsesSharedDateSegments(t *testing.T) {
 	router := new(input.Router)
 	value := testDate(2026, 7, 9)
 	picker := func() Widget {
-		return New("date", value).OnChange(func(next time.Time) { value = next })
+		return New(value).Key("date").OnChange(func(next time.Time) { value = next })
 	}
 	now := testDate(2026, 7, 1)
 	layoutDatePickerFrameAt(ctx, router, picker(), now)
@@ -41,7 +41,7 @@ func TestDatePickerTypingUsesSharedDateSegments(t *testing.T) {
 func TestDateFieldArrowNavigationUsesLocaleOrder(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageEnglish)
 	router := new(input.Router)
-	widget := DateField("date", testDate(2026, 7, 9))
+	widget := DateField(testDate(2026, 7, 9)).Key("date")
 	now := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, widget, now)
 	componentState := testComponentState[dateFieldState](ctx, "date", stateSlotDateField)
@@ -59,7 +59,7 @@ func TestDateFieldArrowNavigationUsesLocaleOrder(t *testing.T) {
 func TestDateFieldPointerSegmentFocusIsNotKeyboardVisible(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageEnglish)
 	router := new(input.Router)
-	widget := DateField("date", testDate(2026, 7, 9)).FillWidth()
+	widget := DateField(testDate(2026, 7, 9)).Key("date").FillWidth()
 	start := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, widget, start)
 	state := testComponentState[dateFieldState](ctx, "date", stateSlotDateField)
@@ -84,7 +84,7 @@ func TestDateFieldKeyboardChangesMonth(t *testing.T) {
 	router := new(input.Router)
 	value := testDate(2026, 7, 9)
 	fieldWidget := func() DateFieldWidget {
-		return DateField("date", value).OnChange(func(next time.Time) { value = next })
+		return DateField(value).Key("date").OnChange(func(next time.Time) { value = next })
 	}
 	now := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, fieldWidget(), now)
@@ -104,7 +104,7 @@ func TestDateFieldTypingReplacesSegment(t *testing.T) {
 	router := new(input.Router)
 	value := testDate(2026, 7, 9)
 	fieldWidget := func() DateFieldWidget {
-		return DateField("date", value).OnChange(func(next time.Time) { value = next })
+		return DateField(value).Key("date").OnChange(func(next time.Time) { value = next })
 	}
 	now := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, fieldWidget(), now)
@@ -208,7 +208,7 @@ func TestDateRangePickerCalendarSelectsTwoDates(t *testing.T) {
 	router := new(input.Router)
 	value := DateRange{Start: testDate(2026, 7, 1), End: testDate(2026, 7, 4)}
 	picker := func() DateRangePickerWidget {
-		return DateRangePicker("trip", value).OnChange(func(next DateRange) { value = next })
+		return DateRangePicker(value).Key("trip").OnChange(func(next DateRange) { value = next })
 	}
 	now := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, picker(), now)
@@ -244,7 +244,7 @@ func TestDateRangePickerClosingCalendarRestoresControlledRange(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	original := DateRange{Start: testDate(2026, 7, 1), End: testDate(2026, 7, 4)}
-	picker := DateRangePicker("trip", original)
+	picker := DateRangePicker(original).Key("trip")
 	now := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, picker, now)
 	componentState := testComponentState[dateRangePickerState](ctx, "trip", stateSlotDateRangePicker)
@@ -271,7 +271,7 @@ func TestDateRangePickerClosingCalendarRestoresControlledRange(t *testing.T) {
 func TestDateRangePickerTriggerFocusDoesNotFocusDateSegments(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := DateRangePicker("trip", DateRange{})
+	picker := DateRangePicker(DateRange{}).Key("trip")
 	now := testDate(2026, 7, 1)
 	layoutDateComponentFrame(ctx, router, picker, now)
 	componentState := testComponentState[dateRangePickerState](ctx, "trip", stateSlotDateRangePicker)
@@ -287,7 +287,7 @@ func TestDateRangePickerTriggerFocusDoesNotFocusDateSegments(t *testing.T) {
 func TestDateSegmentsScrollWhenWidthIsConstrained(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageEnglish)
 	router := new(input.Router)
-	dimensions := layoutDateComponentFrameWithViewport(ctx, router, DateField("date", testDate(2026, 7, 9)).FillWidth(), testDate(2026, 7, 1), image.Pt(80, 100))
+	dimensions := layoutDateComponentFrameWithViewport(ctx, router, DateField(testDate(2026, 7, 9)).Key("date").FillWidth(), testDate(2026, 7, 1), image.Pt(80, 100))
 	componentState := testComponentState[dateFieldState](ctx, "date", stateSlotDateField)
 
 	if dimensions.Size.X != 80 {

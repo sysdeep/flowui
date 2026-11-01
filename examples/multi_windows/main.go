@@ -130,7 +130,7 @@ func mainView(application *ui.Application, counter ui.WindowSpec) ui.View[MainMo
 							OnChange(func(enabled bool) { send(MainMsg{kind: setDark, enabled: enabled}) }),
 						toggle.NewToggleButton("").Key("chinese-language").Selected(model.Chinese).Content(text.New("Chinese locale")).
 							OnChange(func(enabled bool) { send(MainMsg{kind: setChinese, enabled: enabled}) }),
-						datepicker.New("locale-preview", model.Date).
+						datepicker.New(model.Date).Key("locale-preview").
 							OnChange(func(value time.Time) { send(MainMsg{kind: setDate, date: value}) }),
 					).Gap(8).LineGap(8),
 					divider.New(),

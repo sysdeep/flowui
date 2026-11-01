@@ -107,7 +107,7 @@ func openPickerWithContextMenu(t *testing.T, target string) (*uitest.Harness, co
 		Theme:  &active,
 		Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1},
 	})
-	picker := New("picker", color.NRGBA{R: 0x3b, G: 0x82, B: 0xf6, A: 0xff}).
+	picker := New(color.NRGBA{R: 0x3b, G: 0x82, B: 0xf6, A: 0xff}).Key("picker").
 		Label("Pick").
 		ShowField().
 		ShowHistory(false)

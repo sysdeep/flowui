@@ -177,7 +177,7 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 	var children [8]layout.Widget
 	count := 0
 	children[count] = func(gtx layout.Context) layout.Dimensions {
-		return ColorArea("area", picker.value).
+		return ColorArea(picker.value).Key("area").
 			withColorState(&pickerState.color).
 			OnChange(dragChange).
 			Disabled(picker.disabled).
@@ -185,7 +185,7 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 	}
 	count++
 	children[count] = func(gtx layout.Context) layout.Dimensions {
-		return ColorSlider("hue", picker.value, ColorChannelHue).
+		return ColorSlider(picker.value, ColorChannelHue).Key("hue").
 			withColorState(&pickerState.color).
 			OnChange(dragChange).
 			Disabled(picker.disabled).
@@ -194,7 +194,7 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 	count++
 	if picker.alpha {
 		children[count] = func(gtx layout.Context) layout.Dimensions {
-			return ColorSlider("alpha", picker.value, ColorChannelAlpha).
+			return ColorSlider(picker.value, ColorChannelAlpha).Key("alpha").
 				withColorState(&pickerState.color).
 				OnChange(dragChange).
 				Disabled(picker.disabled).
@@ -210,7 +210,7 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 	}
 	if picker.showField {
 		children[count] = func(gtx layout.Context) layout.Dimensions {
-			return ColorField("field", picker.value).
+			return ColorField(picker.value).Key("field").
 				Alpha(picker.alpha).
 				Swatch(true).
 				Variant(input.Secondary).
@@ -222,7 +222,7 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 	}
 	if len(picker.presets) > 0 {
 		children[count] = func(gtx layout.Context) layout.Dimensions {
-			return ColorSwatchPicker("presets", picker.value, picker.presets).
+			return ColorSwatchPicker(picker.value, picker.presets).Key("presets").
 				Size(ColorSwatchExtraSmall).
 				OnChange(commitChange).
 				Disabled(picker.disabled).
@@ -237,7 +237,7 @@ func (picker Widget) layoutPanelContent(ctx *core.Context, gtx layout.Context, p
 	history := historyWithoutPresets(pickerState.history, picker.presets)
 	if picker.showHistory && len(history) > 0 {
 		children[count] = func(gtx layout.Context) layout.Dimensions {
-			return ColorSwatchPicker("history", picker.value, history).
+			return ColorSwatchPicker(picker.value, history).Key("history").
 				Size(ColorSwatchExtraSmall).
 				OnChange(commitChange).
 				Disabled(picker.disabled).

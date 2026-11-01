@@ -266,7 +266,7 @@ func TestDatePickerResolvedPartCacheDoesNotStoreTransitionFocus(t *testing.T) {
 func TestDatePickerResolvedPartCacheUsedByOpenCalendar(t *testing.T) {
 	active := theme.Light()
 	ctx := core.New(nil, &active, locale.LanguageEnglish)
-	picker := New("resolved-cache", testDate(2026, 7, 9))
+	picker := New(testDate(2026, 7, 9)).Key("resolved-cache")
 	state := datePickerStateFor(ctx, picker.key)
 	var router input.Router
 	router.Source().Execute(key.FocusCmd{Tag: &state.trigger})

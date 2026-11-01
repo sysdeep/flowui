@@ -233,21 +233,21 @@ func demoCombo(m demoState, send ui.Send[Msg]) ui.Widget {
 func demoDate(m demoState, send ui.Send[Msg]) ui.Widget {
 	changed := func(value time.Time) { send(demoMsg(func(m *demoState) { m.date = value })) }
 	return layout.Column(
-		field(m.text("日历选择"), datepicker.New("date-picker", m.date).Label(m.text("日期")).
+		field(m.text("日历选择"), datepicker.New(m.date).Key("date-picker").Label(m.text("日期")).
 			OnChange(changed)),
-		field(m.text("可编辑日期"), datepicker.DateField("date-field", m.date).Label(m.text("日期字段")).OnChange(changed)),
-		field(m.text("日期范围"), datepicker.DateRangePicker("date-range", m.dateRange).Label(m.text("计划周期")).
+		field(m.text("可编辑日期"), datepicker.DateField(m.date).Key("date-field").Label(m.text("日期字段")).OnChange(changed)),
+		field(m.text("日期范围"), datepicker.DateRangePicker(m.dateRange).Key("date-range").Label(m.text("计划周期")).
 			OnChange(func(value datepicker.DateRange) {
 				send(demoMsg(func(m *demoState) { m.dateRange = value }))
 			})),
 		text.New(m.text("所选日期：")+m.date.Format("2006-01-02")),
-		field(m.text("日期边界"), datepicker.New("date-bounded", m.date).Label(m.text("仅限当前月份")).
+		field(m.text("日期边界"), datepicker.New(m.date).Key("date-bounded").Label(m.text("仅限当前月份")).
 			MinDate(time.Date(m.date.Year(), m.date.Month(), 1, 0, 0, 0, 0, m.date.Location())).
 			MaxDate(time.Date(m.date.Year(), m.date.Month()+1, 0, 0, 0, 0, 0, m.date.Location())).OnChange(changed)),
-		field(m.text("校验状态"), datepicker.New("date-required", m.dateRequired).Label(m.text("必填日期")).
+		field(m.text("校验状态"), datepicker.New(m.dateRequired).Key("date-required").Label(m.text("必填日期")).
 			Required(true).Invalid(m.dateRequired.IsZero()).ErrorMessage(m.text("请选择日期")).
 			OnChange(func(value time.Time) { send(demoMsg(func(m *demoState) { m.dateRequired = value })) })),
-		field(m.text("禁用状态"), datepicker.New("date-disabled", m.date).Disabled(true)),
+		field(m.text("禁用状态"), datepicker.New(m.date).Key("date-disabled").Disabled(true)),
 	).Gap(20)
 }
 
@@ -259,34 +259,34 @@ func demoColor(m demoState, send ui.Send[Msg]) ui.Widget {
 	}
 	return layout.Column(
 		layout.Wrap(
-			colorpicker.New("color-picker", m.color).ShowRGB(true).ShowHistory(true).OnChange(changed),
+			colorpicker.New(m.color).ShowRGB(true).Key("color-picker").ShowHistory(true).OnChange(changed),
 			colorpicker.ColorSwatch(m.color),
 			text.New(fmt.Sprintf("#%02X%02X%02X", m.color.R, m.color.G, m.color.B)),
 		).Gap(12).AlignMiddle(),
 		layout.Wrap(
-			colorpicker.ColorArea("color-area", m.color).OnChange(changed),
-			colorpicker.ColorWheel("color-wheel", m.color).Size(180).OnChange(changed),
+			colorpicker.ColorArea(m.color).OnChange(changed).Key("color-area"),
+			colorpicker.ColorWheel(m.color).Size(180).Key("color-wheel").OnChange(changed),
 		).Gap(20).LineGap(16),
-		colorpicker.ColorSlider("color-hue", m.color, colorpicker.ColorChannelHue).OnChange(changed),
-		colorpicker.ColorSlider("color-alpha", m.color, colorpicker.ColorChannelAlpha).OnChange(changed),
-		colorpicker.ColorField("color-field", m.color).OnChange(changed),
-		colorpicker.ColorSwatchPicker("color-swatches", m.color, colors).OnChange(changed),
+		colorpicker.ColorSlider(m.color, colorpicker.ColorChannelHue).Key("color-hue").OnChange(changed),
+		colorpicker.ColorSlider(m.color, colorpicker.ColorChannelAlpha).Key("color-alpha").OnChange(changed),
+		colorpicker.ColorField(m.color).OnChange(changed).Key("color-field"),
+		colorpicker.ColorSwatchPicker(m.color, colors).Key("color-swatches").OnChange(changed),
 	).Gap(20)
 }
 
 func demoSlider(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
-		slider.New("slider-main", m.value).Label(m.text("音量")).Range(0, 100).Step(1).ShowValue().OnChange(setNumber(send)),
-		slider.RangeSlider("slider-range", m.lower, m.upper).Label(m.text("价格范围")).Range(0, 100).
+		slider.New(m.value).Key("slider-main").Label(m.text("音量")).Range(0, 100).Step(1).ShowValue().OnChange(setNumber(send)),
+		slider.RangeSlider(m.lower, m.upper).Key("slider-range").Label(m.text("价格范围")).Range(0, 100).
 			OnRangeChange(func(lower, upper float64) {
 				send(demoMsg(func(m *demoState) { m.lower, m.upper = lower, upper }))
 			}),
 		text.New(fmt.Sprintf(m.text("音量 %.0f · 范围 %.0f–%.0f"), m.value, m.lower, m.upper)),
-		slider.New("slider-disabled", 40).Label(m.text("不可用")).Disabled(true),
-		slider.New("slider-step", m.value).Label(m.text("步进与格式化")).Range(0, 100).Step(10).ShowValue().
+		slider.New(40).Key("slider-disabled").Label(m.text("不可用")).Disabled(true),
+		slider.New(m.value).Key("slider-step").Label(m.text("步进与格式化")).Range(0, 100).Step(10).ShowValue().
 			FormatValue(func(value float64) string { return fmt.Sprintf("%.0f%%", value) }).OnChange(setNumber(send)),
 		field(m.text("垂直滑块"), layout.Row(
-			layout.Column(slider.New("slider-vertical", m.value).Vertical().Range(0, 100).Step(1).
+			layout.Column(slider.New(m.value).Key("slider-vertical").Vertical().Range(0, 100).Step(1).
 				OnChange(setNumber(send))).Width(16).Height(180),
 			text.New(fmt.Sprintf("%.0f", m.value)),
 		).Gap(16)),

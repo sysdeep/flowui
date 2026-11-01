@@ -59,13 +59,18 @@ func Chinese() Locale {
 	return datePickerChinese()
 }
 
-func New(key string, value time.Time) Widget {
+func New(value time.Time) Widget {
 	return Widget{
-		key:      key,
+		key:      core.AutoKey("datepicker"),
 		value:    dateOnly(value),
 		hasValue: true,
 		editable: true,
 	}
+}
+
+func (d Widget) Key(key string) Widget {
+	d.key = key
+	return d
 }
 
 // Uncontrolled uses the current date only as the initial internal value.

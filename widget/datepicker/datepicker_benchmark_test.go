@@ -54,7 +54,7 @@ func BenchmarkPartDefaultsCache(b *testing.B) {
 // after the picker state, calendar cells, and style declarations are warm.
 func BenchmarkDatePickerOpenSteadyState(b *testing.B) {
 	now := testDate(2026, 7, 1)
-	picker := New("bench-open", testDate(2026, 7, 9))
+	picker := New(testDate(2026, 7, 9)).Key("bench-open")
 	activeTheme := theme.Light()
 	ctx := newContextWithThemeAndLanguage(nil, &activeTheme, locale.LanguageEnglish)
 	router := new(input.Router)

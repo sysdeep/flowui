@@ -6,7 +6,7 @@ import (
 )
 
 func TestColorFieldFillWidth(t *testing.T) {
-	base := ColorField("color", color.NRGBA{})
+	base := ColorField(color.NRGBA{}).Key("color")
 	configured := base.FillWidth()
 	if base.fullWidth {
 		t.Fatal("FillWidth mutated the original widget")

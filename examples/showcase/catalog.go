@@ -46,7 +46,7 @@ toggle.NewCheckbox("全选内容").Key("all").Checked(m.All).
     Indeterminate(m.Partial).OnChange(setAll)`},
 	{key: "numericinput", title: "NumericInput · 数字输入", group: "表单", packages: "numericinput", source: "demo_controls.go",
 		summary: "支持负数、小数、步进、精度和边界，编辑草稿在回车或失焦时提交。", demo: demoNumericInput,
-		code: `numericinput.New("amount", m.Amount).Range(-100, 100).Step(0.25).
+		code: `numericinput.New(m.Amount).Key("amount").Range(-100, 100).Step(0.25).
     Precision(2).Label("金额").OnChange(setAmount)`},
 	{key: "segmented", title: "Segmented · 分段选择", group: "表单", packages: "segmented", source: "demo_controls.go",
 		summary: "紧凑的互斥选项，支持禁用选项与等宽布局。", demo: demoSegmented,
@@ -78,18 +78,18 @@ combobox.New(items).Key("custom").AllowCustomValue().SelectedKey(m.Custom).
     OnInputChange(setCustomQuery).OnChange(setCustom)`},
 	{key: "datepicker", title: "DatePicker · 日期", group: "表单", packages: "datepicker", source: "demo_forms.go",
 		summary: "日历弹层、可编辑日期字段与日期范围，随界面语言切换。", demo: demoDate,
-		code: `datepicker.New("date", m.Date).OnChange(setDate)
-datepicker.DateRangePicker("range", m.Range).OnChange(setRange)
-datepicker.New("bounded", m.Date).MinDate(startOfMonth).MaxDate(endOfMonth).OnChange(setDate)`},
+		code: `datepicker.New(m.Date).Key("date").OnChange(setDate)
+datepicker.DateRangePicker(m.Range).Key("range").OnChange(setRange)
+datepicker.New(m.Date).Key("bounded").MinDate(startOfMonth).MaxDate(endOfMonth).OnChange(setDate)`},
 	{key: "colorpicker", title: "ColorPicker · 颜色", group: "表单", packages: "colorpicker", source: "demo_forms.go",
 		summary: "完整选择器与独立色域、色轮、色条、色值字段和色板共享颜色。", demo: demoColor,
-		code: `colorpicker.New("color", m.Color).ShowRGB(true).OnChange(setColor)
-colorpicker.ColorWheel("wheel", m.Color).OnChange(setColor)`},
+		code: `colorpicker.New(m.Color).Key("color").ShowRGB(true).OnChange(setColor)
+colorpicker.ColorWheel(m.Color).Key("wheel").OnChange(setColor)`},
 	{key: "slider", title: "Slider · 滑块", group: "表单", packages: "slider", source: "demo_forms.go",
 		summary: "连续数值、步进数值与双端范围选择。", demo: demoSlider,
-		code: `slider.New("volume", m.Volume).Range(0, 100).ShowValue().OnChange(setVolume)
-slider.RangeSlider("range", m.Lower, m.Upper).OnRangeChange(setRange)
-slider.New("step", m.Volume).Range(0, 100).Step(10).ShowValue().OnChange(setVolume)`},
+		code: `slider.New(m.Volume).Key("volume").Range(0, 100).ShowValue().OnChange(setVolume)
+slider.RangeSlider(m.Lower, m.Upper).Key("range").OnRangeChange(setRange)
+slider.New(m.Volume).Key("step").Range(0, 100).Step(10).ShowValue().OnChange(setVolume)`},
 	{key: "text", title: "Text · 文本", group: "内容", packages: "text label description", source: "demo_content.go",
 		summary: "标题、正文、可选择文本，以及关联输入框的标签和辅助说明。", demo: demoText,
 		code: `text.New("项目概览").Size(24).Weight(font.Bold)
@@ -257,11 +257,11 @@ alert.New("发现可用更新", description).Action(updateButton)`},
 		code: `toast.New("messages", m.Messages).OnClose(removeMessage).OnAction(handleAction)`},
 	{key: "progress", title: "Progress · 进度与计量", group: "反馈", packages: "progress", source: "demo_overlays.go",
 		summary: "条形、环形、计量、颜色、尺寸、自定义范围与不确定进度。", demo: demoProgress,
-		code: `progress.Bar("upload", m.Progress).ShowValue()
-progress.Circle("circle", m.Progress)
+		code: `progress.Bar(m.Progress).Key("upload").ShowValue()
+progress.Circle(m.Progress).Key("circle")
 progress.Meter("storage", m.Usage).Label("存储").ShowValue()
-progress.Bar("done", 100).Color(progress.BarSuccess).Size(progress.BarSmall)
-progress.Bar("pending", 0).Indeterminate()`},
+progress.Bar(100).Key("done").Color(progress.BarSuccess).Size(progress.BarSmall)
+progress.Bar(0).Key("pending").Indeterminate()`},
 	{key: "spinner", title: "Spinner · 加载", group: "反馈", packages: "spinner", source: "demo_overlays.go",
 		summary: "不同尺寸的循环加载反馈。", demo: demoSpinner,
 		code: `spinner.New().Label("正在加载")`},

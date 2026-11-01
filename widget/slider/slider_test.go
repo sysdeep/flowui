@@ -21,29 +21,29 @@ import (
 )
 
 func TestRangeSliderSortsAndSnapsValues(t *testing.T) {
-	values := RangeSlider("price", 83, 17).Range(0, 100).Step(5).resolvedValues()
+	values := RangeSlider(83, 17).Key("price").Range(0, 100).Step(5).resolvedValues()
 	if values.lower != 15 || values.upper != 85 {
 		t.Fatalf("range values = %v to %v, want 15 to 85", values.lower, values.upper)
 	}
 }
 
 func TestSliderClampsInvalidNumericValues(t *testing.T) {
-	values := New("value", 150).Range(0, 100).resolvedValues()
+	values := New(150).Key("value").Range(0, 100).resolvedValues()
 	if values.lower != 100 {
 		t.Fatalf("clamped value = %v, want 100", values.lower)
 	}
-	values = New("value", math.NaN()).resolvedValues()
+	values = New(math.NaN()).Key("value").resolvedValues()
 	if values.lower != 0 {
 		t.Fatalf("NaN value = %v, want 0", values.lower)
 	}
 }
 
 func TestSliderOutputFormatting(t *testing.T) {
-	single := New("volume", 30).ShowValue()
+	single := New(30).Key("volume").ShowValue()
 	if got := single.outputText(single.resolvedValues()); got != "30" {
 		t.Fatalf("single output = %q, want 30", got)
 	}
-	ranged := RangeSlider("price", 100, 500).
+	ranged := RangeSlider(100, 500).Key("price").
 		Range(0, 1000).
 		ShowValue().
 		FormatValue(func(value float64) string { return "$" + single.format(value) })
@@ -57,7 +57,7 @@ func TestSliderOutputFormatting(t *testing.T) {
 }
 
 func TestSliderDecimalStepDoesNotLeakFloatingPointNoise(t *testing.T) {
-	value := New("decimal", .3).Range(0, 1).Step(.1).ShowValue()
+	value := New(.3).Key("decimal").Range(0, 1).Step(.1).ShowValue()
 	if got := value.outputText(value.resolvedValues()); got != "0.3" {
 		t.Fatalf("decimal output = %q, want 0.3", got)
 	}
@@ -138,7 +138,7 @@ func TestSliderResolvesSemanticParts(t *testing.T) {
 
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageAuto)
 	var ops op.Ops
-	styled := (New("volume", 50)).Style(custom)
+	styled := (New(50).Key("volume")).Style(custom)
 	visual := buildSlider(core.ActiveTheme(ctx), Horizontal)
 	resolved := styled.resolveStyle(ctx, layout.Context{Constraints: layout.Constraints{Max: image.Pt(200, 40)}, Ops: &ops}, "volume", style.State{}, visual)
 	if got := resolved.track.Paint.Background.(style.SolidColor).Color; got != track {
@@ -171,7 +171,7 @@ func TestSliderResolvesSemanticParts(t *testing.T) {
 func TestSliderDefaultAndVerticalLayout(t *testing.T) {
 	ctx := sliderTestContext()
 	var ops op.Ops
-	dims := New("horizontal", 30).Layout(ctx, layout.Context{
+	dims := New(30).Key("horizontal").Layout(ctx, layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(300, 200)},
 		Ops:         &ops,
 	})
@@ -181,7 +181,7 @@ func TestSliderDefaultAndVerticalLayout(t *testing.T) {
 
 	ctx = sliderTestContext()
 	ops.Reset()
-	dims = New("vertical", 30).Vertical().Layout(ctx, layout.Context{
+	dims = New(30).Key("vertical").Vertical().Layout(ctx, layout.Context{
 		Constraints: layout.Exact(image.Pt(80, 300)),
 		Ops:         &ops,
 	})
@@ -200,7 +200,7 @@ func TestSliderThumbOuterEdgeDoesNotLightenFilledTrack(t *testing.T) {
 	ctx := sliderTestContext()
 	var router input.Router
 	var ops op.Ops
-	New("volume", 50).Layout(ctx, layout.Context{
+	New(50).Key("volume").Layout(ctx, layout.Context{
 		Constraints: layout.Exact(image.Pt(300, 20)),
 		Source:      router.Source(),
 		Ops:         &ops,
@@ -229,11 +229,11 @@ func TestSliderThumbOuterEdgeDoesNotLightenFilledTrack(t *testing.T) {
 
 func TestSliderLabelPartUsesCommonBoxRenderer(t *testing.T) {
 	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(300, 200)}, Ops: new(op.Ops)}
-	base := New("volume", 30).
+	base := New(30).Key("volume").
 		Label("Volume").
 		Layout(sliderTestContext(), gtx)
 	gtx.Ops = new(op.Ops)
-	styled := (New("volume", 30).Label("Volume")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7))).Layout(sliderTestContext(), gtx)
+	styled := (New(30).Key("volume").Label("Volume")).Style(style.Style{}.Part(style.PartLabel, style.Style{}.Padding(7))).Layout(sliderTestContext(), gtx)
 	if styled.Size.Y != base.Size.Y+14 {
 		t.Fatalf("styled label height = %d, want %d", styled.Size.Y, base.Size.Y+14)
 	}
@@ -242,7 +242,7 @@ func TestSliderLabelPartUsesCommonBoxRenderer(t *testing.T) {
 func TestSliderTrackPartUsesCommonBoxRenderer(t *testing.T) {
 	gtx := layout.Context{Constraints: layout.Constraints{Max: image.Pt(300, 200)}, Ops: new(op.Ops)}
 	ctx := sliderTestContext()
-	styled := (New("volume", 30)).Style(style.Style{}.Part(style.PartTrack, style.Style{}.MarginY(7))).Layout(ctx, gtx)
+	styled := (New(30).Key("volume")).Style(style.Style{}.Part(style.PartTrack, style.Style{}.MarginY(7))).Layout(ctx, gtx)
 	want := gtx.Dp(8) + 14
 	if styled.Size.Y != want {
 		t.Fatalf("styled track height = %d, want %d", styled.Size.Y, want)
@@ -253,7 +253,7 @@ func TestSliderRegistersFieldFocus(t *testing.T) {
 	ctx := sliderTestContext()
 	core.BeginFrame(ctx)
 	var ops op.Ops
-	New("volume", 30).Layout(ctx, layout.Context{
+	New(30).Key("volume").Layout(ctx, layout.Context{
 		Constraints: layout.Constraints{Max: image.Pt(300, 100)},
 		Ops:         &ops,
 	})
@@ -268,7 +268,7 @@ func TestSliderArrowKeyUsesConfiguredStep(t *testing.T) {
 	router := new(input.Router)
 	value := 30.0
 	widget := func() Widget {
-		return New("volume", value).Step(5).OnChange(func(next float64) { value = next })
+		return New(value).Key("volume").Step(5).OnChange(func(next float64) { value = next })
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 100))
 	tag := core.FieldFocusTag(ctx, "volume")
@@ -286,7 +286,7 @@ func TestSliderPointerChangesSingleValue(t *testing.T) {
 	router := new(input.Router)
 	value := 0.0
 	widget := func() Widget {
-		return New("volume", value).OnChange(func(next float64) { value = next })
+		return New(value).Key("volume").OnChange(func(next float64) { value = next })
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 100))
 	pressSliderAt(router, 1, f32.Pt(150, 10))
@@ -302,7 +302,7 @@ func TestSliderPointerMovementWithoutPressDoesNotChangeValue(t *testing.T) {
 	value := 30.0
 	changes := 0
 	widget := func() Widget {
-		return New("volume", value).OnChange(func(next float64) {
+		return New(value).Key("volume").OnChange(func(next float64) {
 			changes++
 			value = next
 		})
@@ -328,7 +328,7 @@ func TestCompactSliderKeepsMinimumHitTarget(t *testing.T) {
 		Part(style.PartTrack, style.Style{}.Height(4).MarginY(6)).
 		Part(style.PartThumb, style.Style{}.Width(16).Height(16).Radius(8))
 	widget := func() sliderLayoutWidget {
-		return (New("compact-hit", value).OnChange(func(next float64) { value = next })).Style(custom)
+		return (New(value).Key("compact-hit").OnChange(func(next float64) { value = next })).Style(custom)
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 40))
 	pressSliderAt(router, 1, f32.Pt(150, 18))
@@ -343,7 +343,7 @@ func TestSliderPointerFocusStaysHiddenUntilKeyboardInput(t *testing.T) {
 	router := new(input.Router)
 	value := 0.0
 	widget := func() Widget {
-		return New("volume", value).OnChange(func(next float64) { value = next })
+		return New(value).Key("volume").OnChange(func(next float64) { value = next })
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 100))
 	pressSliderAt(router, 1, f32.Pt(150, 10))
@@ -373,7 +373,7 @@ func TestRangeSliderPointerTargetsNearestThumb(t *testing.T) {
 	router := new(input.Router)
 	lower, upper := 20.0, 80.0
 	widget := func() Widget {
-		return RangeSlider("price", lower, upper).OnRangeChange(func(nextLower, nextUpper float64) {
+		return RangeSlider(lower, upper).Key("price").OnRangeChange(func(nextLower, nextUpper float64) {
 			lower, upper = nextLower, nextUpper
 		})
 	}
@@ -397,7 +397,7 @@ func TestRangeSliderPointerMovementWithoutPressDoesNotChangeValues(t *testing.T)
 	lower, upper := 20.0, 80.0
 	changes := 0
 	widget := func() Widget {
-		return RangeSlider("price", lower, upper).OnRangeChange(func(nextLower, nextUpper float64) {
+		return RangeSlider(lower, upper).Key("price").OnRangeChange(func(nextLower, nextUpper float64) {
 			changes++
 			lower, upper = nextLower, nextUpper
 		})
@@ -420,7 +420,7 @@ func TestSliderDragStartingOnThumbChangesValue(t *testing.T) {
 	router := new(input.Router)
 	value := 20.0
 	widget := func() Widget {
-		return New("volume", value).OnChange(func(next float64) { value = next })
+		return New(value).Key("volume").OnChange(func(next float64) { value = next })
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(300, 100))
 	router.Queue(pointer.Event{
@@ -449,7 +449,7 @@ func TestVerticalSliderMapsTopToMaximum(t *testing.T) {
 	router := new(input.Router)
 	value := 0.0
 	widget := func() Widget {
-		return New("intensity", value).Vertical().OnChange(func(next float64) { value = next })
+		return New(value).Key("intensity").Vertical().OnChange(func(next float64) { value = next })
 	}
 	layoutSliderFrame(ctx, router, widget(), time.Unix(1, 0), image.Pt(20, 300))
 	pressSliderAt(router, 1, f32.Pt(10, 8))
@@ -463,7 +463,7 @@ func TestDisabledSliderIgnoresPointerInput(t *testing.T) {
 	ctx := sliderTestContext()
 	router := new(input.Router)
 	changed := false
-	widget := New("disabled", 30).Disabled(true).OnChange(func(float64) { changed = true })
+	widget := New(30).Key("disabled").Disabled(true).OnChange(func(float64) { changed = true })
 	layoutSliderFrame(ctx, router, widget, time.Unix(1, 0), image.Pt(300, 100))
 	pressSliderAt(router, 1, f32.Pt(200, 10))
 	layoutSliderFrame(ctx, router, widget, time.Unix(1, int64(time.Millisecond)), image.Pt(300, 100))

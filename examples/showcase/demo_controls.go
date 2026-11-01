@@ -18,12 +18,12 @@ import (
 func demoNumericInput(m demoState, send ui.Send[Msg]) ui.Widget {
 	return layout.Column(
 		muted(m.text("金额 · -100 至 100，每步 0.25，保留两位小数")),
-		numericinput.New("amount", m.amount).Range(-100, 100).Step(0.25).Precision(2).Label(m.text("金额")).
+		numericinput.New(m.amount).Key("amount").Range(-100, 100).Step(0.25).Precision(2).Label(m.text("金额")).
 			OnChange(func(value float64) { send(demoMsg(func(m *demoState) { m.amount = value })) }),
 		text.New(fmt.Sprintf(m.text("已提交：%.2f"), m.amount)),
 		muted(m.text("输入时保留草稿；回车或离开输入框时提交，加减按钮立即生效。")),
 		field(m.text("整数数量 · 0 至 10，达到边界后停止增减"),
-			numericinput.New("quantity", m.quantity).Range(0, 10).Step(1).Precision(0).Label(m.text("数量")).
+			numericinput.New(m.quantity).Key("quantity").Range(0, 10).Step(1).Precision(0).Label(m.text("数量")).
 				OnChange(func(value float64) { send(demoMsg(func(m *demoState) { m.quantity = value })) })),
 		layout.Wrap(
 			button.New(m.text("设为最小值")).Variant(button.Secondary).
@@ -31,7 +31,7 @@ func demoNumericInput(m demoState, send ui.Send[Msg]) ui.Widget {
 			button.New(m.text("设为最大值")).Variant(button.Secondary).
 				OnClick(func() { send(demoMsg(func(m *demoState) { m.quantity = 10 })) }),
 		).Gap(8),
-		numericinput.New("amount-disabled", 42).Label(m.text("禁用金额")).Disabled(true),
+		numericinput.New(42).Key("amount-disabled").Label(m.text("禁用金额")).Disabled(true),
 	).Gap(12)
 }
 

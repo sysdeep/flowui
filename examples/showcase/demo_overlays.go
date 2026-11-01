@@ -302,23 +302,23 @@ func demoProgress(m demoState, send ui.Send[Msg]) ui.Widget {
 	var pending ui.Widget = muted(m.text("开启后展示无法确定完成时间的任务。"))
 	if m.progressPending {
 		pending = layout.Column(
-			progress.Bar("progress-pending", 0).Label(m.text("正在处理")).Indeterminate(),
-			progress.Circle("circle-pending", 0).Indeterminate(),
+			progress.Bar(0).Key("progress-pending").Label(m.text("正在处理")).Indeterminate(),
+			progress.Circle(0).Indeterminate().Key("circle-pending"),
 		).Gap(12)
 	}
 	return layout.Column(
-		slider.New("progress-control", m.value).Label(m.text("调整进度")).ShowValue().OnChange(setNumber(send)),
-		progress.Bar("progress-bar", m.value).Label(m.text("上传进度")).ShowValue(),
-		progress.Circle("progress-circle", m.value),
+		slider.New(m.value).Key("progress-control").Label(m.text("调整进度")).ShowValue().OnChange(setNumber(send)),
+		progress.Bar(m.value).Key("progress-bar").Label(m.text("上传进度")).ShowValue(),
+		progress.Circle(m.value).Key("progress-circle"),
 		progress.Meter("progress-meter", m.value).Label(m.text("存储使用量")).ShowValue(),
 		field(m.text("语义颜色与尺寸"), layout.Column(
-			progress.Bar("progress-success", 100).Color(progress.BarSuccess).Size(progress.BarSmall).ShowValue(),
-			progress.Bar("progress-warning", m.value).Color(progress.BarWarning).ShowValue(),
-			progress.Bar("progress-danger", m.value).Color(progress.BarDanger).Size(progress.BarLarge).ShowValue(),
-			progress.Bar("progress-empty", 0).ShowValue(),
-			progress.Bar("progress-disabled", 40).Disabled(true).ShowValue(),
+			progress.Bar(100).Color(progress.BarSuccess).Key("progress-success").Size(progress.BarSmall).ShowValue(),
+			progress.Bar(m.value).Color(progress.BarWarning).Key("progress-warning").ShowValue(),
+			progress.Bar(m.value).Color(progress.BarDanger).Key("progress-danger").Size(progress.BarLarge).ShowValue(),
+			progress.Bar(0).ShowValue().Key("progress-empty"),
+			progress.Bar(40).Disabled(true).Key("progress-disabled").ShowValue(),
 		).Gap(12)),
-		progress.Bar("progress-files", m.value*5).Range(0, 500).Label(m.text("自定义范围与数值格式")).ShowValue().
+		progress.Bar(m.value*5).Range(0, 500).Key("progress-files").Label(m.text("自定义范围与数值格式")).ShowValue().
 			ValueFormatter(func(value float64) string { return fmt.Sprintf("%.0f / 500", value) }),
 		toggle.NewSwitch(m.text("演示不确定进度")).Key("progress-pending-switch").Checked(m.progressPending).
 			OnChange(setBool(send, func(m *demoState) *bool { return &m.progressPending })),

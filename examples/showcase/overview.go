@@ -172,7 +172,7 @@ func overviewForm(m demoState, send ui.Send[Msg]) ui.Widget {
 	}).OnOpenChange(func(open bool) {
 		send(demoMsg(func(m *demoState) { m.overview.frameworkOpen = open }))
 	})
-	date := datepicker.New("overview-date", s.date).FillWidth().OnChange(func(value time.Time) {
+	date := datepicker.New(s.date).Key("overview-date").FillWidth().OnChange(func(value time.Time) {
 		editOverview(send, func(s *overviewSettings) { s.date = value })
 	})
 	fields := ui.WidgetFunc(func(ctx *ui.Context, gtx giolayout.Context) giolayout.Dimensions {
@@ -231,7 +231,7 @@ func overviewRows(m demoState) []table.Row {
 		rows = append(rows, table.Row{Key: project.key, Cells: []table.Cell{
 			{Text: m.text(project.name)}, {Text: project.owner},
 			{Content: chip.New(m.text(project.status)).Color(color).Variant(chip.VariantSoft).Size(chip.SizeSmall)},
-			{Content: progress.Bar("overview-progress-"+project.key, project.progress).Range(0, 1).ShowValue()},
+			{Content: progress.Bar(project.progress).Key("overview-progress-"+project.key).Range(0, 1).ShowValue()},
 			{Text: project.date.Format("2006-01-02")},
 		}})
 	}

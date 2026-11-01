@@ -61,15 +61,20 @@ type recordedColorSwatch struct {
 	size image.Point
 }
 
-func ColorSwatchPicker(key string, value color.NRGBA, colors []color.NRGBA) ColorSwatchPickerWidget {
+func ColorSwatchPicker(value color.NRGBA, colors []color.NRGBA) ColorSwatchPickerWidget {
 	return ColorSwatchPickerWidget{
-		key:         key,
+		key:         core.AutoKey("color-swatch-picker"),
 		value:       value,
 		colors:      append([]color.NRGBA(nil), colors...),
 		size:        ColorSwatchMedium,
 		shape:       ColorSwatchCircle,
 		arrangement: ColorSwatchPickerGrid,
 	}
+}
+
+func (picker ColorSwatchPickerWidget) Key(key string) ColorSwatchPickerWidget {
+	picker.key = key
+	return picker
 }
 
 func (picker ColorSwatchPickerWidget) OnChange(fn func(color.NRGBA)) ColorSwatchPickerWidget {

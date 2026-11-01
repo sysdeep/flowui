@@ -60,7 +60,7 @@ func TestDatePickerOptions(t *testing.T) {
 	maxDate := testDate(2026, 7, 31)
 	var changed time.Time
 
-	d := New("date", value).
+	d := New(value).Key("date").
 		Hint("Pick date").
 		Label("Date").
 		Description("Choose a date").
@@ -103,7 +103,7 @@ func TestDatePickerOptions(t *testing.T) {
 
 func TestDatePickerNormalizesValue(t *testing.T) {
 	value := time.Date(2026, 7, 9, 14, 30, 15, 0, time.UTC)
-	d := New("date", value)
+	d := New(value).Key("date")
 
 	if d.value.Hour() != 0 || d.value.Minute() != 0 || d.value.Second() != 0 {
 		t.Fatalf("value = %v, want date only", d.value)
@@ -112,7 +112,7 @@ func TestDatePickerNormalizesValue(t *testing.T) {
 
 func TestLocale(t *testing.T) {
 	value := testDate(2026, 7, 9)
-	chinese := New("date", value).Locale(Chinese())
+	chinese := New(value).Key("date").Locale(Chinese())
 
 	if chinese.hint != "YYYY年MM月DD日" {
 		t.Fatalf("hint = %q, want Chinese hint", chinese.hint)
@@ -139,7 +139,7 @@ func TestLocale(t *testing.T) {
 }
 
 func TestDatePickerCustomHintSurvivesLocale(t *testing.T) {
-	d := New("date", time.Time{}).
+	d := New(time.Time{}).Key("date").
 		Hint("Pick date").
 		Locale(Chinese())
 
@@ -150,7 +150,7 @@ func TestDatePickerCustomHintSurvivesLocale(t *testing.T) {
 
 func TestDatePickerUsesContextLocale(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageChinese)
-	d := New("date", time.Time{}).resolveLocale(ctx)
+	d := New(time.Time{}).Key("date").resolveLocale(ctx)
 
 	if d.hint != "YYYY年MM月DD日" {
 		t.Fatalf("hint = %q, want Chinese hint", d.hint)
@@ -174,7 +174,7 @@ func TestDatePickerCalendarLabelsUseCatalogOverrides(t *testing.T) {
 		i18n.Translation{Language: "fr", Key: i18n.CalendarWeekdayMonday, Value: "lun."},
 	)
 	ctx := core.NewWithCatalog(nil, nil, locale.Language("fr-CA"), catalog)
-	picker := New("date", time.Time{}).resolveLocale(ctx)
+	picker := New(time.Time{}).Key("date").resolveLocale(ctx)
 
 	if picker.locale.Months[6] != "Juil." {
 		t.Fatalf("July label = %q, want Catalog override", picker.locale.Months[6])
@@ -186,7 +186,7 @@ func TestDatePickerCalendarLabelsUseCatalogOverrides(t *testing.T) {
 		t.Fatalf("month header = %q, want Catalog full month override", got)
 	}
 
-	rangePicker := DateRangePicker("range", DateRange{}).resolveLocale(ctx)
+	rangePicker := DateRangePicker(DateRange{}).Key("range").resolveLocale(ctx)
 	if rangePicker.locale.Months[6] != "Juil." || rangePicker.locale.Weekdays[time.Monday] != "lun." {
 		t.Fatalf("range calendar labels = month %q, weekday %q, want Catalog overrides", rangePicker.locale.Months[6], rangePicker.locale.Weekdays[time.Monday])
 	}
@@ -195,17 +195,17 @@ func TestDatePickerCalendarLabelsUseCatalogOverrides(t *testing.T) {
 func TestDateComponentsUseChineseLanguageFamily(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.Language("zh-CN"))
 
-	picker := New("date", time.Time{}).resolveLocale(ctx)
+	picker := New(time.Time{}).Key("date").resolveLocale(ctx)
 	if picker.hint != "YYYY年MM月DD日" || picker.locale.WeekStart != time.Monday {
 		t.Fatalf("DatePicker locale = %#v, want Chinese defaults", picker.locale)
 	}
 
-	field := DateField("field", time.Time{}).resolveLocale(ctx)
+	field := DateField(time.Time{}).Key("field").resolveLocale(ctx)
 	if field.locale.DateOrder != [3]DatePart{DatePartYear, DatePartMonth, DatePartDay} {
 		t.Fatalf("DateField date order = %#v, want Chinese order", field.locale.DateOrder)
 	}
 
-	rangePicker := DateRangePicker("range", DateRange{}).resolveLocale(ctx)
+	rangePicker := DateRangePicker(DateRange{}).Key("range").resolveLocale(ctx)
 	if rangePicker.locale.WeekStart != time.Monday {
 		t.Fatalf("DateRangePicker week start = %v, want Monday", rangePicker.locale.WeekStart)
 	}
@@ -213,7 +213,7 @@ func TestDateComponentsUseChineseLanguageFamily(t *testing.T) {
 
 func TestDatePickerExplicitLocaleOverridesContextLanguage(t *testing.T) {
 	ctx := newContextWithThemeAndLanguage(nil, nil, locale.LanguageChinese)
-	d := New("date", time.Time{}).Locale(English()).resolveLocale(ctx)
+	d := New(time.Time{}).Key("date").Locale(English()).resolveLocale(ctx)
 
 	if d.hint != "MM / DD / YYYY" {
 		t.Fatalf("hint = %q, want English hint", d.hint)
@@ -242,7 +242,7 @@ func TestDatePickerLocaleCacheTracksContextLanguage(t *testing.T) {
 func TestDatePickerInitialMonthClampsToRange(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", time.Time{}).
+	picker := New(time.Time{}).Key("date").
 		MinDate(testDate(2026, 7, 10)).
 		MaxDate(testDate(2026, 8, 20))
 
@@ -299,7 +299,7 @@ func TestDatePickerToggleYearPicker(t *testing.T) {
 func TestDatePickerOpenResetsToDayView(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1))
+	picker := New(testDate(2026, 7, 1)).Key("date")
 	layoutDatePickerFrame(ctx, router, picker)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
 	state.viewMode = datePickerViewYears
@@ -329,7 +329,7 @@ func TestDatePickerBehaviorContract(t *testing.T) {
 		ctx := newContextWithThemeAndLanguage(nil, &activeTheme, locale.LanguageEnglish)
 		router := new(input.Router)
 		var selected time.Time
-		picker := New("date", testDate(2026, 7, 1)).OnChange(func(value time.Time) {
+		picker := New(testDate(2026, 7, 1)).Key("date").OnChange(func(value time.Time) {
 			selected = value
 		})
 
@@ -404,7 +404,7 @@ func TestDateRangePickerBehaviorContract(t *testing.T) {
 		value := DateRange{Start: testDate(2026, 7, 1), End: testDate(2026, 7, 4)}
 		changes := 0
 		picker := func() DateRangePickerWidget {
-			return DateRangePicker("range-contract", value).OnChange(func(next DateRange) {
+			return DateRangePicker(value).Key("range-contract").OnChange(func(next DateRange) {
 				value = next
 				changes++
 			})
@@ -460,7 +460,7 @@ func TestDateRangePickerBehaviorContract(t *testing.T) {
 func TestDatePickerPointerTriggerFocusIsNotKeyboardVisible(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1)).FillWidth()
+	picker := New(testDate(2026, 7, 1)).Key("date").FillWidth()
 	start := time.Unix(1, 0)
 	layoutDatePickerFrameAt(ctx, router, picker, start)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
@@ -496,8 +496,8 @@ func TestDatePickerEditableControlsFieldTrigger(t *testing.T) {
 		picker   Widget
 		wantOpen bool
 	}{
-		{name: "editable", picker: New("date", testDate(2026, 7, 1)).FillWidth()},
-		{name: "picker only", picker: New("date", testDate(2026, 7, 1)).Editable(false).FillWidth(), wantOpen: true},
+		{name: "editable", picker: New(testDate(2026, 7, 1)).Key("date").FillWidth()},
+		{name: "picker only", picker: New(testDate(2026, 7, 1)).Key("date").Editable(false).FillWidth(), wantOpen: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := newContext(nil)
@@ -528,7 +528,7 @@ func TestDatePickerEditableControlsFieldTrigger(t *testing.T) {
 func TestDatePickerEditableFieldBlankAreaOpensCalendar(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1)).FillWidth()
+	picker := New(testDate(2026, 7, 1)).Key("date").FillWidth()
 	start := time.Unix(1, 0)
 	layoutDatePickerFrameAt(ctx, router, picker, start)
 
@@ -554,7 +554,7 @@ func TestDatePickerEditableFieldBlankAreaOpensCalendar(t *testing.T) {
 func TestDatePickerHeaderAndYearClickFlow(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1))
+	picker := New(testDate(2026, 7, 1)).Key("date")
 
 	layoutDatePickerFrame(ctx, router, picker)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
@@ -585,7 +585,7 @@ func TestDatePickerHeaderAndYearClickFlow(t *testing.T) {
 func TestDatePickerCalendarFocusKeepsPopoverOpenAndEscapeCloses(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1))
+	picker := New(testDate(2026, 7, 1)).Key("date")
 	layoutDatePickerFrame(ctx, router, picker)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
 	router.Source().Execute(key.FocusCmd{Tag: &state.trigger})
@@ -624,7 +624,7 @@ func TestDatePickerPanelPressKeepsFocusAndBlocksBackground(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := newContext(nil)
 			router := new(input.Router)
-			picker := New("date", testDate(2026, 7, 1)).FillWidth()
+			picker := New(testDate(2026, 7, 1)).Key("date").FillWidth()
 			var background widget.Clickable
 			backgroundClicked := false
 			start := time.Unix(1, 0)
@@ -688,7 +688,7 @@ func TestDatePickerExitingPanelPaddingBlocksBackground(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	changed := false
-	picker := New("date", testDate(2026, 7, 1)).
+	picker := New(testDate(2026, 7, 1)).Key("date").
 		FillWidth().
 		OnChange(func(time.Time) {
 			changed = true
@@ -762,7 +762,7 @@ func TestDatePickerExitingPanelPaddingBlocksBackground(t *testing.T) {
 func TestDatePickerIgnoresEscapeWhileAnotherOverlayIsTopmost(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1))
+	picker := New(testDate(2026, 7, 1)).Key("date")
 
 	layoutDatePickerFrame(ctx, router, picker)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
@@ -875,7 +875,7 @@ func TestDatePickerMotionPolicyDisablesTransitions(t *testing.T) {
 func TestDatePickerOpenLayoutDoesNotTakeSpace(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", testDate(2026, 7, 1))
+	picker := New(testDate(2026, 7, 1)).Key("date")
 	layoutDatePickerFrame(ctx, router, picker)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
 	router.Source().Execute(key.FocusCmd{Tag: &state.trigger})
@@ -892,7 +892,7 @@ func TestDatePickerClickSelectsDate(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
 	var got time.Time
-	picker := New("date", testDate(2026, 7, 1)).
+	picker := New(testDate(2026, 7, 1)).Key("date").
 		OnChange(func(date time.Time) {
 			got = date
 		})
@@ -921,7 +921,7 @@ func TestDatePickerClickSelectsDate(t *testing.T) {
 func TestDatePickerTodayUsesFrameTimeForDays(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", time.Time{})
+	picker := New(time.Time{}).Key("date")
 	now := testDate(2026, 7, 9)
 	layoutDatePickerFrameAt(ctx, router, picker, now)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
@@ -946,7 +946,7 @@ func TestDatePickerTodayUsesFrameTimeForDays(t *testing.T) {
 func TestDatePickerTodayUsesFrameTimeForMonthsAndYears(t *testing.T) {
 	ctx := newContext(nil)
 	router := new(input.Router)
-	picker := New("date", time.Time{})
+	picker := New(time.Time{}).Key("date")
 	now := testDate(2026, 7, 9)
 	layoutDatePickerFrameAt(ctx, router, picker, now)
 	state := testComponentState[datePickerState](ctx, "date", stateSlotDatePicker)
@@ -988,7 +988,7 @@ func TestDatePickerTodayUsesFrameTimeForMonthsAndYears(t *testing.T) {
 }
 
 func TestDatePickerMinMaxDisablesDates(t *testing.T) {
-	picker := New("date", time.Time{}).
+	picker := New(time.Time{}).Key("date").
 		MinDate(testDate(2026, 7, 10)).
 		MaxDate(testDate(2026, 7, 20))
 
@@ -1004,7 +1004,7 @@ func TestDatePickerMinMaxDisablesDates(t *testing.T) {
 }
 
 func TestDatePickerMinMaxDisablesMonthsAndYears(t *testing.T) {
-	picker := New("date", time.Time{}).
+	picker := New(time.Time{}).Key("date").
 		MinDate(testDate(2026, 7, 10)).
 		MaxDate(testDate(2026, 8, 20))
 
@@ -1032,7 +1032,7 @@ func TestDatePickerMinMaxDisablesMonthsAndYears(t *testing.T) {
 }
 
 func TestDatePickerYearPickerRangeRespectsExplicitMinMax(t *testing.T) {
-	picker := New("date", testDate(2025, 1, 1)).
+	picker := New(testDate(2025, 1, 1)).Key("date").
 		MinDate(testDate(2026, 7, 10)).
 		MaxDate(testDate(2028, 8, 20))
 	state := &datePickerState{viewMonth: testDate(2025, 6, 1)}
@@ -1048,7 +1048,7 @@ func TestDatePickerComparesDatesByCalendarDay(t *testing.T) {
 	newYork := time.FixedZone("UTC-5", -5*60*60)
 	minDate := time.Date(2026, 7, 10, 0, 0, 0, 0, shanghai)
 	sameDay := time.Date(2026, 7, 10, 0, 0, 0, 0, newYork)
-	picker := New("date", time.Time{}).MinDate(minDate)
+	picker := New(time.Time{}).Key("date").MinDate(minDate)
 
 	if picker.isDateDisabled(sameDay) {
 		t.Fatal("same calendar day in a different location was disabled")
@@ -1163,7 +1163,7 @@ func testDate(year int, month time.Month, day int) time.Time {
 }
 
 func TestUncontrolledPreservesZeroDateWithoutControl(t *testing.T) {
-	picker := New("date", time.Time{}).Uncontrolled()
+	picker := New(time.Time{}).Key("date").Uncontrolled()
 	if picker.hasValue || !picker.hasDefault || !picker.defaultValue.IsZero() {
 		t.Fatalf("Uncontrolled() = hasValue=%v hasDefault=%v defaultValue=%v", picker.hasValue, picker.hasDefault, picker.defaultValue)
 	}

@@ -38,8 +38,13 @@ type colorWheelState struct {
 	imageCache    colorWheelImageCache
 }
 
-func ColorWheel(key string, value color.NRGBA) ColorWheelWidget {
-	return ColorWheelWidget{key: key, value: value}
+func ColorWheel(value color.NRGBA) ColorWheelWidget {
+	return ColorWheelWidget{key: core.AutoKey("color-wheel"), value: value}
+}
+
+func (wheel ColorWheelWidget) Key(key string) ColorWheelWidget {
+	wheel.key = key
+	return wheel
 }
 
 func (wheel ColorWheelWidget) Size(size int) ColorWheelWidget {

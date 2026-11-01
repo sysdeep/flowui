@@ -54,8 +54,13 @@ type dateRangePickerState struct {
 	hover        base.HoverInteraction
 }
 
-func DateRangePicker(key string, value DateRange) DateRangePickerWidget {
-	return DateRangePickerWidget{key: key, value: normalizeDateRange(value)}
+func DateRangePicker(value DateRange) DateRangePickerWidget {
+	return DateRangePickerWidget{key: core.AutoKey("date-range-picker"), value: normalizeDateRange(value)}
+}
+
+func (d DateRangePickerWidget) Key(key string) DateRangePickerWidget {
+	d.key = key
+	return d
 }
 
 func (d DateRangePickerWidget) Label(value string) DateRangePickerWidget {

@@ -18,12 +18,12 @@ func TestColorPickerComponentTreeLaysOutAndShowsOverlay(t *testing.T) {
 	now := time.Unix(1, 0)
 	value := color.NRGBA{R: 4, G: 133, B: 247, A: 180}
 
-	layoutColorWidgetFrame(ctx, router, ColorWheel("renderer-wheel", value), now)
-	layoutColorWidgetFrame(ctx, router, ColorSlider("renderer-slider", value, ColorChannelHue), now)
+	layoutColorWidgetFrame(ctx, router, ColorWheel(value).Key("renderer-wheel"), now)
+	layoutColorWidgetFrame(ctx, router, ColorSlider(value, ColorChannelHue).Key("renderer-slider"), now)
 	layoutColorWidgetFrame(ctx, router, ColorSwatch(value), now)
-	layoutColorWidgetFrame(ctx, router, ColorSwatchPicker("renderer-swatches", value, []color.NRGBA{value}), now)
+	layoutColorWidgetFrame(ctx, router, ColorSwatchPicker(value, []color.NRGBA{value}).Key("renderer-swatches"), now)
 
-	picker := New("renderer-picker", value).
+	picker := New(value).Key("renderer-picker").
 		Label("Accent color").
 		Alpha(true).
 		Presets([]color.NRGBA{{R: 200, G: 100, B: 50, A: 255}})

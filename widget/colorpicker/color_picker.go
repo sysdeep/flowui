@@ -30,9 +30,9 @@ type Widget struct {
 
 const defaultColorHistorySize = 8
 
-func New(key string, value color.NRGBA) Widget {
+func New(value color.NRGBA) Widget {
 	return Widget{
-		key:         key,
+		key:         core.AutoKey("color-picker"),
 		value:       value,
 		hasValue:    true,
 		showField:   true,
@@ -40,6 +40,11 @@ func New(key string, value color.NRGBA) Widget {
 		showHistory: true,
 		historySize: defaultColorHistorySize,
 	}
+}
+
+func (picker Widget) Key(key string) Widget {
+	picker.key = key
+	return picker
 }
 
 func (picker Widget) Value(value color.NRGBA) Widget {

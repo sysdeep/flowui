@@ -33,8 +33,13 @@ type colorAreaState struct {
 	defaultsCache colorAreaDefaultsCache
 }
 
-func ColorArea(key string, value color.NRGBA) ColorAreaWidget {
-	return ColorAreaWidget{key: key, value: value}
+func ColorArea(value color.NRGBA) ColorAreaWidget {
+	return ColorAreaWidget{key: core.AutoKey("color-area"), value: value}
+}
+
+func (area ColorAreaWidget) Key(key string) ColorAreaWidget {
+	area.key = key
+	return area
 }
 
 func (area ColorAreaWidget) Label(label string) ColorAreaWidget {

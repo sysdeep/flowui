@@ -22,7 +22,7 @@ import (
 const colorPickerEnterDuration = 150 * time.Millisecond
 
 func TestColorPickerOptionsUseValueSemantics(t *testing.T) {
-	base := New("brand", color.NRGBA{R: 1, A: 255})
+	base := New(color.NRGBA{R: 1, A: 255}).Key("brand")
 	presets := []color.NRGBA{{R: 2, A: 255}}
 	configured := base.
 		Label("Brand color").
@@ -56,7 +56,7 @@ func TestColorPickerHistoryExcludesPresets(t *testing.T) {
 func TestColorPickerPointerTriggerFocusIsNotKeyboardVisible(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
-	picker := New("brand", color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}).Label("Accent color")
+	picker := New(color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}).Label("Accent color").Key("brand")
 	start := time.Unix(1, 0)
 	layoutColorPickerFrame(ctx, router, picker, start)
 	state := colorPickerTestState(ctx, "brand")
@@ -78,7 +78,7 @@ func TestColorPickerPointerTriggerFocusIsNotKeyboardVisible(t *testing.T) {
 func TestColorPickerKeyboardTriggerFocusRemainsVisible(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
-	picker := New("brand", color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}).Label("Accent color")
+	picker := New(color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}).Label("Accent color").Key("brand")
 	start := time.Unix(1, 0)
 	layoutColorPickerFrame(ctx, router, picker, start)
 	state := colorPickerTestState(ctx, "brand")
@@ -104,9 +104,9 @@ func TestIndependentColorComponentsUseValueSemantics(t *testing.T) {
 	value := color.NRGBA{R: 1, G: 2, B: 3, A: 255}
 	colors := []color.NRGBA{{R: 4, A: 255}}
 	disabled := []color.NRGBA{{R: 5, A: 255}}
-	area := ColorArea("area", value)
+	area := ColorArea(value).Key("area")
 	configuredArea := area.ShowDots(true).Disabled(true).Label("Area").OnChange(func(color.NRGBA) {})
-	picker := ColorSwatchPicker("palette", value, colors).DisabledColors(disabled)
+	picker := ColorSwatchPicker(value, colors).Key("palette").DisabledColors(disabled)
 	colors[0] = color.NRGBA{}
 	disabled[0] = color.NRGBA{}
 
@@ -148,7 +148,7 @@ func TestColorSwatchPickerDispatchesSelection(t *testing.T) {
 	red := color.NRGBA{R: 255, A: 255}
 	blue := color.NRGBA{B: 255, A: 255}
 	var changed color.NRGBA
-	picker := ColorSwatchPicker("palette", red, []color.NRGBA{red, blue}).OnChange(func(value color.NRGBA) {
+	picker := ColorSwatchPicker(red, []color.NRGBA{red, blue}).Key("palette").OnChange(func(value color.NRGBA) {
 		changed = value
 	})
 	now := time.Unix(1, 0)
@@ -241,16 +241,16 @@ func BenchmarkColorPickerChangingColor(b *testing.B) {
 	operations := new(op.Ops)
 	start := time.Unix(1, 0)
 	value := color.NRGBA{R: 4, G: 133, B: 247, A: 255}
-	layoutColorWidgetFrameWithOps(ctx, router, New("benchmark", value), start, operations)
+	layoutColorWidgetFrameWithOps(ctx, router, New(value).Key("benchmark"), start, operations)
 	pickerState := colorPickerTestState(ctx, "benchmark")
 	pickerState.open = true
-	layoutColorWidgetFrameWithOps(ctx, router, New("benchmark", value), start.Add(colorPickerEnterDuration), operations)
+	layoutColorWidgetFrameWithOps(ctx, router, New(value).Key("benchmark"), start.Add(colorPickerEnterDuration), operations)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; index < b.N; index++ {
 		value = hsvToNRGBA(hsvColor{h: .57, s: float64(index%100) / 100, v: .8, a: 1})
-		layoutColorWidgetFrameWithOps(ctx, router, New("benchmark", value), start.Add(colorPickerEnterDuration+time.Duration(index+1)*time.Millisecond), operations)
+		layoutColorWidgetFrameWithOps(ctx, router, New(value).Key("benchmark"), start.Add(colorPickerEnterDuration+time.Duration(index+1)*time.Millisecond), operations)
 	}
 }
 
@@ -284,7 +284,7 @@ func TestColorPickerAreaPointerChangesControlledValue(t *testing.T) {
 	value := color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}
 	initial := value
 	picker := func() Widget {
-		return New("brand", value).
+		return New(value).Key("brand").
 			Label("Pick a color").
 			OnChange(func(next color.NRGBA) { value = next })
 	}
@@ -342,7 +342,7 @@ func TestColorPickerHueKeyboardAndEscape(t *testing.T) {
 	router := new(input.Router)
 	initial := color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}
 	var changed color.NRGBA
-	picker := New("brand", initial).OnChange(func(value color.NRGBA) { changed = value })
+	picker := New(initial).Key("brand").OnChange(func(value color.NRGBA) { changed = value })
 	start := time.Unix(1, 0)
 
 	layoutColorPickerFrame(ctx, router, picker, start)
@@ -376,7 +376,7 @@ func TestColorPickerOutsideDismissCommitsHistoryOnce(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	initial := color.NRGBA{R: 0x04, G: 0x85, B: 0xf7, A: 255}
-	picker := New("brand", initial).HistorySize(4)
+	picker := New(initial).HistorySize(4).Key("brand")
 	start := time.Unix(1, 0)
 
 	layoutColorPickerFrame(ctx, router, picker, start)
@@ -411,7 +411,7 @@ func TestColorPickerAlphaSliderKeyboardAndDisabledPicker(t *testing.T) {
 	value := initial
 	var changed color.NRGBA
 	picker := func() Widget {
-		return New("brand", value).
+		return New(value).Key("brand").
 			Alpha(true).
 			ShowRGB(false).
 			HideField().
@@ -444,7 +444,7 @@ func TestColorPickerAlphaSliderKeyboardAndDisabledPicker(t *testing.T) {
 
 	disabledCtx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	disabledRouter := new(input.Router)
-	disabled := New("disabled", initial).Disabled(true)
+	disabled := New(initial).Disabled(true).Key("disabled")
 	layoutColorPickerFrame(disabledCtx, disabledRouter, disabled, start)
 	disabledState := colorPickerTestState(disabledCtx, "disabled")
 	disabledRouter.Queue(pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, PointerID: 1, Buttons: pointer.ButtonPrimary, Position: f32.Pt(24, 18)})
@@ -485,7 +485,7 @@ func TestColorPickerHexFieldCommitsValidValuesAndRejectsInvalidInput(t *testing.
 			value := initial
 			changes := 0
 			picker := func() Widget {
-				return New("brand", value).
+				return New(value).Key("brand").
 					Alpha(test.alpha).
 					OnChange(func(next color.NRGBA) {
 						changes++
@@ -541,7 +541,7 @@ func TestColorPickerRGBFieldsCommitChannelsAndRejectInvalidInput(t *testing.T) {
 			value := initial
 			changes := 0
 			picker := func() Widget {
-				return New("brand", value).
+				return New(value).Key("brand").
 					Alpha(test.alpha).
 					OnChange(func(next color.NRGBA) {
 						changes++
@@ -580,7 +580,7 @@ func TestColorPickerRGBFieldsCommitChannelsAndRejectInvalidInput(t *testing.T) {
 	ctx := core.New(nil, new(theme.Light()), locale.LanguageEnglish)
 	router := new(input.Router)
 	start := time.Unix(1, 0)
-	picker := New("rgb-only", color.NRGBA{R: 1, G: 2, B: 3, A: 4}).ShowRGB(true)
+	picker := New(color.NRGBA{R: 1, G: 2, B: 3, A: 4}).ShowRGB(true).Key("rgb-only")
 	layoutColorPickerFrame(ctx, router, picker, start)
 	state := colorPickerTestState(ctx, "rgb-only")
 	state.trigger.Click()
@@ -611,7 +611,7 @@ func TestColorPickerPresetSelectionHonorsDisabledAndCurrentItems(t *testing.T) {
 			value := test.initial
 			callbacks := 0
 			picker := func() Widget {
-				return New("brand", value).
+				return New(value).Key("brand").
 					Presets([]color.NRGBA{red, blue, green}).
 					OnChange(func(next color.NRGBA) {
 						callbacks++
@@ -667,7 +667,7 @@ func TestColorSwatchPickerDisabledAndCurrentItemsDoNotDispatch(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			value := test.initial
 			callbacks := 0
-			picker := ColorSwatchPicker("palette", value, []color.NRGBA{red, blue}).
+			picker := ColorSwatchPicker(value, []color.NRGBA{red, blue}).Key("palette").
 				DisabledColors(test.disabled).
 				OnChange(func(next color.NRGBA) {
 					callbacks++
@@ -713,7 +713,7 @@ func TestColorPickerControlledAndUncontrolledValuesPersistAcrossFrames(t *testin
 			selected := color.NRGBA{R: 10, G: 20, B: 30, A: 255}
 			value := initial
 			callbacks := 0
-			picker := New("brand", initial)
+			picker := New(initial).Key("brand")
 			if test.uncontrolled {
 				picker = picker.DefaultValue(initial)
 			}
@@ -728,7 +728,7 @@ func TestColorPickerControlledAndUncontrolledValuesPersistAcrossFrames(t *testin
 				if !test.uncontrolled {
 					current = value
 				}
-				result := New("brand", current).OnChange(picker.onChange)
+				result := New(current).OnChange(picker.onChange).Key("brand")
 				if test.uncontrolled {
 					result = result.DefaultValue(initial)
 				}
@@ -750,7 +750,7 @@ func TestColorPickerControlledAndUncontrolledValuesPersistAcrossFrames(t *testin
 				if !test.uncontrolled {
 					current = value
 				}
-				presetWidget := New("brand", current).Presets([]color.NRGBA{selected}).OnChange(picker.onChange)
+				presetWidget := New(current).Presets([]color.NRGBA{selected}).Key("brand").OnChange(picker.onChange)
 				if test.uncontrolled {
 					presetWidget = presetWidget.DefaultValue(initial)
 				}
@@ -769,7 +769,7 @@ func TestColorPickerControlledAndUncontrolledValuesPersistAcrossFrames(t *testin
 			if !test.uncontrolled {
 				current = value
 			}
-			selectedWidget := New("brand", current).Presets([]color.NRGBA{selected}).OnChange(picker.onChange)
+			selectedWidget := New(current).Presets([]color.NRGBA{selected}).Key("brand").OnChange(picker.onChange)
 			if test.uncontrolled {
 				selectedWidget = selectedWidget.DefaultValue(initial)
 			}
@@ -809,7 +809,7 @@ func TestColorPickerHistoryTracksDiscreteCommitsOnly(t *testing.T) {
 	preset := color.NRGBA{R: 200, G: 100, B: 50, A: 255}
 	value := initial
 	picker := func() Widget {
-		return New("brand", value).
+		return New(value).Key("brand").
 			Presets([]color.NRGBA{preset}).
 			OnChange(func(next color.NRGBA) { value = next })
 	}

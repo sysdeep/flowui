@@ -53,7 +53,7 @@ func (frame *colorPickerBenchmarkFrame) layout(value core.Widget) layout.Dimensi
 }
 
 func benchmarkColorPickerValue() Widget {
-	return New("benchmark", color.NRGBA{R: 4, G: 133, B: 247, A: 180}).
+	return New(color.NRGBA{R: 4, G: 133, B: 247, A: 180}).Key("benchmark").
 		Alpha(true).
 		Presets([]color.NRGBA{
 			{R: 220, G: 60, B: 60, A: 255},

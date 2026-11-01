@@ -97,8 +97,13 @@ type dateSegmentState struct {
 	typedAt   time.Time
 }
 
-func DateField(key string, value time.Time) DateFieldWidget {
-	return DateFieldWidget{key: key, value: dateOnly(value)}
+func DateField(value time.Time) DateFieldWidget {
+	return DateFieldWidget{key: core.AutoKey("date-field"), value: dateOnly(value)}
+}
+
+func (d DateFieldWidget) Key(key string) DateFieldWidget {
+	d.key = key
+	return d
 }
 
 func (d DateFieldWidget) Label(value string) DateFieldWidget {

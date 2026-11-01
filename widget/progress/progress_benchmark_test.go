@@ -45,7 +45,7 @@ func (f *progressBenchmarkFrame) layout(value core.Widget) layout.Dimensions {
 
 func BenchmarkProgressBarLayoutSteadyState(b *testing.B) {
 	frame := newProgressBenchmarkFrame(image.Pt(480, 80))
-	value := Bar("upload", 42).Label("Upload").ShowValue()
+	value := Bar(42).Label("Upload").Key("upload").ShowValue()
 	frame.layout(value)
 
 	b.ReportAllocs()
@@ -57,7 +57,7 @@ func BenchmarkProgressBarLayoutSteadyState(b *testing.B) {
 
 func BenchmarkProgressCircleLayoutSteadyState(b *testing.B) {
 	frame := newProgressBenchmarkFrame(image.Pt(120, 120))
-	value := Circle("upload", 42).Label("Upload")
+	value := Circle(42).Label("Upload").Key("upload")
 	frame.layout(value)
 
 	b.ReportAllocs()
@@ -72,9 +72,9 @@ func BenchmarkProgressComponentTreeSteadyState(b *testing.B) {
 	values := make([]core.Widget, 128)
 	for index := range values {
 		if index%3 == 0 {
-			values[index] = Circle(fmt.Sprintf("circle-%d", index), float64(index%100))
+			values[index] = Circle(float64(index % 100)).Key(fmt.Sprintf("circle-%d", index))
 		} else if index%3 == 1 {
-			values[index] = Bar(fmt.Sprintf("bar-%d", index), float64(index%100)).ShowValue()
+			values[index] = Bar(float64(index % 100)).Key(fmt.Sprintf("bar-%d", index)).ShowValue()
 		} else {
 			values[index] = Meter(fmt.Sprintf("meter-%d", index), float64(index%100))
 		}
@@ -214,11 +214,11 @@ func BenchmarkProgressCircleVisualCacheThemeInvalidation(b *testing.B) {
 }
 
 func benchmarkBarDefaults() progressBarDefaults {
-	return Bar("benchmark", 0).defaultStyles(new(theme.Light()))
+	return Bar(0).Key("benchmark").defaultStyles(new(theme.Light()))
 }
 
 func benchmarkCircleDefaults() progressCircleDefaults {
-	return Circle("benchmark", 0).defaultStyles(new(theme.Light()))
+	return Circle(0).Key("benchmark").defaultStyles(new(theme.Light()))
 }
 
 var _ BarColor = BarAccent
